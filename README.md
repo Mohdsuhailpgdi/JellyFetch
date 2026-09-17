@@ -13,6 +13,7 @@ A powerful, native C# Jellyfin plugin that automatically scrapes media sources, 
   * Pause, Resume, and Cancel functionality directly from the UI.
 * **Resilient Metadata**: Automatically saves `.nfo` metadata and poster locks before download completion to prevent Jellyfin from incorrectly re-identifying movies when replacing placeholder streams with real video files.
 * **Robust Logging & History**: JSON-based history manager prevents SQL lock errors while maintaining a permanent record of all completed, failed, and canceled downloads.
+* **Regional Optimization**: Built specifically with Indian users in mind, featuring deep integration and default scrapers optimized for *1tamilmv*, along with extensive fallback capabilities.
 
 ## Configuration
 
@@ -32,7 +33,3 @@ dotnet build
 ```
 
 After building, copy the `Jellyfin.Plugin.Downloads.dll` into your Jellyfin `/config/plugins/Downloads/` folder and restart the server.
-
-## Cleanup and Optimization
-
-This codebase is clean and production-ready. All old prototyping scripts and scratchpads have been permanently removed from this branch. No credentials or keys are hardcoded in the codebase.

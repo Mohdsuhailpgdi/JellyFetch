@@ -23,20 +23,4 @@
     <EmbeddedResource Include="Web\downloaders.html" />
     <EmbeddedResource Include="Web\downloaders.js" />
   </ItemGroup>
-  <ItemGroup>
-    <None Update="seedr_helper.py">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="torbox_helper.py">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="meta.json">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
-    <None Update="jellyfin_scraper.py">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
 </Project>
