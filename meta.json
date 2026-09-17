@@ -1,0 +1,22 @@
+{
+    "category": "General",
+    "changelog": "Initial alpha release.",
+    "description": "Native Downloads ecosystem for Jellyfin. Scrapes external forums for new media and integrates with Seedr and Torbox for downloading.",
+    "guid": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+    "imageUrl": "",
+    "name": "Downloads",
+    "overview": "External media scraper and download manager. Integrates Seedr and Torbox.",
+    "owner": "LAB Hermes",
+    "targetAbi": "10.9.0.0",
+    "timestamp": "2026-09-10T00:00:00Z",
+    "versions": [
+        {
+            "checksum": "",
+            "changelog": "Initial alpha release.",
+            "targetAbi": "10.9.0.0",
+            "sourceUrl": "",
+            "timestamp": "2026-09-10T00:00:00Z",
+            "version": "1.0.0.0"
+        }
+    ]
+}
