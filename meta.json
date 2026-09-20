@@ -12,11 +12,11 @@
     "versions": [
         {
             "checksum": "",
-            "changelog": "Initial alpha release.",
+            "changelog": "Fix native Ubuntu paths.",
             "targetAbi": "10.9.0.0",
             "sourceUrl": "",
-            "timestamp": "2026-09-10T00:00:00Z",
-            "version": "1.0.0.0"
+            "timestamp": "2026-09-20T00:00:00Z",
+            "version": "1.0.1.0"
         }
     ]
 }

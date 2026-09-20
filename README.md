@@ -24,18 +24,39 @@ This plugin is specifically optimized and hardcoded for Indian media consumers. 
 
 ## 🛠️ Installation
 
+### 1. Install the Plugin Backend
 You can install this plugin natively directly from the Jellyfin Web UI using the Custom Repository feature.
 
 1. Open your Jellyfin Web UI and navigate to **Dashboard** -> **Plugins**.
 2. Click on the **Repositories** tab.
 3. Click the **+ New Repository** button.
 4. Fill in the details:
-   * **Name**: `Downloads Plugin`
+   * **Name**: `JellyFetch Plugin`
    * **Repository URL**: `https://raw.githubusercontent.com/Mohdsuhailpgdi/Jellyfin-Downloads-Plugin/main/manifest.json`
 5. Click **Save**.
 6. Switch to the **Catalog** tab on the top of the Plugins page.
-7. Scroll down to the **General** section, find the **Downloads** plugin, and click **Install**.
+7. Scroll down to the **General** section, find the **JellyFetch** plugin, and click **Install**.
 8. **Restart your Jellyfin server** for the plugin to load.
+
+### 2. Install the Frontend UI (For the Download Button)
+The plugin requires a custom modified `jellyfin-web` interface to display the Download Button and live progress overlays directly on your movie pages.
+
+**For Native Ubuntu/Debian Installs:**
+1. Download the pre-compiled `dist.tar.gz` from the GitHub releases page.
+2. Extract the contents directly into your native Jellyfin web directory:
+   ```bash
+   sudo tar -xzf dist.tar.gz -C /usr/share/jellyfin/web/
+   sudo chown -R jellyfin:jellyfin /usr/share/jellyfin/web/
+   sudo systemctl restart jellyfin
+   ```
+3. **IMPORTANT**: You must perform a Hard Refresh (`Ctrl + F5`) or completely clear your browser cache for the new Download button to appear!
+
+**For Docker Installs:**
+You will need to mount the modified `jellyfin-web/dist` folder over the container's built-in web path using a volume mount in your `docker-compose.yml`:
+```yaml
+volumes:
+  - /path/to/extracted/dist:/jellyfin/jellyfin-web
+```
 
 ---
 
