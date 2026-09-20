@@ -5,7 +5,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Jellyfin.Plugin.Downloads.Helpers
+namespace Jellyfin.Plugin.JellyFetch.Helpers
 {
     public class DownloadHistoryEntry
     {
@@ -20,7 +20,7 @@ namespace Jellyfin.Plugin.Downloads.Helpers
 
     public static class DownloadHistoryManager
     {
-        private static readonly string HistoryPath = "/config/plugins/Downloads/history.json";
+        private static readonly string HistoryPath = System.IO.Path.Combine(Plugin.Instance.DataFolderPath, "history.json");
         private static readonly SemaphoreSlim _lock = new(1, 1);
 
         public static async Task AddEntryAsync(DownloadHistoryEntry entry)

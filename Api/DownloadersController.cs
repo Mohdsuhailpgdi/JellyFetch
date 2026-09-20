@@ -6,8 +6,8 @@ using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
-using Jellyfin.Plugin.Downloads.Configuration;
-using Jellyfin.Plugin.Downloads.Helpers;
+using Jellyfin.Plugin.JellyFetch.Configuration;
+using Jellyfin.Plugin.JellyFetch.Helpers;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using Microsoft.AspNetCore.Authorization;
@@ -15,7 +15,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
-namespace Jellyfin.Plugin.Downloads.Api;
+namespace Jellyfin.Plugin.JellyFetch.Api;
 
 public class DownloadRequest
 {
@@ -224,7 +224,7 @@ public class DownloadersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult GetAllowedLanguages()
     {
-        var path = "/config/plugins/Downloads/allowed_languages.json";
+        var path = System.IO.Path.Combine(Plugin.Instance.DataFolderPath, "allowed_languages.json");
         if (System.IO.File.Exists(path))
         {
             try
@@ -241,7 +241,7 @@ public class DownloadersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult SetAllowedLanguages([FromBody] List<string> langs)
     {
-        var path = "/config/plugins/Downloads/allowed_languages.json";
+        var path = System.IO.Path.Combine(Plugin.Instance.DataFolderPath, "allowed_languages.json");
         var dir = Path.GetDirectoryName(path);
         if (dir != null && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
         System.IO.File.WriteAllText(path, JsonSerializer.Serialize(langs));
@@ -333,7 +333,7 @@ public class DownloadersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult GetDomain()
     {
-        var path = "/config/plugins/Downloads/.last_domain";
+        var path = System.IO.Path.Combine(Plugin.Instance.DataFolderPath, ".last_domain");
         if (System.IO.File.Exists(path))
         {
             try
@@ -360,7 +360,7 @@ public class DownloadersController : ControllerBase
             return BadRequest(new { Message = "Domain cannot be empty." });
         }
         domain = domain.Trim().ToLowerInvariant().Replace("https://", "").Replace("http://", "").TrimEnd('/');
-        var path = "/config/plugins/Downloads/.last_domain";
+        var path = System.IO.Path.Combine(Plugin.Instance.DataFolderPath, ".last_domain");
         var dir = Path.GetDirectoryName(path);
         if (dir != null && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
         System.IO.File.WriteAllText(path, domain);
@@ -636,11 +636,31 @@ public class DownloadersController : ControllerBase
                         try
                         {
                             var finalTarget = progress.TargetPath ?? "";
-                            var newItem = _libraryManager.FindByPath(finalTarget, false);
+                            BaseItem? newItem = null;
+                            for (int retry = 0; retry < 5; retry++)
+                            {
+                                newItem = _libraryManager.FindByPath(finalTarget, false);
+                                if (newItem == null)
+                                {
+                                    var dir = Path.GetDirectoryName(finalTarget);
+                                    var folder = _libraryManager.FindByPath(dir, false) as MediaBrowser.Controller.Entities.Folder;
+                                    if (folder != null)
+                                    {
+                                        newItem = folder.GetChildren(null, true).FirstOrDefault(c => string.Equals(c.Path, finalTarget, StringComparison.OrdinalIgnoreCase));
+                                    }
+                                }
+                                if (newItem != null) break;
+                                await Task.Delay(2000);
+                            }
+
                             if (newItem != null)
                             {
                                 progress.NewItemId = newItem.Id.ToString("N");
                                 _logger.LogInformation("Resolved newly scanned item ID {NewItemId} for {Target}", progress.NewItemId, finalTarget);
+                            }
+                            else
+                            {
+                                _logger.LogWarning("Could not find new item ID after scan for {Target}", finalTarget);
                             }
                         }
                         catch (Exception findEx)
@@ -759,7 +779,24 @@ public class DownloadersController : ControllerBase
 
                             try
                             {
-                                var newItem = _libraryManager.FindByPath(targetPath, false);
+                                var finalTarget = targetPath ?? "";
+                                BaseItem? newItem = null;
+                                for (int retry = 0; retry < 5; retry++)
+                                {
+                                    newItem = _libraryManager.FindByPath(finalTarget, false);
+                                    if (newItem == null)
+                                    {
+                                        var dir = Path.GetDirectoryName(finalTarget);
+                                        var folder = _libraryManager.FindByPath(dir, false) as MediaBrowser.Controller.Entities.Folder;
+                                        if (folder != null)
+                                        {
+                                            newItem = folder.GetChildren(null, true).FirstOrDefault(c => string.Equals(c.Path, finalTarget, StringComparison.OrdinalIgnoreCase));
+                                        }
+                                    }
+                                    if (newItem != null) break;
+                                    await Task.Delay(2000);
+                                }
+
                                 if (newItem != null)
                                 {
                                     progress.NewItemId = newItem.Id.ToString("N");

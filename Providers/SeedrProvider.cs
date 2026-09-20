@@ -5,7 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
-namespace Jellyfin.Plugin.Downloads.Providers;
+namespace Jellyfin.Plugin.JellyFetch.Providers;
 
 public interface IDownloaderProvider
 {

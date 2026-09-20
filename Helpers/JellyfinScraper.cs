@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Jellyfin.Plugin.Downloads.Helpers
+namespace Jellyfin.Plugin.JellyFetch.Helpers
 {
     public class ScrapeResult
     {
@@ -24,30 +24,23 @@ namespace Jellyfin.Plugin.Downloads.Helpers
 
         private string GetCacheFile()
         {
-            if (Directory.Exists("/config/plugins/Downloads")) return "/config/plugins/Downloads/.last_domain";
-            return "/var/lib/jellyfin/plugins/Downloads/.last_domain";
+            return Path.Combine(Plugin.Instance.DataFolderPath, ".last_domain");
         }
 
         private HashSet<string> LoadAllowedLanguages()
         {
-            string[] paths = {
-                "/config/plugins/Downloads/allowed_languages.json",
-                "/var/lib/jellyfin/plugins/Downloads/allowed_languages.json"
-            };
-            foreach (var p in paths)
+            string p = Path.Combine(Plugin.Instance.DataFolderPath, "allowed_languages.json");
+            if (File.Exists(p))
             {
-                if (File.Exists(p))
+                try
                 {
-                    try
-                    {
-                        var json = File.ReadAllText(p);
-                        var list = JsonSerializer.Deserialize<List<string>>(json);
-                        if (list != null && list.Count > 0) return new HashSet<string>(list);
-                    }
-                    catch { }
+                    var json = File.ReadAllText(p);
+                    var list = JsonSerializer.Deserialize<List<string>>(json);
+                    if (list != null && list.Count > 0) return new HashSet<string>(list);
                 }
+                catch { }
             }
-            return new HashSet<string> { "Tamil", "Malayalam", "English" };
+            return new HashSet<string> { "Tamil", "Malayalam", "Hindi", "Telugu", "Kannada", "English" };
         }
 
         private async Task<string> GetWorkingDomainAsync(CancellationToken ct)
@@ -181,7 +174,7 @@ namespace Jellyfin.Plugin.Downloads.Helpers
                 if (!p.ToLower().Contains("default") && !p.ToLower().Contains("logo")) poster = p;
             }
 
-            var magnets = new List<object>();
+            var parsedMagnets = new List<(string uri, string dn, double xl_gb)>();
             var seen = new HashSet<string>();
 
             foreach (Match m in Regex.Matches(html, @"magnet:\?[^\s""'<>]+"))
@@ -211,10 +204,24 @@ namespace Jellyfin.Plugin.Downloads.Helpers
                     }
                 }
 
-                magnets.Add(new { uri = raw, dn = string.IsNullOrEmpty(cleanDn) ? dn : cleanDn, xl_gb = xlGb });
+                parsedMagnets.Add((raw, string.IsNullOrEmpty(cleanDn) ? dn : cleanDn, xlGb));
             }
 
-            magnets = magnets.OrderByDescending(x => (double)x.GetType().GetProperty("xl_gb").GetValue(x, null)).ToList();
+            // Filter and Sort: 1080p first, then 720p, ascending size. Skip < 720p.
+            var filtered = parsedMagnets.Where(m => 
+                m.dn.IndexOf("1080", StringComparison.OrdinalIgnoreCase) >= 0 || 
+                m.dn.IndexOf("720", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                m.dn.IndexOf("2160", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                m.dn.IndexOf("4k", StringComparison.OrdinalIgnoreCase) >= 0).ToList();
+
+            if (!filtered.Any()) filtered = parsedMagnets; // fallback if no explicit resolution
+
+            var magnets = filtered.OrderByDescending(m => m.dn.IndexOf("1080", StringComparison.OrdinalIgnoreCase) >= 0)
+                                  .ThenByDescending(m => m.dn.IndexOf("720", StringComparison.OrdinalIgnoreCase) >= 0)
+                                  .ThenBy(m => m.xl_gb)
+                                  .Select(m => new { uri = m.uri, dn = m.dn, xl_gb = m.xl_gb })
+                                  .ToList<object>();
+
             return (title, poster, magnets);
         }
 

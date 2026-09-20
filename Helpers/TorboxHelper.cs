@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Jellyfin.Plugin.Downloads.Helpers
+namespace Jellyfin.Plugin.JellyFetch.Helpers
 {
     public class TorboxResult
     {

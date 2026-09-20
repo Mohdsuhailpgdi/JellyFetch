@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Jellyfin.Plugin.Downloads.Helpers
+namespace Jellyfin.Plugin.JellyFetch.Helpers
 {
     public class SeedrResult
     {
@@ -110,10 +110,14 @@ namespace Jellyfin.Plugin.Downloads.Helpers
             {
                 var dnClean = Uri.UnescapeDataString(match.Groups[1].Value).ToLower();
                 var normDn = Regex.Replace(dnClean, @"[^a-z0-9]", "");
-                if (normDn.Length >= 15)
+                
+                if (normFn == normDn) return true;
+
+                int matchLen = Math.Min(20, Math.Min(normDn.Length, normFn.Length));
+                if (matchLen >= 5)
                 {
-                    var dnSub = normDn.Substring(0, Math.Min(20, normDn.Length));
-                    var fnSub = normFn.Substring(0, Math.Min(20, normFn.Length));
+                    var dnSub = normDn.Substring(0, matchLen);
+                    var fnSub = normFn.Substring(0, matchLen);
                     if (normFn.Contains(dnSub) || normDn.Contains(fnSub)) return true;
                 }
             }

@@ -5,12 +5,12 @@ using System.Threading.Tasks;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
-using Jellyfin.Plugin.Downloads.Configuration;
-using Jellyfin.Plugin.Downloads.Helpers;
+using Jellyfin.Plugin.JellyFetch.Configuration;
+using Jellyfin.Plugin.JellyFetch.Helpers;
 using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Logging;
 
-namespace Jellyfin.Plugin.Downloads.Tasks;
+namespace Jellyfin.Plugin.JellyFetch.Tasks;
 
 public class ScraperScheduledTask : IScheduledTask
 {

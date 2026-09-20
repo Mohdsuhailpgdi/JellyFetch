@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
-using Jellyfin.Plugin.Downloads.Configuration;
+using Jellyfin.Plugin.JellyFetch.Configuration;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Plugins;
 using MediaBrowser.Model.Plugins;
 using MediaBrowser.Model.Serialization;
 
-namespace Jellyfin.Plugin.Downloads;
+namespace Jellyfin.Plugin.JellyFetch;
 
 /// <summary>
 /// The main plugin.
@@ -25,7 +25,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     }
 
     /// <inheritdoc />
-    public override string Name => "Downloads";
+    public override string Name => "JellyFetch";
 
     /// <inheritdoc />
     public override Guid Id => Guid.Parse("A1B2C3D4-E5F6-7890-1234-567890ABCDEF"); // Unique GUID for this plugin

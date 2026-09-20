@@ -4,7 +4,7 @@
     "description": "Native Downloads ecosystem for Jellyfin. Scrapes external forums for new media and integrates with Seedr and Torbox for downloading.",
     "guid": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
     "imageUrl": "",
-    "name": "Downloads",
+    "name": "JellyFetch",
     "overview": "External media scraper and download manager. Integrates Seedr and Torbox.",
     "owner": "LAB Hermes",
     "targetAbi": "10.9.0.0",

@@ -5,7 +5,7 @@ using MediaBrowser.Common.Plugins;
 using MediaBrowser.Model.Plugins;
 using MediaBrowser.Model.Serialization;
 
-namespace Jellyfin.Plugin.Downloads.Configuration;
+namespace Jellyfin.Plugin.JellyFetch.Configuration;
 
 /// <summary>
 /// The plugin configuration.
