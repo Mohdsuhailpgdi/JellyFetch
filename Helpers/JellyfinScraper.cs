@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -20,10 +22,25 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
         public string Error { get; set; }
     }
 
+    public class ScrapedMagnetOption
+    {
+        public string uri { get; set; } = string.Empty;
+        public string dn { get; set; } = string.Empty;
+        public double xl_gb { get; set; }
+        public List<string> languages { get; set; } = new List<string>();
+    }
+
     public class JellyfinScraper
     {
         private readonly HttpClient _httpClient;
-        
+        private readonly ILibraryManager _libraryManager;
+        private static readonly ConcurrentDictionary<string, SemaphoreSlim> _movieLocks = new(StringComparer.OrdinalIgnoreCase);
+
+        public JellyfinScraper(HttpClient httpClient, ILibraryManager libraryManager = null)
+        {
+            _httpClient = httpClient;
+            _libraryManager = libraryManager;
+        }
 
         private string GetCacheFile()
         {
@@ -39,16 +56,16 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                 {
                     var json = File.ReadAllText(p);
                     var list = JsonSerializer.Deserialize<List<string>>(json);
-                    if (list != null && list.Count > 0) return new HashSet<string>(list);
+                    if (list != null && list.Count > 0) return new HashSet<string>(list, StringComparer.OrdinalIgnoreCase);
                 }
                 catch { }
             }
-            return new HashSet<string> { "Tamil", "Malayalam", "Hindi", "Telugu", "Kannada", "English" };
+            return new HashSet<string>(new[] { "Tamil", "Malayalam", "Hindi", "Telugu", "Kannada", "English" }, StringComparer.OrdinalIgnoreCase);
         }
 
         private async Task<string> GetWorkingDomainAsync(CancellationToken ct)
         {
-            var domains = new List<string> { "1tamilmv.meme", "1tamilmv.ing", "1tamilmv.xyz", "1tamilmv.pizza", "1tamilmv.pics", "1tamilmv.eu", "1tamilmv.tf" };
+            var domains = new List<string> { "1tamilmv.meme", "1tamilmv.rocks", "1tamilmv.ing", "1tamilmv.xyz", "1tamilmv.pizza", "1tamilmv.pics", "1tamilmv.eu", "1tamilmv.tf" };
             var cacheFile = GetCacheFile();
 
             if (File.Exists(cacheFile))
@@ -56,7 +73,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                 try
                 {
                     var cached = (await File.ReadAllTextAsync(cacheFile, ct)).Trim();
-                    if (domains.Contains(cached))
+                    if (!string.IsNullOrEmpty(cached))
                     {
                         domains.Remove(cached);
                         domains.Insert(0, cached);
@@ -90,20 +107,20 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
 
         private bool IsExcluded(string title)
         {
-            string t = title.ToLower();
+            string t = title.ToLowerInvariant();
             string[] patterns = { @"s\d{2}e\d{2}", @"\bseason\s?\d+\b", @"\bep\s?\d+\b", "bigg boss", "web series", "daily tv", "complete season", @"s\d{2}\b", "hq predvd", @"\bhq\b", "predvd", @"\btc\b" };
             return patterns.Any(p => Regex.IsMatch(t, p));
         }
 
         private (List<string> Langs, bool IsAllowed) DetectLanguage(string rawTitle, string defaultLang, HashSet<string> allowedLangs)
         {
-            string t = rawTitle.ToLower();
+            string t = rawTitle.ToLowerInvariant();
             var checks = new[] {
                 ("telugu", "Telugu"), ("kannada", "Kannada"), ("hindi", "Hindi"),
                 ("malayalam", "Malayalam"), ("tamil", "Tamil"), ("english", "English")
             };
 
-            var found = new HashSet<string>();
+            var found = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var c in checks)
             {
                 if (Regex.IsMatch(t, $@"\b{c.Item1}\b")) found.Add(c.Item2);
@@ -112,15 +129,22 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             var bracketMatch = Regex.Match(rawTitle, @"\[([^\]]+)\]");
             if (bracketMatch.Success)
             {
-                var parts = bracketMatch.Groups[1].Value.Split('+').Select(p => p.Trim().ToLower());
-                var map = new Dictionary<string, string> { { "tam", "Tamil" }, { "mal", "Malayalam" }, { "eng", "English" }, { "tel", "Telugu" }, { "kan", "Kannada" }, { "hin", "Hindi" } };
+                var parts = bracketMatch.Groups[1].Value.Split('+').Select(p => p.Trim().ToLowerInvariant());
+                var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
+                    { "tam", "Tamil" }, { "mal", "Malayalam" }, { "eng", "English" },
+                    { "tel", "Telugu" }, { "kan", "Kannada" }, { "hin", "Hindi" }
+                };
                 foreach (var p in parts)
                 {
                     if (map.TryGetValue(p, out var l)) found.Add(l);
                 }
             }
 
-            if (found.Count == 0) found.Add(defaultLang);
+            if (found.Count == 0 && !string.IsNullOrEmpty(defaultLang))
+            {
+                found.Add(defaultLang);
+            }
+
             var allowedFound = found.Where(allowedLangs.Contains).ToList();
             return (allowedFound, allowedFound.Count > 0);
         }
@@ -128,6 +152,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
         private (string Full, string Base, string Year) CleanMovieTitle(string rawTitle)
         {
             string clean = System.Net.WebUtility.HtmlDecode(rawTitle).Trim();
+            clean = clean.Replace('\u00a0', ' ');
             clean = Regex.Replace(clean, @"(?i)(?:www\.)?1TamilMV\.[a-z]+ - ", "");
             clean = Regex.Replace(clean, @"(?i) - (?:www\.)?1TamilMV\.[a-z]+.*$", "");
 
@@ -141,7 +166,16 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             }
             else
             {
-                baseName = Regex.Split(clean, @" - | – ")[0].Trim();
+                var yMatch2 = Regex.Match(clean, @"\b(19\d{2}|20\d{2})\b");
+                if (yMatch2.Success && yMatch2.Index > 0)
+                {
+                    year = yMatch2.Groups[1].Value;
+                    baseName = clean.Substring(0, yMatch2.Index).Trim();
+                }
+                else
+                {
+                    baseName = Regex.Split(clean, @" - | – ")[0].Trim();
+                }
             }
 
             baseName = Regex.Replace(baseName, @"\[.*?\]|\(.*?\)", "").Trim();
@@ -153,7 +187,50 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             return (full, baseName, year);
         }
 
-        private async Task<(string Title, string Poster, List<object> Magnets)> ScrapeTopicAsync(string url, CancellationToken ct)
+        /// <summary>
+        /// Cross-version library lookup using reflection to prevent MissingMethodException
+        /// between Jellyfin 10.9 (List&lt;BaseItem&gt;) and 10.10+/12.1+ (IReadOnlyList&lt;BaseItem&gt;).
+        /// </summary>
+        private bool ItemExistsInLibrary(string baseN, string full)
+        {
+            if (_libraryManager == null) return false;
+            try
+            {
+                var query = new InternalItemsQuery
+                {
+                    IncludeItemTypes = new[] { BaseItemKind.Movie },
+                    SearchTerm = baseN,
+                    Limit = 10
+                };
+
+                var method = _libraryManager.GetType().GetMethod("GetItemList", new[] { typeof(InternalItemsQuery) });
+                if (method != null)
+                {
+                    var result = method.Invoke(_libraryManager, new object[] { query }) as System.Collections.IEnumerable;
+                    if (result != null)
+                    {
+                        foreach (var obj in result)
+                        {
+                            if (obj is BaseItem item)
+                            {
+                                if (string.Equals(item.Name, baseN, StringComparison.OrdinalIgnoreCase) || 
+                                    string.Equals(item.Name, full, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Non-fatal: if library inspection fails, do not block scraping
+            }
+            return false;
+        }
+
+        private async Task<(string Title, string Poster, List<ScrapedMagnetOption> Magnets)> ScrapeTopicAsync(string url, CancellationToken ct)
         {
             url = Regex.Replace(url, @"(/page/\d+/|&do=[^&]+|#comment-\d+)", "");
             string html = "";
@@ -164,7 +241,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                 var res = await _httpClient.SendAsync(req, ct);
                 html = await res.Content.ReadAsStringAsync(ct);
             }
-            catch { return (null, null, new List<object>()); }
+            catch { return (null, null, new List<ScrapedMagnetOption>()); }
 
             var titleMatch = Regex.Match(html, @"<title>(.*?)</title>", RegexOptions.IgnoreCase);
             string title = titleMatch.Success ? titleMatch.Groups[1].Value : "";
@@ -174,17 +251,17 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             if (posterMatch.Success)
             {
                 string p = posterMatch.Groups[1].Value;
-                if (!p.ToLower().Contains("default") && !p.ToLower().Contains("logo")) poster = p;
+                if (!p.ToLowerInvariant().Contains("default") && !p.ToLowerInvariant().Contains("logo")) poster = p;
             }
 
             var parsedMagnets = new List<(string uri, string dn, double xl_gb)>();
-            var seen = new HashSet<string>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (Match m in Regex.Matches(html, @"magnet:\?[^\s""'<>]+"))
             {
                 string raw = System.Net.WebUtility.HtmlDecode(m.Value);
                 var hm = Regex.Match(raw, @"xt=urn:btih:([a-zA-Z0-9]+)", RegexOptions.IgnoreCase);
-                string hash = hm.Success ? hm.Groups[1].Value.ToLower() : raw;
+                string hash = hm.Success ? hm.Groups[1].Value.ToLowerInvariant() : raw;
                 if (seen.Contains(hash)) continue;
                 seen.Add(hash);
 
@@ -203,37 +280,36 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                     if (sm.Success)
                     {
                         double val = double.Parse(sm.Groups[1].Value);
-                        xlGb = sm.Groups[2].Value.ToUpper() == "MB" ? Math.Round(val / 1024.0, 2) : Math.Round(val, 2);
+                        xlGb = sm.Groups[2].Value.ToUpperInvariant() == "MB" ? Math.Round(val / 1024.0, 2) : Math.Round(val, 2);
                     }
                 }
 
                 parsedMagnets.Add((raw, string.IsNullOrEmpty(cleanDn) ? dn : cleanDn, xlGb));
             }
 
-            // Filter and Sort: 1080p first, then 720p, ascending size. Skip < 720p.
+            // Filter and Sort: 1080p, 720p, 2160p/4k
             var filtered = parsedMagnets.Where(m => 
                 m.dn.IndexOf("1080", StringComparison.OrdinalIgnoreCase) >= 0 || 
                 m.dn.IndexOf("720", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 m.dn.IndexOf("2160", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 m.dn.IndexOf("4k", StringComparison.OrdinalIgnoreCase) >= 0).ToList();
 
-            if (!filtered.Any()) filtered = parsedMagnets; // fallback if no explicit resolution
+            if (!filtered.Any()) filtered = parsedMagnets;
 
             var magnets = filtered.OrderByDescending(m => m.dn.IndexOf("1080", StringComparison.OrdinalIgnoreCase) >= 0)
                                   .ThenByDescending(m => m.dn.IndexOf("720", StringComparison.OrdinalIgnoreCase) >= 0)
                                   .ThenBy(m => m.xl_gb)
-                                  .Select(m => new { uri = m.uri, dn = m.dn, xl_gb = m.xl_gb })
-                                  .ToList<object>();
+                                  .Select(m => new ScrapedMagnetOption { uri = m.uri, dn = m.dn, xl_gb = m.xl_gb })
+                                  .ToList();
 
             return (title, poster, magnets);
         }
 
-        private readonly ILibraryManager _libraryManager;
-
-        public JellyfinScraper(HttpClient httpClient, ILibraryManager libraryManager = null)
+        private static string ExtractInfoHash(string uri)
         {
-            _httpClient = httpClient;
-            _libraryManager = libraryManager;
+            if (string.IsNullOrEmpty(uri)) return string.Empty;
+            var hm = Regex.Match(uri, @"xt=urn:btih:([a-zA-Z0-9]+)", RegexOptions.IgnoreCase);
+            return hm.Success ? hm.Groups[1].Value.ToUpperInvariant() : uri;
         }
 
         public async Task<ScrapeResult> RunScrapeAsync(string downloadsDir, Action<string, double> logger, CancellationToken ct)
@@ -257,9 +333,9 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             };
 
             var tasksList = new List<(string Url, string Lang)>();
-            var seenUrls = new HashSet<string>();
+            var seenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            // Front page
+            // Front page scan
             try
             {
                 var req = new HttpRequestMessage(HttpMethod.Get, $"https://www.{domain}/");
@@ -270,14 +346,13 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                 var fpUrls = matches.Select(m => m.Groups[1].Value).Distinct().Take(30).ToList();
                 foreach (var u in fpUrls)
                 {
-                    seenUrls.Add(u);
-                    tasksList.Add((u, "Tamil"));
+                    if (seenUrls.Add(u)) tasksList.Add((u, "Tamil"));
                 }
             }
             catch { }
             logger?.Invoke("Scanning front page completed. Scanning subforums...", 15);
 
-            // Subforums
+            // Subforums scan
             foreach (var lang in allowedLangs)
             {
                 if (!subforumsMap.ContainsKey(lang)) continue;
@@ -314,6 +389,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             int newMovies = 0;
             int processedTasks = 0;
             var options = new ParallelOptions { MaxDegreeOfParallelism = 6, CancellationToken = ct };
+            
             await Parallel.ForEachAsync(tasksList, options, async (task, tct) =>
             {
                 try
@@ -328,72 +404,119 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                     var (full, baseN, _) = CleanMovieTitle(title);
                     if (string.IsNullOrEmpty(baseN) || baseN.Length < 2) return;
 
-                    if (_libraryManager != null)
-                    {
-                        var query = new InternalItemsQuery
-                        {
-                            IncludeItemTypes = new[] { BaseItemKind.Movie },
-                            SearchTerm = baseN,
-                            Limit = 10
-                        };
-                        var existing = _libraryManager.GetItemList(query);
-                        bool alreadyExists = false;
-                        foreach (var item in existing)
-                        {
-                            if (string.Equals(item.Name, baseN, StringComparison.OrdinalIgnoreCase) || 
-                                string.Equals(item.Name, full, StringComparison.OrdinalIgnoreCase))
-                            {
-                                alreadyExists = true;
-                                break;
-                            }
-                        }
-                        if (alreadyExists) return;
-                    }
+                    // Check if already in Jellyfin library
+                    if (ItemExistsInLibrary(baseN, full)) return;
 
                     string mDir = Path.Combine(downDir, full);
-                    if (Directory.Exists(mDir) && Directory.GetFiles(mDir).Any(f => f.EndsWith(".mkv") || f.EndsWith(".mp4") || f.EndsWith(".avi"))) return;
-
-                    Directory.CreateDirectory(mDir);
-                    string strm = Path.Combine(mDir, $"{full}.strm");
-                    if (!File.Exists(strm)) await File.WriteAllTextAsync(strm, "http://localhost:8096/dummy.mp4", tct);
-
-                    if (!string.IsNullOrEmpty(poster))
+                    
+                    // Synchronize per-movie directory to safely merge multi-language releases without race conditions
+                    var sem = _movieLocks.GetOrAdd(full, _ => new SemaphoreSlim(1, 1));
+                    await sem.WaitAsync(tct);
+                    try
                     {
-                        string pPath = Path.Combine(mDir, "poster.jpg");
-                        if (!File.Exists(pPath))
+                        // If already downloaded (.mkv/.mp4/.avi), keep existing files
+                        if (Directory.Exists(mDir) && Directory.GetFiles(mDir).Any(f => f.EndsWith(".mkv") || f.EndsWith(".mp4") || f.EndsWith(".avi")))
+                        {
+                            return;
+                        }
+
+                        Directory.CreateDirectory(mDir);
+                        string strm = Path.Combine(mDir, $"{full}.strm");
+                        bool isBrandNew = !File.Exists(strm);
+                        if (isBrandNew)
+                        {
+                            await File.WriteAllTextAsync(strm, "http://localhost:8096/dummy.mp4", tct);
+                        }
+
+                        if (!string.IsNullOrEmpty(poster))
+                        {
+                            string pPath = Path.Combine(mDir, "poster.jpg");
+                            if (!File.Exists(pPath))
+                            {
+                                try
+                                {
+                                    var preq = new HttpRequestMessage(HttpMethod.Get, poster);
+                                    preq.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
+                                    var pres = await _httpClient.SendAsync(preq, tct);
+                                    if (pres.IsSuccessStatusCode)
+                                    {
+                                        var stream = await pres.Content.ReadAsStreamAsync(tct);
+                                        using var fs = new FileStream(pPath, FileMode.Create, FileAccess.Write, FileShare.None);
+                                        await stream.CopyToAsync(fs, tct);
+                                    }
+                                }
+                                catch { }
+                            }
+                        }
+
+                        // Load existing options from downloads.json if present, to merge languages without overwriting
+                        string jPath = Path.Combine(mDir, "downloads.json");
+                        var existingOptions = new List<ScrapedMagnetOption>();
+                        if (File.Exists(jPath))
                         {
                             try
                             {
-                                var preq = new HttpRequestMessage(HttpMethod.Get, poster);
-                                preq.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
-                                var pres = await _httpClient.SendAsync(preq, tct);
-                                if (pres.IsSuccessStatusCode)
-                                {
-                                    var stream = await pres.Content.ReadAsStreamAsync(tct);
-                                    using var fs = new FileStream(pPath, FileMode.Create, FileAccess.Write, FileShare.None);
-                                    await stream.CopyToAsync(fs, tct);
-                                }
+                                var existingJson = await File.ReadAllTextAsync(jPath, tct);
+                                var parsed = JsonSerializer.Deserialize<List<ScrapedMagnetOption>>(existingJson);
+                                if (parsed != null) existingOptions.AddRange(parsed);
                             }
                             catch { }
                         }
-                    }
 
-                    string jPath = Path.Combine(mDir, "downloads.json");
-                    var jList = new List<object>();
-                    foreach (var m in magnets)
-                    {
-                        jList.Add(new
+                        // Merge new magnets into existing list
+                        foreach (var m in magnets)
                         {
-                            uri = m.GetType().GetProperty("uri").GetValue(m, null),
-                            dn = m.GetType().GetProperty("dn").GetValue(m, null),
-                            xl_gb = m.GetType().GetProperty("xl_gb").GetValue(m, null),
-                            languages = langs
-                        });
-                    }
-                    await File.WriteAllTextAsync(jPath, JsonSerializer.Serialize(jList, new JsonSerializerOptions { WriteIndented = true }), tct);
+                            var hash = ExtractInfoHash(m.uri);
+                            var existingMatch = existingOptions.FirstOrDefault(o =>
+                                (!string.IsNullOrEmpty(hash) && ExtractInfoHash(o.uri) == hash) ||
+                                (!string.IsNullOrEmpty(o.dn) && string.Equals(o.dn, m.dn, StringComparison.OrdinalIgnoreCase)));
 
-                    Interlocked.Increment(ref newMovies);
-                    logger?.Invoke($"Added {full} ({langs.Count} langs)", -1);
+                            if (existingMatch != null)
+                            {
+                                // Merge language tags
+                                existingMatch.languages ??= new List<string>();
+                                foreach (var l in langs)
+                                {
+                                    if (!existingMatch.languages.Contains(l, StringComparer.OrdinalIgnoreCase))
+                                    {
+                                        existingMatch.languages.Add(l);
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                m.languages = new List<string>(langs);
+                                existingOptions.Add(m);
+                            }
+                        }
+
+                        // Sort: 1080p first, then 720p, ascending size
+                        var sortedOptions = existingOptions
+                            .OrderByDescending(m => m.dn.IndexOf("1080", StringComparison.OrdinalIgnoreCase) >= 0)
+                            .ThenByDescending(m => m.dn.IndexOf("720", StringComparison.OrdinalIgnoreCase) >= 0)
+                            .ThenBy(m => m.xl_gb)
+                            .ToList();
+
+                        await File.WriteAllTextAsync(jPath, JsonSerializer.Serialize(sortedOptions, new JsonSerializerOptions { WriteIndented = true }), tct);
+
+                        if (isBrandNew)
+                        {
+                            Interlocked.Increment(ref newMovies);
+                            logger?.Invoke($"Added {full} ({string.Join(", ", langs)})", -1);
+                        }
+                        else
+                        {
+                            logger?.Invoke($"Updated {full} with languages: {string.Join(", ", langs)}", -1);
+                        }
+                    }
+                    finally
+                    {
+                        sem.Release();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger?.Invoke($"Topic scan notice: {ex.Message}", -1);
                 }
                 finally
                 {

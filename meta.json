@@ -1,6 +1,6 @@
 {
     "category": "General",
-    "changelog": "Patch release: Fixed Seedr stalling, broken page after download, session hijacking, Stop button label. Auto web UI install.",
+    "changelog": "v1.0.3: Fixed scraper MissingMethodException (Jellyfin cross-version compatibility). Multi-language releases for same movie are now merged under single movie entry without duplicates.",
     "description": "Native Downloads ecosystem for Jellyfin. Scrapes external forums for new media and integrates with Seedr and Torbox for downloading.",
     "guid": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
     "imageUrl": "",
@@ -12,11 +12,11 @@
     "versions": [
         {
             "checksum": "",
-            "changelog": "Patch release: Fixed Seedr stalling, broken page after download, session hijacking, Stop button label. Auto web UI install.",
+            "changelog": "v1.0.3: Fixed scraper MissingMethodException (Jellyfin cross-version compatibility). Multi-language releases for same movie are now merged under single movie entry without duplicates.",
             "targetAbi": "10.9.0.0",
             "sourceUrl": "",
             "timestamp": "2026-09-21T00:00:00Z",
-            "version": "1.0.2.0"
+            "version": "1.0.3.0"
         }
     ]
 }

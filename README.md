@@ -5,8 +5,8 @@
   
   **Automated media scraping, cloud downloading, and library injection for Jellyfin.**
   
-  [![Version](https://img.shields.io/badge/version-1.0.2-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
-  [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9.x-orange)](https://jellyfin.org)
+  [![Version](https://img.shields.io/badge/version-1.0.3-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
+  [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9.x--12.x-orange)](https://jellyfin.org)
   [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey)](https://github.com/Mohdsuhailpgdi/JellyFetch)
 </div>
 
@@ -17,13 +17,12 @@ This plugin is specifically optimized for Indian media consumers. The default sc
 
 ---
 
-## ✨ What's New in v1.0.2 (First Patch Release)
+## ✨ What's New in v1.0.3
 
-- **🔧 Fixed: Seedr connection stalling** — `MissingMethodException` in `Folder.GetChildren()` caused the downloader to stall indefinitely at "Connecting to Seedr". Now resolved.
-- **🔧 Fixed: Broken movie page after download** — After download completion, navigating to the new item showed a blank/broken page due to a metadata race condition. The plugin now triggers a full metadata refresh (posters, backdrops) before navigating.
-- **🔧 Fixed: Background download session hijacking** — If a download completed while the user was browsing other pages, the app forcefully redirected the user back to the downloaded movie. Now the polling stops when you navigate away.
-- **🔧 Fixed: "Stop & Cancel" → "Stop"** — Button label corrected.
-- **🚀 NEW: Zero-configuration UI install** — The plugin now automatically patches your Jellyfin web interface on startup. No manual `dist.tar.gz` installation required.
+- **🔧 Fixed: Scraper Crash (`MissingMethodException`)** — Resolved interface signature differences in `ILibraryManager.GetItemList` across Jellyfin 10.9, 10.10, and 12.1+ so manual and automated scraping runs without crashing.
+- **🌐 Multi-Language Movie Merging** — When a movie has releases in multiple languages (e.g. Tamil and Malayalam releases of the same title), the scraper atomically merges all magnet options under the single movie entry instead of overwriting or creating duplicate entries.
+- **🏷️ Language Tabs in Download Modal** — The movie detail page allows switching between languages (Tamil, Malayalam, etc.) to view and download available sizes for each language.
+- **🧹 Non-Breaking Whitespace & Title Normalization** — Fixed topic titles containing Unicode non-breaking spaces (`\u00a0`) and non-bracketed year formatting.
 
 ---
 
