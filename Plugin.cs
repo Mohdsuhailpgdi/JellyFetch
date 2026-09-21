@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Xml.Linq;
 using Jellyfin.Plugin.JellyFetch.Configuration;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Plugins;
@@ -38,6 +39,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     {
         Instance = this;
         _logger  = loggerFactory.CreateLogger<Plugin>();
+        MigrateLegacyData(applicationPaths);
         TryPatchWebDirectory(applicationPaths);
     }
 
@@ -187,5 +189,103 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 
         File.WriteAllText(indexPath, patched, Encoding.UTF8);
         _logger.LogInformation("[JellyFetch] Patched index.html in {Dir}", webDir);
+    }
+
+    /// <summary>
+    /// Migrates credentials, settings, and data files from legacy plugin installations (e.g. Jellyfin.Plugin.Downloads).
+    /// </summary>
+    private void MigrateLegacyData(IApplicationPaths paths)
+    {
+        try
+        {
+            // 1. Migrate credentials & settings from old Jellyfin.Plugin.Downloads.xml if current config is empty
+            if (string.IsNullOrWhiteSpace(Configuration.SeedrUsername) && string.IsNullOrWhiteSpace(Configuration.TorboxApiKey))
+            {
+                var legacyConfigs = new[]
+                {
+                    Path.Combine(paths.PluginConfigurationsPath, "Jellyfin.Plugin.Downloads.xml"),
+                    Path.Combine(paths.PluginConfigurationsPath, "Downloads.xml")
+                };
+
+                foreach (var oldConfigPath in legacyConfigs)
+                {
+                    if (File.Exists(oldConfigPath))
+                    {
+                        _logger.LogInformation("[JellyFetch] Found legacy configuration at {Path}. Migrating credentials...", oldConfigPath);
+                        try
+                        {
+                            var doc = XDocument.Load(oldConfigPath);
+                            var root = doc.Root;
+                            if (root != null)
+                            {
+                                var seedrUser = root.Element("SeedrUsername")?.Value;
+                                var seedrPass = root.Element("SeedrPassword")?.Value;
+                                var torboxKey = root.Element("TorboxApiKey")?.Value;
+                                var dlDir     = root.Element("DownloadsDirectory")?.Value;
+                                var enSeedr   = root.Element("EnableSeedr")?.Value;
+                                var enTorbox  = root.Element("EnableTorbox")?.Value;
+
+                                bool updated = false;
+                                if (!string.IsNullOrWhiteSpace(seedrUser)) { Configuration.SeedrUsername = seedrUser; updated = true; }
+                                if (!string.IsNullOrWhiteSpace(seedrPass)) { Configuration.SeedrPassword = seedrPass; updated = true; }
+                                if (!string.IsNullOrWhiteSpace(torboxKey)) { Configuration.TorboxApiKey = torboxKey; updated = true; }
+                                if (!string.IsNullOrWhiteSpace(dlDir))     { Configuration.DownloadsDirectory = dlDir; updated = true; }
+                                if (bool.TryParse(enSeedr, out var es))   { Configuration.EnableSeedr = es; updated = true; }
+                                if (bool.TryParse(enTorbox, out var et))  { Configuration.EnableTorbox = et; updated = true; }
+
+                                if (updated)
+                                {
+                                    SaveConfiguration();
+                                    _logger.LogInformation("[JellyFetch] Legacy configuration successfully migrated and saved.");
+                                }
+                                break;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "[JellyFetch] Could not parse legacy config XML from {Path}", oldConfigPath);
+                        }
+                    }
+                }
+            }
+
+            // 2. Migrate data folder files (allowed_languages.json, .last_domain, history.json)
+            if (!string.IsNullOrEmpty(DataFolderPath))
+            {
+                Directory.CreateDirectory(DataFolderPath);
+                var parentDir = Path.GetDirectoryName(DataFolderPath);
+                if (!string.IsNullOrEmpty(parentDir))
+                {
+                    var oldDataDirs = new[]
+                    {
+                        Path.Combine(parentDir, "Jellyfin.Plugin.Downloads"),
+                        Path.Combine(parentDir, "Downloads")
+                    };
+
+                    var filesToMigrate = new[] { "allowed_languages.json", ".last_domain", "history.json" };
+
+                    foreach (var oldDir in oldDataDirs)
+                    {
+                        if (Directory.Exists(oldDir))
+                        {
+                            foreach (var file in filesToMigrate)
+                            {
+                                var targetFile = Path.Combine(DataFolderPath, file);
+                                var sourceFile = Path.Combine(oldDir, file);
+                                if (!File.Exists(targetFile) && File.Exists(sourceFile))
+                                {
+                                    File.Copy(sourceFile, targetFile, overwrite: false);
+                                    _logger.LogInformation("[JellyFetch] Migrated {File} from {Source} to {Target}", file, sourceFile, targetFile);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[JellyFetch] Legacy data migration encountered an error (non-fatal).");
+        }
     }
 }

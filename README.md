@@ -5,9 +5,9 @@
   
   **Automated media scraping, cloud downloading, and library injection for Jellyfin.**
   
-  [![Version](https://img.shields.io/badge/version-1.0.2-blue)](https://github.com/Mohdsuhailpgdi/Jellyfin-Downloads-Plugin/releases/latest)
+  [![Version](https://img.shields.io/badge/version-1.0.2-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
   [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9.x-orange)](https://jellyfin.org)
-  [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey)](https://github.com/Mohdsuhailpgdi/Jellyfin-Downloads-Plugin)
+  [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey)](https://github.com/Mohdsuhailpgdi/JellyFetch)
 </div>
 
 ---
@@ -47,7 +47,7 @@ This plugin is specifically optimized for Indian media consumers. The default sc
 1. Open your Jellyfin Web UI → **Dashboard** → **Plugins** → **Repositories** tab.
 2. Click **+ New Repository** and add:
    - **Name**: `JellyFetch`
-   - **URL**: `https://raw.githubusercontent.com/Mohdsuhailpgdi/Jellyfin-Downloads-Plugin/main/manifest.json`
+   - **URL**: `https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/manifest.json`
 3. Click **Save**.
 4. Switch to the **Catalog** tab, find **JellyFetch** under General, and click **Install**.
 5. **Restart your Jellyfin server.**
@@ -64,7 +64,7 @@ If the auto-patch cannot write to the web directory, you can install manually:
 
 ```bash
 # Download and extract the frontend
-curl -L https://github.com/Mohdsuhailpgdi/Jellyfin-Downloads-Plugin/releases/download/v1.0.2/dist.tar.gz \
+curl -L https://github.com/Mohdsuhailpgdi/JellyFetch/releases/download/v1.0.2/dist.tar.gz \
   | sudo tar -xz -C /usr/share/jellyfin/web/
 
 sudo chown -R jellyfin:jellyfin /usr/share/jellyfin/web/
@@ -108,7 +108,7 @@ Inside the Plugin Settings page → **History** tab:
 dotnet build -c Release
 ```
 
-The plugin targets `.NET 8.0`. After building, copy `Jellyfin.Plugin.JellyFetch.dll` into your Jellyfin `/config/plugins/Downloads_1.0.2.0/` folder and restart the server.
+The plugin targets `.NET 8.0`. After building, copy `Jellyfin.Plugin.JellyFetch.dll` into your Jellyfin `/config/plugins/JellyFetch_1.0.2.0/` folder and restart the server.
 
 ### Project Structure
 

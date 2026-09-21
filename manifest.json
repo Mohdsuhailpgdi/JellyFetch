@@ -2,25 +2,25 @@
   {
     "guid": "A1B2C3D4-E5F6-7890-1234-567890ABCDEF",
     "name": "JellyFetch",
-    "description": "Automatically scrapes, orchestrates cloud downloads, and injects them directly into your Jellyfin library. Fully automatic UI install — no manual web file setup required.",
+    "description": "Automatically scrapes, orchestrates cloud downloads, and injects them directly into your Jellyfin library. Fully automatic UI install - no manual web file setup required.",
     "overview": "A powerful plugin built for Indian users (with 1tamilmv integration) to seamlessly download and organize media.",
     "owner": "Mohdsuhailpgdi",
     "category": "General",
-    "imageUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/Jellyfin-Downloads-Plugin/main/icon.jpg",
+    "imageUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/icon.jpg",
     "versions": [
       {
         "version": "1.0.2.0",
-        "changelog": "Patch release: Fixed Seedr connection stalling (MissingMethodException), fixed post-download page rendering (metadata race condition), fixed background download hijacking user session, fixed Stop button label. Added automatic web UI installation — plugin now auto-patches index.html on startup, no manual dist.tar.gz required.",
+        "changelog": "Patch release: Fixed Seedr connection stalling (MissingMethodException), fixed post-download page rendering (metadata race condition), fixed background download hijacking user session, fixed Stop button label. Added automatic web UI installation - plugin now auto-patches index.html on startup, no manual dist.tar.gz required. Added legacy settings migration.",
         "targetAbi": "10.9.9.0",
-        "sourceUrl": "https://github.com/Mohdsuhailpgdi/Jellyfin-Downloads-Plugin/releases/download/v1.0.2/Jellyfin.Plugin.JellyFetch.zip",
-        "checksum": "53CB0440962E8C4840A39F3D303FFE17",
+        "sourceUrl": "https://github.com/Mohdsuhailpgdi/JellyFetch/releases/download/v1.0.2/Jellyfin.Plugin.JellyFetch.zip",
+        "checksum": "B1D382DBDF8ED6350118E57F0E0C730A",
         "timestamp": "2026-09-21T00:00:00Z"
       },
       {
         "version": "1.0.1.0",
         "changelog": "Fix native Ubuntu paths.",
         "targetAbi": "10.9.9.0",
-        "sourceUrl": "https://github.com/Mohdsuhailpgdi/Jellyfin-Downloads-Plugin/releases/download/v1.0.1/Jellyfin.Plugin.JellyFetch.zip",
+        "sourceUrl": "https://github.com/Mohdsuhailpgdi/JellyFetch/releases/download/v1.0.1/Jellyfin.Plugin.JellyFetch.zip",
         "checksum": "DE832ACF9DB4CF25BAE1512F6826EED8",
         "timestamp": "2026-09-20T00:00:00Z"
       }
