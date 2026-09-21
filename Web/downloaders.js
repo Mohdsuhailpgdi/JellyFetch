@@ -199,6 +199,31 @@ export default function(view, params) {
         loadHistory();
 
         if (btnRunScraper) {
+            const btnCleanupScraper = view.querySelector('#btnCleanupScraper');
+            if (btnCleanupScraper) {
+                btnCleanupScraper.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    Dashboard.confirm({
+                        title: 'Cleanup Orphaned .strm Files',
+                        text: 'This will delete all .strm files in your Downloads Directory. The scraper will then recreate only the .strm files that match your current language settings on its next run. Downloaded movies (.mp4, .mkv) will NOT be affected. Are you sure you want to proceed?',
+                        confirmBtnText: 'Yes, Cleanup',
+                        cancelBtnText: 'Cancel'
+                    }).then(function () {
+                        Dashboard.showLoadingMsg();
+                        fetch('/System/Configuration/Downloaders/CleanupStrm', {
+                            method: 'POST',
+                            headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
+                        }).then(r => r.json()).then(resp => {
+                            Dashboard.hideLoadingMsg();
+                            Dashboard.alert({ message: resp.Message, title: 'Cleanup Complete' });
+                        }).catch(err => {
+                            Dashboard.hideLoadingMsg();
+                            Dashboard.alert({ message: 'Error cleaning up: ' + err, title: 'Error' });
+                        });
+                    });
+                });
+            }
+
             btnRunScraper.addEventListener('click', function(e) {
                 e.preventDefault();
                 fetch('/System/Configuration/Downloaders/Scrape', {

@@ -100,10 +100,19 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             return (long)(fallbackGb * 1024 * 1024 * 1024);
         }
 
-        private bool IsMatchingFolder(string folderName, string magnetUri)
+        private bool IsMatchingFolder(string folderName, string magnetUri, string movieName = null)
         {
-            if (string.IsNullOrEmpty(folderName) || string.IsNullOrEmpty(magnetUri)) return false;
+            if (string.IsNullOrEmpty(folderName)) return false;
             var normFn = Regex.Replace(folderName.ToLower(), @"[^a-z0-9]", "");
+
+            if (!string.IsNullOrEmpty(movieName))
+            {
+                var normMn = Regex.Replace(movieName.ToLower(), @"[^a-z0-9]", "");
+                if (normFn == normMn) return true;
+                if (normMn.Length > 3 && (normFn.Contains(normMn) || normMn.Contains(normFn))) return true;
+            }
+            
+            if (string.IsNullOrEmpty(magnetUri)) return false;
             
             var match = Regex.Match(magnetUri, @"dn=([^&]+)");
             if (match.Success)
@@ -127,12 +136,12 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
         private async Task<JsonElement?> GetVideoFileFromFolderAsync(string token, string folderId, CancellationToken ct)
         {
             var res = await SeedrApiAsync(token, "get_folder", new Dictionary<string, string> { { "id", folderId } }, "GET", ct);
+            string[] videoExts = { ".mkv", ".mp4", ".avi", ".mov", ".flv", ".webm" };
+            JsonElement? bestFile = null;
+            long maxSize = -1;
+
             if (res.TryGetProperty("files", out var files) && files.ValueKind == JsonValueKind.Array)
             {
-                string[] videoExts = { ".mkv", ".mp4", ".avi", ".mov", ".flv", ".webm" };
-                JsonElement? bestFile = null;
-                long maxSize = -1;
-
                 foreach (var f in files.EnumerateArray())
                 {
                     string fname = f.TryGetProperty("name", out var nProp) ? nProp.GetString()?.ToLower() : "";
@@ -146,8 +155,20 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                         }
                     }
                 }
-                return bestFile;
             }
+            
+            if (bestFile != null) return bestFile;
+
+            if (res.TryGetProperty("folders", out var subfolders) && subfolders.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var f in subfolders.EnumerateArray())
+                {
+                    var subId = f.GetProperty("id").ToString();
+                    var subFile = await GetVideoFileFromFolderAsync(token, subId, ct);
+                    if (subFile != null) return subFile;
+                }
+            }
+
             return null;
         }
 
@@ -182,7 +203,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                 {
                     string h = t.TryGetProperty("hash", out var hp) ? hp.GetString()?.ToLower() : "";
                     string n = t.TryGetProperty("name", out var np) ? np.GetString() : "";
-                    if ((infohash != null && h == infohash) || (magnetUri != null && IsMatchingFolder(n, magnetUri)))
+                    if ((infohash != null && h == infohash) || (magnetUri != null && IsMatchingFolder(n, magnetUri, null)))
                     {
                         delArr.Add(new { type = "torrent", id = t.GetProperty("id").GetInt32() });
                     }
@@ -196,7 +217,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                 {
                     string wh = w.TryGetProperty("torrent_hash", out var whp) ? whp.GetString()?.ToLower() : "";
                     string wt = w.TryGetProperty("title", out var wtp) ? wtp.GetString() : "";
-                    if ((infohash != null && wh == infohash) || (magnetUri != null && IsMatchingFolder(wt, magnetUri)))
+                    if ((infohash != null && wh == infohash) || (magnetUri != null && IsMatchingFolder(wt, magnetUri, null)))
                     {
                         delArr.Add(new { type = "wishlist", id = w.GetProperty("id").GetInt32() });
                     }
@@ -212,7 +233,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             return true; // nothing to delete
         }
 
-        public async Task<SeedrResult> GetDownloadUrlAsync(string username, string password, string magnetUri, double sizeGb, Action<int, string> onProgress, List<string> protectedFolderIds, CancellationToken cancellationToken)
+        public async Task<SeedrResult> GetDownloadUrlAsync(string username, string password, string magnetUri, double sizeGb, Action<int, string> onProgress, List<string> protectedFolderIds, string movieName, CancellationToken cancellationToken)
         {
             var token = await LoginAsync(username, password, cancellationToken);
             if (token == null) return new SeedrResult { Error = "Failed to login to Seedr" };
@@ -236,7 +257,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                 foreach (var f in existingFolders.EnumerateArray())
                 {
                     string fn = f.TryGetProperty("name", out var fnProp) ? fnProp.GetString() : "";
-                    if (IsMatchingFolder(fn, magnetUri))
+                    if (IsMatchingFolder(fn, magnetUri, movieName))
                     {
                         var vfile = await GetVideoFileFromFolderAsync(token, f.GetProperty("id").ToString(), cancellationToken);
                         if (vfile != null)
@@ -260,7 +281,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                 {
                     string h = t.TryGetProperty("hash", out var hp) ? hp.GetString()?.ToLower() : "";
                     string n = t.TryGetProperty("name", out var np) ? np.GetString() : "";
-                    if ((infohash != null && h == infohash) || IsMatchingFolder(n, magnetUri))
+                    if ((infohash != null && h == infohash) || IsMatchingFolder(n, magnetUri, movieName))
                     {
                         alreadyActive = true;
                         break;
@@ -275,7 +296,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                 {
                     string wh = w.TryGetProperty("torrent_hash", out var whp) ? whp.GetString()?.ToLower() : "";
                     string wt = w.TryGetProperty("title", out var wtp) ? wtp.GetString() : "";
-                    if ((infohash != null && wh == infohash) || IsMatchingFolder(wt, magnetUri))
+                    if ((infohash != null && wh == infohash) || IsMatchingFolder(wt, magnetUri, movieName))
                     {
                         myWishlistId = w.GetProperty("id").GetInt32();
                         break;
@@ -356,7 +377,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                             {
                                 string wh = w.TryGetProperty("torrent_hash", out var whp) ? whp.GetString()?.ToLower() : "";
                                 string wt = w.TryGetProperty("title", out var wtp) ? wtp.GetString() : "";
-                                if ((infohash != null && wh == infohash) || IsMatchingFolder(wt, magnetUri))
+                                if ((infohash != null && wh == infohash) || IsMatchingFolder(wt, magnetUri, movieName))
                                 {
                                     myWishlistId = w.GetProperty("id").GetInt32();
                                     break;
@@ -430,7 +451,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                     {
                         string h = t.TryGetProperty("hash", out var th) ? th.GetString()?.ToLower() : "";
                         string n = t.TryGetProperty("name", out var tn) ? tn.GetString() : "";
-                        if ((infohash != null && h == infohash) || IsMatchingFolder(n, magnetUri))
+                        if ((infohash != null && h == infohash) || IsMatchingFolder(n, magnetUri, movieName))
                         {
                             int pct = t.TryGetProperty("progress", out var tpct) ? tpct.GetInt32() : 0;
                             double speed = t.TryGetProperty("download_speed", out var tspd) ? tspd.GetDouble() / 1024.0 / 1024.0 : 0.0;
@@ -446,7 +467,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                     foreach (var f in cFolders.EnumerateArray())
                     {
                         string n = f.TryGetProperty("name", out var fn) ? fn.GetString() : "";
-                        if (IsMatchingFolder(n, magnetUri))
+                        if (IsMatchingFolder(n, magnetUri, movieName))
                         {
                             var vfile = await GetVideoFileFromFolderAsync(token, f.GetProperty("id").ToString(), cancellationToken);
                             if (vfile != null)

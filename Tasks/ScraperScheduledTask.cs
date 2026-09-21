@@ -9,16 +9,19 @@ using Jellyfin.Plugin.JellyFetch.Configuration;
 using Jellyfin.Plugin.JellyFetch.Helpers;
 using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Logging;
+using MediaBrowser.Controller.Library;
 
 namespace Jellyfin.Plugin.JellyFetch.Tasks;
 
 public class ScraperScheduledTask : IScheduledTask
 {
     private readonly ILogger<ScraperScheduledTask> _logger;
+    private readonly ILibraryManager _libraryManager;
 
-    public ScraperScheduledTask(ILogger<ScraperScheduledTask> logger)
+    public ScraperScheduledTask(ILogger<ScraperScheduledTask> logger, ILibraryManager libraryManager)
     {
         _logger = logger;
+        _libraryManager = libraryManager;
     }
 
     public string Name => "Scrape External Media";
@@ -49,7 +52,7 @@ public class ScraperScheduledTask : IScheduledTask
         try
         {
             using var client = new HttpClient();
-            var scraper = new JellyfinScraper(client);
+            var scraper = new JellyfinScraper(client, _libraryManager);
             var config = Plugin.Instance?.Configuration ?? new PluginConfiguration();
             
             var res = await scraper.RunScrapeAsync(config.DownloadsDirectory, (msg, pct) => 

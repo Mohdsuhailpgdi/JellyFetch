@@ -3,9 +3,9 @@
     <TargetFramework>net8.0</TargetFramework>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
-    <Version>1.0.1.0</Version>
-    <AssemblyVersion>1.0.1.0</AssemblyVersion>
-    <FileVersion>1.0.1.0</FileVersion>
+    <Version>1.0.2.0</Version>
+    <AssemblyVersion>1.0.2.0</AssemblyVersion>
+    <FileVersion>1.0.2.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -22,5 +22,6 @@
   <ItemGroup>
     <EmbeddedResource Include="Web\downloaders.html" />
     <EmbeddedResource Include="Web\downloaders.js" />
+    <EmbeddedResource Include="Web\jellyfetch-inject.js" />
   </ItemGroup>
 </Project>

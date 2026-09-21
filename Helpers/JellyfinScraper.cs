@@ -7,6 +7,9 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Entities;
+using Jellyfin.Data.Enums;
 
 namespace Jellyfin.Plugin.JellyFetch.Helpers
 {
@@ -225,9 +228,12 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             return (title, poster, magnets);
         }
 
-        public JellyfinScraper(HttpClient httpClient)
+        private readonly ILibraryManager _libraryManager;
+
+        public JellyfinScraper(HttpClient httpClient, ILibraryManager libraryManager = null)
         {
             _httpClient = httpClient;
+            _libraryManager = libraryManager;
         }
 
         public async Task<ScrapeResult> RunScrapeAsync(string downloadsDir, Action<string, double> logger, CancellationToken ct)
@@ -321,6 +327,28 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
 
                     var (full, baseN, _) = CleanMovieTitle(title);
                     if (string.IsNullOrEmpty(baseN) || baseN.Length < 2) return;
+
+                    if (_libraryManager != null)
+                    {
+                        var query = new InternalItemsQuery
+                        {
+                            IncludeItemTypes = new[] { BaseItemKind.Movie },
+                            SearchTerm = baseN,
+                            Limit = 10
+                        };
+                        var existing = _libraryManager.GetItemList(query);
+                        bool alreadyExists = false;
+                        foreach (var item in existing)
+                        {
+                            if (string.Equals(item.Name, baseN, StringComparison.OrdinalIgnoreCase) || 
+                                string.Equals(item.Name, full, StringComparison.OrdinalIgnoreCase))
+                            {
+                                alreadyExists = true;
+                                break;
+                            }
+                        }
+                        if (alreadyExists) return;
+                    }
 
                     string mDir = Path.Combine(downDir, full);
                     if (Directory.Exists(mDir) && Directory.GetFiles(mDir).Any(f => f.EndsWith(".mkv") || f.EndsWith(".mp4") || f.EndsWith(".avi"))) return;

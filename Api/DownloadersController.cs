@@ -559,9 +559,49 @@ public class DownloadersController : ControllerBase
             };
             _activeDownloads[normalizedId] = progress;
 
-            _ = Task.Run(async () =>
+            _ = ProcessSeedrDownload(progress, config, itemPath, magnetUri, magnetSize, tmdbId, imdbId);
+        }
+        else if (config.EnableTorbox)
+        {
+            if (string.IsNullOrEmpty(config.TorboxApiKey))
             {
-                try
+                return BadRequest(new { Message = "Torbox API key is not configured." });
+            }
+
+            var progress = new DownloadProgressInfo
+            {
+                ItemId = normalizedId,
+                MovieName = item.Name ?? "Movie",
+                Status = "Connecting to Torbox...",
+                Progress = 10,
+                Provider = "Torbox",
+                SizeGb = magnetSize,
+                Timestamp = DateTime.UtcNow,
+                Cts = cts,
+                ItemPath = itemPath
+            };
+            _activeDownloads[normalizedId] = progress;
+
+            _ = ProcessTorboxDownload(progress, config, itemPath, magnetUri, magnetSize, tmdbId, imdbId);
+        }
+        else
+        {
+            return BadRequest(new { Message = $"File size {magnetSize}GB exceeds maximum allowed size (10GB)." });
+        }
+
+        return Ok(new { Message = "Download requested successfully!" });
+    }
+    
+    private async Task ProcessSeedrDownload(DownloadProgressInfo progress, PluginConfiguration config, string itemPath, string magnetUri, double magnetSize, string? tmdbId, string? imdbId)
+    {
+        string normalizedId = progress.ItemId;
+        System.IO.File.AppendAllText("/tmp/plugin_debug.log", $"[{DateTime.UtcNow}] Inside ProcessSeedrDownload\n");
+        await Task.Yield();
+        var activeFolderIds = _activeDownloads.Values
+                        .Where(d => d.FolderId != null && !d.Completed && string.IsNullOrEmpty(d.Error) && d.Status != "Stopped" && d.Status != "Failed")
+                        .Select(d => d.FolderId!)
+                        .ToList();
+        try
                 {
                     _logger.LogInformation("Starting Seedr download for {ItemPath} with magnet {Magnet}", itemPath, magnetUri);
                     progress.Status = "Caching in Seedr cloud...";
@@ -570,10 +610,7 @@ public class DownloadersController : ControllerBase
                     using var httpClient = new HttpClient();
                     var seedrHelper = new SeedrHelper(httpClient);
                     
-                    var activeFolderIds = _activeDownloads.Values
-                        .Where(d => d.FolderId != null && !d.Completed && string.IsNullOrEmpty(d.Error) && d.Status != "Stopped" && d.Status != "Failed")
-                        .Select(d => d.FolderId!)
-                        .ToList();
+                    
 
                     var res = await seedrHelper.GetDownloadUrlAsync(
                         config.SeedrUsername, 
@@ -586,6 +623,7 @@ public class DownloadersController : ControllerBase
                             if (!progress.IsPaused) progress.Status = msg;
                         }, 
                         activeFolderIds,
+                        progress.MovieName,
                         progress.Cts.Token);
 
                     if (res.Success)
@@ -644,10 +682,10 @@ public class DownloadersController : ControllerBase
                                 {
                                     var dir = Path.GetDirectoryName(finalTarget);
                                     var folder = _libraryManager.FindByPath(dir, false) as MediaBrowser.Controller.Entities.Folder;
-                                    if (folder != null)
-                                    {
-                                        newItem = folder.GetChildren(null, true).FirstOrDefault(c => string.Equals(c.Path, finalTarget, StringComparison.OrdinalIgnoreCase));
-                                    }
+                                    // if (folder != null)
+                                    // {
+                                    //     newItem = folder.GetChildren(null, true).FirstOrDefault(c => string.Equals(c.Path, finalTarget, StringComparison.OrdinalIgnoreCase));
+                                    // }
                                 }
                                 if (newItem != null) break;
                                 await Task.Delay(2000);
@@ -700,32 +738,14 @@ public class DownloadersController : ControllerBase
                     progress.Error = ex.Message;
                     _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = magnetSize, Provider = "Seedr", Status = "Failed", ErrorMessage = ex.Message });
                 }
-            });
-        }
-        else if (config.EnableTorbox)
-        {
-            if (string.IsNullOrEmpty(config.TorboxApiKey))
-            {
-                return BadRequest(new { Message = "Torbox API key is not configured." });
-            }
+    }
 
-            var progress = new DownloadProgressInfo
-            {
-                ItemId = normalizedId,
-                MovieName = item.Name ?? "Movie",
-                Status = "Connecting to Torbox...",
-                Progress = 10,
-                Provider = "Torbox",
-                SizeGb = magnetSize,
-                Timestamp = DateTime.UtcNow,
-                Cts = cts,
-                ItemPath = itemPath
-            };
-            _activeDownloads[normalizedId] = progress;
-
-            _ = Task.Run(async () =>
-            {
-                try
+    private async Task ProcessTorboxDownload(DownloadProgressInfo progress, PluginConfiguration config, string itemPath, string magnetUri, double magnetSize, string? tmdbId, string? imdbId)
+    {
+        string normalizedId = progress.ItemId;
+        System.IO.File.AppendAllText("/tmp/plugin_debug.log", $"[{DateTime.UtcNow}] Inside ProcessTorboxDownload\n");
+        await Task.Yield();
+        try
                 {
                     _logger.LogInformation("Starting Torbox download for {ItemPath} with magnet {Magnet}", itemPath, magnetUri);
                     progress.Status = "Caching in Torbox cloud...";
@@ -752,7 +772,7 @@ public class DownloadersController : ControllerBase
                             progress.Status = "Downloading to Jellyfin library...";
                             progress.Progress = 30;
 
-                            await StreamWithProgressAsync(finalUrl, targetPath, progress, cts.Token);
+                            await StreamWithProgressAsync(finalUrl, targetPath, progress, progress.Cts.Token);
                             
                             _logger.LogInformation("Successfully saved media file: {Target}", targetPath);
                             progress.Progress = 90;
@@ -788,10 +808,10 @@ public class DownloadersController : ControllerBase
                                     {
                                         var dir = Path.GetDirectoryName(finalTarget);
                                         var folder = _libraryManager.FindByPath(dir, false) as MediaBrowser.Controller.Entities.Folder;
-                                        if (folder != null)
-                                        {
-                                            newItem = folder.GetChildren(null, true).FirstOrDefault(c => string.Equals(c.Path, finalTarget, StringComparison.OrdinalIgnoreCase));
-                                        }
+                                        // if (folder != null)
+                                        // {
+                                        //     newItem = folder.GetChildren(null, true).FirstOrDefault(c => string.Equals(c.Path, finalTarget, StringComparison.OrdinalIgnoreCase));
+                                        // }
                                     }
                                     if (newItem != null) break;
                                     await Task.Delay(2000);
@@ -840,14 +860,24 @@ public class DownloadersController : ControllerBase
                     progress.Error = ex.Message;
                     _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = magnetSize, Provider = "Torbox", Status = "Failed", ErrorMessage = ex.Message });
                 }
-            });
-        }
-        else
-        {
-            return BadRequest(new { Message = $"File size {magnetSize}GB exceeds maximum allowed size (10GB)." });
-        }
+    }
 
-        return Ok(new { Message = "Download requested successfully!" });
+    
+    [HttpPost("CleanupStrm")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult CleanupStrm()
+    {
+        var config = Plugin.Instance?.Configuration ?? new PluginConfiguration();
+        var targetDir = config.DownloadsDirectory;
+        if (string.IsNullOrEmpty(targetDir) || !Directory.Exists(targetDir)) return BadRequest(new { Message = "Invalid downloads directory." });
+        int count = 0;
+        try {
+            var strmFiles = Directory.GetFiles(targetDir, "*.strm", SearchOption.AllDirectories);
+            foreach (var file in strmFiles) { System.IO.File.Delete(file); count++; }
+            var dirs = Directory.GetDirectories(targetDir, "*", SearchOption.AllDirectories).OrderByDescending(d => d.Length);
+            foreach (var dir in dirs) { if (!Directory.EnumerateFileSystemEntries(dir).Any()) Directory.Delete(dir); }
+        } catch (Exception ex) { return StatusCode(500, new { Message = "Error during cleanup: " + ex.Message }); }
+        return Ok(new { Message = $"Cleanup successful. Removed {count} .strm files." });
     }
 
     [HttpPost("Scrape")]

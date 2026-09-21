@@ -1,95 +1,136 @@
 <div align="center">
-  <img src="icon.jpg" width="150" alt="Jellyfin Downloads Plugin Logo">
+  <img src="icon.jpg" width="150" alt="JellyFetch Plugin Logo">
   
-  # Jellyfin Downloads Plugin
+  # JellyFetch — Jellyfin Downloads Plugin
   
-  **A powerful, fully-automated media scraping and downloading plugin for Jellyfin.**
+  **Automated media scraping, cloud downloading, and library injection for Jellyfin.**
+  
+  [![Version](https://img.shields.io/badge/version-1.0.2-blue)](https://github.com/Mohdsuhailpgdi/Jellyfin-Downloads-Plugin/releases/latest)
+  [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9.x-orange)](https://jellyfin.org)
+  [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey)](https://github.com/Mohdsuhailpgdi/Jellyfin-Downloads-Plugin)
 </div>
 
+---
+
 ## 🇮🇳 Built for Regional Audiences
-This plugin is specifically optimized and hardcoded for Indian media consumers. The default scraping engine is deeply integrated with **1tamilmv**, providing robust, automated tracking and downloading of regional content (with extensive fallback capabilities to other sources). 
+This plugin is specifically optimized for Indian media consumers. The default scraping engine is deeply integrated with **1tamilmv**, providing robust, automated tracking and downloading of regional content, with extensive fallback capabilities.
+
+---
+
+## ✨ What's New in v1.0.2 (First Patch Release)
+
+- **🔧 Fixed: Seedr connection stalling** — `MissingMethodException` in `Folder.GetChildren()` caused the downloader to stall indefinitely at "Connecting to Seedr". Now resolved.
+- **🔧 Fixed: Broken movie page after download** — After download completion, navigating to the new item showed a blank/broken page due to a metadata race condition. The plugin now triggers a full metadata refresh (posters, backdrops) before navigating.
+- **🔧 Fixed: Background download session hijacking** — If a download completed while the user was browsing other pages, the app forcefully redirected the user back to the downloaded movie. Now the polling stops when you navigate away.
+- **🔧 Fixed: "Stop & Cancel" → "Stop"** — Button label corrected.
+- **🚀 NEW: Zero-configuration UI install** — The plugin now automatically patches your Jellyfin web interface on startup. No manual `dist.tar.gz` installation required.
+
+---
 
 ## 🌟 Features
-* **Native C# Architecture**: Built entirely in C# for seamless integration into the Jellyfin server lifecycle. No external scripts or Python dependencies required!
-* **Multi-Provider Cloud Orchestration**: Supports downloading torrents via both **Seedr** and **Torbox** APIs.
-* **Smart Queueing System**: Never hit your cloud storage limits. The plugin automatically pools the sizes of active downloads and holds pending ones in a queue (e.g., respecting Seedr's 4GB limit).
-* **Interactive UI**: Fully integrated into the Jellyfin web interface.
-  * Real-time download progress overlays right on your movie posters!
-  * Dedicated **History** panel in the plugin settings with live active, paused, and queued states.
-  * Pause, Resume, and Cancel functionality directly from the UI.
-* **Resilient Metadata**: Automatically saves `.nfo` metadata and poster locks before download completion to prevent Jellyfin from incorrectly re-identifying movies when replacing placeholder streams with real video files.
-* **Robust Logging**: JSON-based history manager prevents SQL lock errors while maintaining a permanent record of all completed, failed, and canceled downloads.
+
+- **Native C# Architecture** — Built entirely in C# for seamless Jellyfin server integration. No Python or external scripts.
+- **Multi-Provider Cloud Orchestration** — Downloads via **Seedr** and **Torbox** APIs.
+- **Smart Queue System** — Respects Seedr's 4 GB limit; automatically pools active download sizes and holds pending ones.
+- **Zero-Config UI** — Plugin auto-patches `index.html` on startup. Just install and restart.
+- **Real-time Progress** — Live download progress and status overlays directly on movie detail pages.
+- **Pause / Resume / Stop** — Full download lifecycle control from the movie page.
+- **Resilient Metadata** — Saves `.nfo` and locks posters before download to prevent Jellyfin from re-identifying movies when placeholder streams are replaced.
+- **History Panel** — View all active, paused, queued, and completed downloads in the plugin settings.
 
 ---
 
 ## 🛠️ Installation
 
-### 1. Install the Plugin Backend
-You can install this plugin natively directly from the Jellyfin Web UI using the Custom Repository feature.
+### Install via Jellyfin Plugin Repository (Recommended)
 
-1. Open your Jellyfin Web UI and navigate to **Dashboard** -> **Plugins**.
-2. Click on the **Repositories** tab.
-3. Click the **+ New Repository** button.
-4. Fill in the details:
-   * **Name**: `JellyFetch Plugin`
-   * **Repository URL**: `https://raw.githubusercontent.com/Mohdsuhailpgdi/Jellyfin-Downloads-Plugin/main/manifest.json`
-5. Click **Save**.
-6. Switch to the **Catalog** tab on the top of the Plugins page.
-7. Scroll down to the **General** section, find the **JellyFetch** plugin, and click **Install**.
-8. **Restart your Jellyfin server** for the plugin to load.
+1. Open your Jellyfin Web UI → **Dashboard** → **Plugins** → **Repositories** tab.
+2. Click **+ New Repository** and add:
+   - **Name**: `JellyFetch`
+   - **URL**: `https://raw.githubusercontent.com/Mohdsuhailpgdi/Jellyfin-Downloads-Plugin/main/manifest.json`
+3. Click **Save**.
+4. Switch to the **Catalog** tab, find **JellyFetch** under General, and click **Install**.
+5. **Restart your Jellyfin server.**
 
-### 2. Install the Frontend UI (For the Download Button)
-The plugin requires a custom modified `jellyfin-web` interface to display the Download Button and live progress overlays directly on your movie pages.
+That's it. The plugin automatically patches your web interface on first startup. Do a **hard refresh** (`Ctrl + Shift + R`) in your browser to see the Download button.
 
-**For Native Ubuntu/Debian Installs:**
-1. Download the pre-compiled `dist.tar.gz` from the GitHub releases page.
-2. Extract the contents directly into your native Jellyfin web directory:
-   ```bash
-   sudo tar -xzf dist.tar.gz -C /usr/share/jellyfin/web/
-   sudo chown -R jellyfin:jellyfin /usr/share/jellyfin/web/
-   sudo systemctl restart jellyfin
-   ```
-3. **IMPORTANT**: You must perform a Hard Refresh (`Ctrl + F5`) or completely clear your browser cache for the new Download button to appear!
+> **Note for Docker users:** The auto-patcher writes to the Jellyfin web directory inside the container. If your web directory is on a read-only volume mount, the auto-patch will fail silently and you will see a warning in the Jellyfin logs. In that case, see the manual install section below.
 
-**For Docker Installs:**
-You will need to mount the modified `jellyfin-web/dist` folder over the container's built-in web path using a volume mount in your `docker-compose.yml`:
-```yaml
-volumes:
-  - /path/to/extracted/dist:/jellyfin/jellyfin-web
+---
+
+### Manual Web UI Install (Docker / Read-only web volumes)
+
+If the auto-patch cannot write to the web directory, you can install manually:
+
+```bash
+# Download and extract the frontend
+curl -L https://github.com/Mohdsuhailpgdi/Jellyfin-Downloads-Plugin/releases/download/v1.0.2/dist.tar.gz \
+  | sudo tar -xz -C /usr/share/jellyfin/web/
+
+sudo chown -R jellyfin:jellyfin /usr/share/jellyfin/web/
+sudo systemctl restart jellyfin
 ```
+
+Then hard-refresh your browser (`Ctrl + Shift + R`).
 
 ---
 
 ## ⚙️ Configuration & Usage
 
-Once the server is restarted and the plugin is loaded, you need to link it to your cloud downloading service.
+After restarting, configure your cloud provider:
 
-1. Go to **Dashboard** -> **Plugins** and click on the **Downloads** plugin.
-2. Enter your credentials for your preferred provider:
-   * **Seedr**: Enter your Seedr Username and Password.
-   * **Torbox**: Enter your Torbox API Key.
+1. Go to **Dashboard** → **Plugins** → **JellyFetch** (settings icon).
+2. Enter credentials:
+   - **Seedr**: Username + Password
+   - **Torbox**: API Key
 3. Click **Save**.
 
 ### How it Works
-The plugin runs completely in the background via a Jellyfin Scheduled Task. 
-* It automatically monitors your library for missing media.
-* It scrapes *1tamilmv* (and fallbacks) to find magnets matching your movies.
-* It sends the magnet to your cloud provider (Seedr/Torbox), waits for it to finish, and pulls the raw video file straight into your Jellyfin media folder.
+
+1. Navigate to any movie in your Jellyfin library.
+2. If the movie is a placeholder (`.strm` file / not yet downloaded), you'll see a **Download** button instead of Play.
+3. Click **Download**, choose the file size/language variant, and it kicks off.
+4. The button transforms into a live progress indicator. You can pause, resume, or stop at any time.
+5. When done, the movie page automatically refreshes with full metadata and the Play button appears.
 
 ### The History Tab
-Inside the Plugin Settings page, you will see a **History** tab. This is your command center.
-* View all **Active**, **Paused**, and **Queued** downloads.
-* Monitor live download progress.
-* **Pause / Resume / Cancel** any active download directly from the interface.
+
+Inside the Plugin Settings page → **History** tab:
+- View all **Active**, **Paused**, and **Queued** downloads.
+- Monitor live progress.
+- **Pause / Resume / Cancel** any active download.
 
 ---
 
 ## 💻 Development
 
-The plugin is compiled for `.NET 8.0` to match modern Jellyfin server versions.
-
 ```bash
-dotnet build
+dotnet build -c Release
 ```
 
-After building, copy the `Jellyfin.Plugin.Downloads.dll` into your Jellyfin `/config/plugins/Downloads/` folder and restart the server.
+The plugin targets `.NET 8.0`. After building, copy `Jellyfin.Plugin.JellyFetch.dll` into your Jellyfin `/config/plugins/Downloads_1.0.2.0/` folder and restart the server.
+
+### Project Structure
+
+```
+JellyFetch-Plugin/
+├── Plugin.cs                   ← Main plugin entry + web auto-patcher
+├── Configuration/              ← PluginConfiguration (Seedr/Torbox credentials)
+├── Api/
+│   └── DownloadersController.cs ← REST endpoints (/System/Configuration/Downloaders/*)
+├── Helpers/
+│   ├── JellyfinScraper.cs      ← C# scraper for 1tamilmv and fallbacks
+│   └── SeedrHelper.cs          ← Seedr API integration
+├── Tasks/
+│   └── ScraperScheduledTask.cs ← Background scheduled task
+└── Web/
+    ├── downloaders.html         ← Plugin settings page
+    ├── downloaders.js           ← Plugin settings JS
+    └── jellyfetch-inject.js    ← Frontend injection script (auto-deployed to web dir)
+```
+
+---
+
+## 🔒 Security Note
+
+This plugin stores your Seedr/Torbox credentials in Jellyfin's plugin configuration (encrypted at rest by Jellyfin's configuration system). Credentials are never logged or transmitted to any third party.
