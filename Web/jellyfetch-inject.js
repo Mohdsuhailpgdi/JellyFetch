@@ -59,7 +59,17 @@
         return m ? m[1] : null;
     }
 
+    function isPlayerActive() {
+        return !!(
+            document.getElementById('videoOsdPage') ||
+            document.querySelector('.videoPlayerContainer') ||
+            document.querySelector('div[data-role="page"].videoOsdPage') ||
+            (window.location.hash && /#\/?video/i.test(window.location.hash))
+        );
+    }
+
     function isDetailsPage() {
+        if (isPlayerActive()) return false;
         return /[/#]details\?/.test(window.location.hash || '');
     }
 
@@ -83,19 +93,16 @@
     // ── Button Creation & Styling ─────────────────────────────────────
     function getButtonArea(container) {
         var root = container || document;
+        if (root && (root.id === 'videoOsdPage' || (root.classList && root.classList.contains('videoPlayerContainer')))) {
+            return null;
+        }
         return root.querySelector('.mainDetailButtons')
             || root.querySelector('.itemDetailButtons')
             || root.querySelector('.detailButtons');
     }
 
-    function syncButton(view, itemId) {
-        var area = getButtonArea(view);
-        if (!area) {
-            waitFor(function () { return getButtonArea(view) || getButtonArea(document); }, 3000).then(function (found) {
-                if (found && state.itemId === itemId) syncButton(view, itemId);
-            });
-            return;
-        }
+    function applyButtonSync(area, itemId) {
+        if (!area || isPlayerActive()) return;
 
         var shouldDownload = state.isDownloadable || state.isDownloading;
 
@@ -123,7 +130,7 @@
             btn.addEventListener('click', function (e) {
                 e.preventDefault();
                 e.stopPropagation();
-                showModal(view, itemId);
+                showModal(area.closest('.mainAnimatedPage') || document.body, itemId);
             });
 
             var playBtn = area.querySelector('.btnPlay, .btnReplay, [data-action="play"]');
@@ -172,6 +179,20 @@
         }
     }
 
+    function syncButton(view, itemId) {
+        if (isPlayerActive()) return;
+        var area = getButtonArea(view) || getButtonArea(document);
+        if (area) {
+            applyButtonSync(area, itemId);
+            return;
+        }
+        waitFor(function () { return getButtonArea(document); }, 2000).then(function (found) {
+            if (found && state.itemId === itemId && !isPlayerActive()) {
+                applyButtonSync(found, itemId);
+            }
+        });
+    }
+
     // ── Main Page Load Handler ────────────────────────────────────────
     function handleView(view, itemId) {
         if (!isDetailsPage()) return;
@@ -190,7 +211,7 @@
             .catch(function () { return null; });
 
         Promise.all([statusPromise, optionsPromise]).then(function (results) {
-            if (state.itemId !== targetId) return;
+            if (isPlayerActive() || state.itemId !== targetId) return;
             var st = results[0];
             var optData = results[1];
 
@@ -515,7 +536,7 @@
 
     // ── Event Listeners (Native Jellyfin Event-Driven) ────────────────
     function onPageChange() {
-        if (!isDetailsPage()) {
+        if (isPlayerActive() || !isDetailsPage()) {
             document.body.classList.remove('jf-download-mode');
             stopAll();
             var btn = document.getElementById('jf-dl-btn');
@@ -537,7 +558,8 @@
 
     // Jellyfin dispatches 'viewshow' with bubbles: true on the active view
     document.addEventListener('viewshow', function (e) {
-        if (!isDetailsPage()) return;
+        if (isPlayerActive() || !isDetailsPage()) return;
+        if (e.target && (e.target.id === 'videoOsdPage' || (e.target.classList && e.target.classList.contains('videoPlayerContainer')))) return;
         var view = e.target;
         var itemId = (e.detail && e.detail.params && e.detail.params.id) || getCurrentItemId();
         handleView(view, itemId);
@@ -545,7 +567,7 @@
 
     // Cleanup on view hide
     document.addEventListener('viewhide', function () {
-        if (!isDetailsPage()) {
+        if (isPlayerActive() || !isDetailsPage()) {
             stopAll();
             document.body.classList.remove('jf-download-mode');
         }

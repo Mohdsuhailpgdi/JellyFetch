@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/icon.jpg",
     "versions": [
       {
+        "version": "1.0.5.1",
+        "changelog": "v1.0.5.1: Fix browser freeze ('Page Unresponsive') on video player exit by eliminating recursive syncButton microtask loop and adding video player guards.",
+        "targetAbi": "10.9.9.0",
+        "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
+        "checksum": "9023B12CA5BD7EC316EB2171E76FBE00",
+        "timestamp": "2026-09-24T00:00:00Z"
+      },
+      {
         "version": "1.0.5.0",
         "changelog": "v1.0.5: Native Jellyfin detail button styling matching default theme, fixed-width progress indicator showing only percentage, zero-MutationObserver event-driven navigation, in-place modal progress view, and persistent progress bar fix.",
         "targetAbi": "10.9.9.0",

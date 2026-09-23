@@ -5,7 +5,7 @@
   
   **Automated media scraping, cloud downloading, and library injection for Jellyfin.**
   
-  [![Version](https://img.shields.io/badge/version-1.0.5-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
+  [![Version](https://img.shields.io/badge/version-1.0.5.1-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
   [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9.x--12.x-orange)](https://jellyfin.org)
   [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey)](https://github.com/Mohdsuhailpgdi/JellyFetch)
 </div>
@@ -14,6 +14,14 @@
 
 ## 🇮🇳 Built for Regional Audiences
 This plugin is specifically optimized for Indian media consumers. The default scraping engine is deeply integrated with **1tamilmv**, providing robust, automated tracking and downloading of regional content, with extensive fallback capabilities.
+
+---
+
+## ✨ What's New in v1.0.5.1
+
+- **🛑 Fixed: Browser Freeze ("Page Unresponsive") on Player Exit** — Eliminated an infinite Promise microtask loop in `syncButton` when navigating back from the video player, ensuring the player closes smoothly and instantaneously without freezing the browser or mobile app.
+- **🛡️ Player View Lifecycle Guards** — Added `isPlayerActive()` guards to prevent `viewshow`, `viewhide`, and `onPageChange` from running button injection while the video player is actively rendering or tearing down.
+- **⚡ Zero-Recursion Button Sync** — Directly resolves button area elements and binds them without recursive re-invocations.
 
 ---
 
