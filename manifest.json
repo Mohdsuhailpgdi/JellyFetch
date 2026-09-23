@@ -10,51 +10,11 @@
     "versions": [
       {
         "version": "1.0.5.1",
-        "changelog": "v1.0.5.1: Fix browser freeze ('Page Unresponsive') on video player exit by eliminating recursive syncButton microtask loop and adding video player guards.",
+        "changelog": "v1.0.5.1: Fix browser freeze ('Page Unresponsive') on video player exit by eliminating recursive syncButton microtask loop and adding video player guards. Automatic clean uninstallation hook (reverts index.html on plugin removal).",
         "targetAbi": "10.9.9.0",
         "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
-        "checksum": "9023B12CA5BD7EC316EB2171E76FBE00",
+        "checksum": "1593C41C42093DF7C43AB75FA052B5F8",
         "timestamp": "2026-09-24T00:00:00Z"
-      },
-      {
-        "version": "1.0.5.0",
-        "changelog": "v1.0.5: Native Jellyfin detail button styling matching default theme, fixed-width progress indicator showing only percentage, zero-MutationObserver event-driven navigation, in-place modal progress view, and persistent progress bar fix.",
-        "targetAbi": "10.9.9.0",
-        "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
-        "checksum": "FE33B789958338FCC6C6BCB67D690CE7",
-        "timestamp": "2026-09-23T00:00:00Z"
-      },
-      {
-        "version": "1.0.4.0",
-        "changelog": "Fix: Real library deduplication skips dummy strm creation for owned movies. Redesigned Cleanup .strm tool with real-time percentage progress and live activity log box, deselected language removal, and auto-refresh library scan.",
-        "targetAbi": "10.9.9.0",
-        "sourceUrl": "https://github.com/Mohdsuhailpgdi/JellyFetch/releases/download/v1.0.4/Jellyfin.Plugin.JellyFetch.zip",
-        "checksum": "A8B14CDD0DA053E87F2ACBC9F022AB8A",
-        "timestamp": "2026-09-23T00:00:00Z"
-      },
-      {
-        "version": "1.0.3.0",
-        "changelog": "Fix: Scraper MissingMethodException cross-version compatibility for Jellyfin 10.9, 10.10, and 12.1+. Multi-language releases of the same movie (e.g. Tamil and Malayalam) are now cleanly merged under the same movie without overwriting or creating duplicate entries.",
-        "targetAbi": "10.9.9.0",
-        "sourceUrl": "https://github.com/Mohdsuhailpgdi/JellyFetch/releases/download/v1.0.3/Jellyfin.Plugin.JellyFetch.zip",
-        "checksum": "CAC69F36BA561E3DBE179A0BEC800EE0",
-        "timestamp": "2026-09-21T00:00:00Z"
-      },
-      {
-        "version": "1.0.2.0",
-        "changelog": "Patch release: Fixed Seedr connection stalling (MissingMethodException), fixed post-download page rendering (metadata race condition), fixed background download hijacking user session, fixed Stop button label. Added automatic web UI installation - plugin now auto-patches index.html on startup, no manual dist.tar.gz required.",
-        "targetAbi": "10.9.9.0",
-        "sourceUrl": "https://github.com/Mohdsuhailpgdi/JellyFetch/releases/download/v1.0.2/Jellyfin.Plugin.JellyFetch.zip",
-        "checksum": "B1D382DBDF8ED6350118E57F0E0C730A",
-        "timestamp": "2026-09-21T00:00:00Z"
-      },
-      {
-        "version": "1.0.1.0",
-        "changelog": "Fix native Ubuntu paths.",
-        "targetAbi": "10.9.9.0",
-        "sourceUrl": "https://github.com/Mohdsuhailpgdi/JellyFetch/releases/download/v1.0.1/Jellyfin.Plugin.JellyFetch.zip",
-        "checksum": "DE832ACF9DB4CF25BAE1512F6826EED8",
-        "timestamp": "2026-09-20T00:00:00Z"
       }
     ]
   }

@@ -705,15 +705,6 @@ public class DownloadersController : ControllerBase
                             for (int retry = 0; retry < 5; retry++)
                             {
                                 newItem = _libraryManager.FindByPath(finalTarget, false);
-                                if (newItem == null)
-                                {
-                                    var dir = Path.GetDirectoryName(finalTarget);
-                                    var folder = _libraryManager.FindByPath(dir, false) as MediaBrowser.Controller.Entities.Folder;
-                                    // if (folder != null)
-                                    // {
-                                    //     newItem = folder.GetChildren(null, true).FirstOrDefault(c => string.Equals(c.Path, finalTarget, StringComparison.OrdinalIgnoreCase));
-                                    // }
-                                }
                                 if (newItem != null) break;
                                 await Task.Delay(2000);
                             }
@@ -831,15 +822,6 @@ public class DownloadersController : ControllerBase
                                 for (int retry = 0; retry < 5; retry++)
                                 {
                                     newItem = _libraryManager.FindByPath(finalTarget, false);
-                                    if (newItem == null)
-                                    {
-                                        var dir = Path.GetDirectoryName(finalTarget);
-                                        var folder = _libraryManager.FindByPath(dir, false) as MediaBrowser.Controller.Entities.Folder;
-                                        // if (folder != null)
-                                        // {
-                                        //     newItem = folder.GetChildren(null, true).FirstOrDefault(c => string.Equals(c.Path, finalTarget, StringComparison.OrdinalIgnoreCase));
-                                        // }
-                                    }
                                     if (newItem != null) break;
                                     await Task.Delay(2000);
                                 }
