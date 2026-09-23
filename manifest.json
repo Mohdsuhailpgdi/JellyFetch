@@ -13,7 +13,7 @@
         "changelog": "v1.0.5.1: Fix browser freeze ('Page Unresponsive') on video player exit by eliminating recursive syncButton microtask loop and adding video player guards. Automatic clean uninstallation hook (reverts index.html on plugin removal).",
         "targetAbi": "10.9.9.0",
         "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
-        "checksum": "1593C41C42093DF7C43AB75FA052B5F8",
+        "checksum": "B4E1B8785DC6004B86FCCCF430BB3474",
         "timestamp": "2026-09-24T00:00:00Z"
       }
     ]

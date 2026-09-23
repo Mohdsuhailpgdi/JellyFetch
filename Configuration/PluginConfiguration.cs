@@ -1,3 +1,4 @@
+// JellyFetch Plugin for Jellyfin - Version 1.0.5.1
 using System;
 using System.Collections.Generic;
 using MediaBrowser.Common.Configuration;

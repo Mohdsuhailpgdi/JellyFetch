@@ -19,45 +19,24 @@ This plugin is specifically optimized for Indian media consumers. The default sc
 
 ## ✨ What's New in v1.0.5.1
 
-- **🛑 Fixed: Browser Freeze ("Page Unresponsive") on Player Exit** — Eliminated an infinite Promise microtask loop in `syncButton` when navigating back from the video player, ensuring the player closes smoothly and instantaneously without freezing the browser or mobile app.
-- **🛡️ Player View Lifecycle Guards** — Added `isPlayerActive()` guards to prevent `viewshow`, `viewhide`, and `onPageChange` from running button injection while the video player is actively rendering or tearing down.
-- **⚡ Zero-Recursion Button Sync** — Directly resolves button area elements and binds them without recursive re-invocations.
+- **🛑 Fixed: Browser Freeze ("Page Unresponsive") on Player Exit** — Eliminated an infinite Promise microtask loop in `syncButton` when exiting the video player, ensuring the player closes instantaneously without freezing the browser or mobile app.
+- **🛡️ Clean Uninstallation Lifecycle Hook** — Implemented Jellyfin's official `OnUninstalling()` lifecycle method. When uninstalled from the Jellyfin Dashboard, the plugin automatically removes the `<script>` tag from `index.html` and deletes `jellyfetch-inject.js`, cleanly restoring Jellyfin to stock.
+- **⚡ Zero-Recursion Button Sync & Player Lifecycle Guards** — Added `isPlayerActive()` guards to prevent `viewshow`, `viewhide`, and `onPageChange` from injecting buttons while the video player is active.
+- **🎨 Native Detail Button Styling** — Movie details Download button matches Jellyfin's default flat icon button theme (identical to checkmark, favorite, and more options buttons).
+- **📊 Fixed-Width Percentage Progress Indicator** — Transforms into a sleek fixed-width pill (76px) strictly displaying the sync icon and percentage (`🔄 74%`), eliminating layout jumping.
 
----
+<details>
+<summary><b>📜 Previous Version Highlights (v1.0.3 – v1.0.4)</b></summary>
 
-## ✨ What's New in v1.0.5
-
-- **🎨 Native Detail Button Styling** — Re-styled the movie details Download button to seamlessly match Jellyfin's default flat icon button theme (identical to adjacent checkmark, favorite, and more options buttons) without clashing colors or misalignments.
-- **📊 Fixed-Width Percentage Progress Indicator** — When active downloading occurs, the button transforms into a sleek, fixed-width pill (76px) strictly displaying the spinning sync icon and percentage (`🔄 74%`), eliminating layout jumping caused by shifting speed/byte text.
-- **🎯 Zero-MutationObserver Event Navigation** — Replaced heavy MutationObserver DOM scanning with native Jellyfin `viewshow` and `viewhide` custom lifecycle events, ensuring instantaneous button rendering on navigation and hard refreshes without race conditions or memory overhead.
-- **🔄 Clean Modal & Download Route** — In-place download modal with download size selection that stays centered and preserves state, routing requests directly to `/Download/{itemId}`.
-- **⚡ Fixed: Persistent 'Initializing... 0%' Progress Bar** — Replaced unconditional polling with conditional task status detection so the progress container stays cleanly hidden when no scraper or cleanup tasks are running.
-- **🛡️ Auto-Cache Busting** — `index.html` auto-updates the script tag version query string (`?v=1.0.5.0`) on startup, preventing stale browser caching across updates.
-
----
-
-## ✨ What's New in v1.0.4
-
-- **🛡️ Real Library Deduplication** — Scraper automatically inspects existing downloaded movies in your library and skips dummy `.strm` generation for titles you already own, eliminating duplicate movie cards (`Balan - The Boy`, `Backrooms`, `The Bodyguard`, `Balti`).
-- **📊 Real-Time Cleanup Tool with Live Activity Log** — Redesigned "Cleanup .strm Files" tool with live percentage progress and an activity log box displaying every scanned and deleted directory.
-- **🧹 Deselected Language & Orphan Cleanup** — Removing or unchecking a language removes all un-downloaded dummy movie folders for that language while safely preserving real video files (`.mkv`, `.mp4`, `.avi`).
-- **⚡ Auto-Refresh Library on Cleanup** — Immediately triggers Jellyfin's `ValidateMediaLibrary` scan when cleanup finishes so the UI reflects changes without a server restart.
-
----
-
-## ✨ What's New in v1.0.3
-
-- **🔧 Fixed: Scraper Crash (`MissingMethodException`)** — Resolved interface signature differences in `ILibraryManager.GetItemList` across Jellyfin 10.9, 10.10, and 12.1+ so manual and automated scraping runs without crashing.
-- **🌐 Multi-Language Movie Merging** — When a movie has releases in multiple languages (e.g. Tamil and Malayalam releases of the same title), the scraper atomically merges all magnet options under the single movie entry instead of overwriting or creating duplicate entries.
-- **🏷️ Language Tabs in Download Modal** — The movie detail page allows switching between languages (Tamil, Malayalam, etc.) to view and download available sizes for each language.
-- **🧹 Non-Breaking Whitespace & Title Normalization** — Fixed topic titles containing Unicode non-breaking spaces (`\u00a0`) and non-bracketed year formatting.
-
+- **v1.0.4**: Real library deduplication skips dummy `.strm` creation for owned movies. Redesigned Cleanup `.strm` tool with real-time percentage progress and live activity log box.
+- **v1.0.3**: Scraper cross-version compatibility for Jellyfin 10.9, 10.10, and 12.1+. Multi-language releases (e.g. Tamil and Malayalam) are cleanly merged under the same title without duplicate entries.
+</details>
 
 ---
 
 ## 🌟 Features
 
-- **Native C# Architecture** — Built entirely in C# for seamless Jellyfin server integration. No Python or external scripts.
+- **Native C# Architecture** — Built entirely in C# for seamless Jellyfin server integration. No Python or external dependencies.
 - **Multi-Provider Cloud Orchestration** — Downloads via **Seedr** and **Torbox** APIs.
 - **Smart Queue System** — Respects Seedr's 4 GB limit; automatically pools active download sizes and holds pending ones.
 - **Zero-Config UI** — Plugin auto-patches `index.html` on startup. Just install and restart.
@@ -82,24 +61,7 @@ This plugin is specifically optimized for Indian media consumers. The default sc
 
 That's it. The plugin automatically patches your web interface on first startup. Do a **hard refresh** (`Ctrl + Shift + R`) in your browser to see the Download button.
 
-> **Note for Docker users:** The auto-patcher writes to the Jellyfin web directory inside the container. If your web directory is on a read-only volume mount, the auto-patch will fail silently and you will see a warning in the Jellyfin logs. In that case, see the manual install section below.
-
----
-
-### Manual Web UI Install (Docker / Read-only web volumes)
-
-If the auto-patch cannot write to the web directory, you can install manually:
-
-```bash
-# Download and extract the frontend
-curl -L https://github.com/Mohdsuhailpgdi/JellyFetch/releases/download/v1.0.2/dist.tar.gz \
-  | sudo tar -xz -C /usr/share/jellyfin/web/
-
-sudo chown -R jellyfin:jellyfin /usr/share/jellyfin/web/
-sudo systemctl restart jellyfin
-```
-
-Then hard-refresh your browser (`Ctrl + Shift + R`).
+> **Note for Docker users:** The auto-patcher writes to the Jellyfin web directory inside the container on startup. If your web directory is mounted read-only, ensure write permissions or mount the web folder as read-write.
 
 ---
 
@@ -136,19 +98,21 @@ Inside the Plugin Settings page → **History** tab:
 dotnet build -c Release
 ```
 
-The plugin targets `.NET 8.0`. After building, copy `Jellyfin.Plugin.JellyFetch.dll` into your Jellyfin `/config/plugins/JellyFetch_1.0.2.0/` folder and restart the server.
+The plugin targets `.NET 8.0`. After building, copy `Jellyfin.Plugin.JellyFetch.dll` into your Jellyfin `/config/plugins/JellyFetch_1.0.5.1/` folder and restart the server.
 
 ### Project Structure
 
 ```
 JellyFetch-Plugin/
-├── Plugin.cs                   ← Main plugin entry + web auto-patcher
-├── Configuration/              ← PluginConfiguration (Seedr/Torbox credentials)
+├── Plugin.cs                   ← Main plugin entry, web auto-patcher & OnUninstalling lifecycle hook
+├── Configuration/              ← PluginConfiguration (Seedr/Torbox credentials, settings)
 ├── Api/
 │   └── DownloadersController.cs ← REST endpoints (/System/Configuration/Downloaders/*)
 ├── Helpers/
-│   ├── JellyfinScraper.cs      ← C# scraper for 1tamilmv and fallbacks
-│   └── SeedrHelper.cs          ← Seedr API integration
+│   ├── JellyfinScraper.cs      ← C# scraper for 1tamilmv with multi-language merging
+│   ├── SeedrHelper.cs          ← Seedr API integration & queue management
+│   ├── TorboxHelper.cs         ← Torbox API integration & direct downloading
+│   └── DownloadHistoryManager.cs ← JSON history storage & state manager
 ├── Tasks/
 │   └── ScraperScheduledTask.cs ← Background scheduled task
 └── Web/
