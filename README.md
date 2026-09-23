@@ -17,34 +17,18 @@ This plugin is specifically optimized for Indian media consumers. The default sc
 
 ---
 
-## ✨ What's New in v1.1.0 — Initial Official Release
+## 🌟 Key Features
 
-- **🚀 Native Movie Detail Button** — Seamlessly matches Jellyfin's default flat icon button theme (adjacent to play, favorite, and watched) without layout jumping or color clashes.
-- **📊 Fixed-Width Percentage Progress Indicator** — Transforms into a sleek fixed-width pill (76px) strictly displaying the sync icon and percentage (`🔄 74%`).
-- **🛡️ Clean Uninstallation Lifecycle Hook** — Implements Jellyfin's official `OnUninstalling()` lifecycle method. When uninstalled from the Jellyfin Dashboard, the plugin automatically removes the `<script>` tag from `index.html` and deletes `jellyfetch-inject.js`, cleanly restoring Jellyfin to stock.
-- **🛑 Zero-Recursion Button Sync & Player Lifecycle Guards** — Protected with `isPlayerActive()` guards to prevent any interaction or freeze when entering or closing the video player.
-- **🌐 Multi-Language Movie Merging** — Atomically merges Tamil, Telugu, Malayalam, and Hindi releases under the same movie entry.
-- **🛡️ Real Library Deduplication** — Skips placeholder generation for titles already present in your Jellyfin library.
-
-<details>
-<summary><b>📜 Historical Development Notes (Pre-v1.1)</b></summary>
-
-- **v1.0.4**: Real library deduplication skips dummy `.strm` creation for owned movies. Redesigned Cleanup `.strm` tool with real-time percentage progress and live activity log box.
-- **v1.0.3**: Scraper cross-version compatibility for Jellyfin 10.9, 10.10, and 12.1+. Multi-language releases cleanly merged without duplicate entries.
-</details>
-
----
-
-## 🌟 Features
-
-- **Native C# Architecture** — Built entirely in C# for seamless Jellyfin server integration. No Python or external dependencies.
-- **Multi-Provider Cloud Orchestration** — Downloads via **Seedr** and **Torbox** APIs.
-- **Smart Queue System** — Respects Seedr's 4 GB limit; automatically pools active download sizes and holds pending ones.
-- **Zero-Config UI** — Plugin auto-patches `index.html` on startup. Just install and restart.
-- **Real-time Progress** — Live download progress and status overlays directly on movie detail pages.
-- **Pause / Resume / Stop** — Full download lifecycle control from the movie page.
-- **Resilient Metadata** — Saves `.nfo` and locks posters before download to prevent Jellyfin from re-identifying movies when placeholder streams are replaced.
-- **History Panel** — View all active, paused, queued, and completed downloads in the plugin settings.
+- **🚀 Native Movie Detail Integration** — Download button seamlessly matches Jellyfin's default flat icon button theme (adjacent to play, favorite, and watched) without layout shifts or color clashes.
+- **📊 Real-Time Percentage Progress** — Transforms dynamically into a fixed-width pill (76px) strictly displaying the sync icon and percentage (`🔄 74%`).
+- **☁️ Multi-Provider Cloud Orchestration** — Downloads via **Seedr** and **Torbox** APIs with smart quota pooling and automatic queuing.
+- **🌐 Multi-Language Movie Merging** — Automatically tracks and merges multi-language releases (Tamil, Malayalam, Telugu, Hindi) under a single movie entry.
+- **🛡️ Real Library Deduplication** — Automatically detects movies already present in your Jellyfin library and skips dummy placeholders.
+- **⚡ Zero-Config UI Injection** — Plugin auto-patches `index.html` silently on startup. No manual file copying or complicated setup required.
+- **🧹 Clean Uninstallation** — Implements Jellyfin's official `OnUninstalling()` lifecycle method to automatically revert `index.html` and remove injected assets when the plugin is removed.
+- **🎮 In-Place Control** — Full Pause / Resume / Stop lifecycle management directly from the movie page.
+- **🔒 Resilient Metadata** — Automatically preserves `.nfo` files and posters before downloading to prevent re-identification mismatches.
+- **📜 Integrated Dashboard & History** — Dedicated configuration panel and real-time history viewer inside the Jellyfin dashboard.
 
 ---
 
