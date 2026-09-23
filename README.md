@@ -19,11 +19,12 @@ This plugin is specifically optimized for Indian media consumers. The default sc
 
 ## ✨ What's New in v1.0.5
 
-- **🎯 Fixed: Download Button Injection** — Corrected DOM selector to target Jellyfin's `.mainDetailButtons` container, ensuring the Download button renders reliably on all movie detail pages.
-- **🔄 Fixed: Play Button Hiding** — Added `.btnReplay` and `[data-action="play"]` to hidden selectors so the unplayed play button is replaced by the Download button.
+- **🎨 Native Detail Button Styling** — Re-styled the movie details Download button to seamlessly match Jellyfin's default flat icon button theme (identical to adjacent checkmark, favorite, and more options buttons) without clashing colors or misalignments.
+- **📊 Fixed-Width Percentage Progress Indicator** — When active downloading occurs, the button transforms into a sleek, fixed-width pill (76px) strictly displaying the spinning sync icon and percentage (`🔄 74%`), eliminating layout jumping caused by shifting speed/byte text.
+- **🎯 Zero-MutationObserver Event Navigation** — Replaced heavy MutationObserver DOM scanning with native Jellyfin `viewshow` and `viewhide` custom lifecycle events, ensuring instantaneous button rendering on navigation and hard refreshes without race conditions or memory overhead.
+- **🔄 Clean Modal & Download Route** — In-place download modal with download size selection that stays centered and preserves state, routing requests directly to `/Download/{itemId}`.
 - **⚡ Fixed: Persistent 'Initializing... 0%' Progress Bar** — Replaced unconditional polling with conditional task status detection so the progress container stays cleanly hidden when no scraper or cleanup tasks are running.
-- **🚀 Fixed: Download API Routing** — Corrected modal download request endpoint to `/Download/{itemId}` with the proper `MagnetUri` schema.
-- **🛡️ Auto-Cache Busting** — `index.html` auto-updates the script tag version query string (`?v=1.0.5.0`) on startup, preventing browser caching issues.
+- **🛡️ Auto-Cache Busting** — `index.html` auto-updates the script tag version query string (`?v=1.0.5.0`) on startup, preventing stale browser caching across updates.
 
 ---
 

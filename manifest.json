@@ -10,10 +10,10 @@
     "versions": [
       {
         "version": "1.0.5.0",
-        "changelog": "v1.0.5: Fixed Download button injection on movie detail pages (.mainDetailButtons and .btnReplay support). Fixed persistent 'Initializing... 0%' progress bar on configuration page. Fixed Download API routing to /Download/{itemId}. Added auto-cache-busting in index.html.",
+        "changelog": "v1.0.5: Native Jellyfin detail button styling matching default theme, fixed-width progress indicator showing only percentage, zero-MutationObserver event-driven navigation, in-place modal progress view, and persistent progress bar fix.",
         "targetAbi": "10.9.9.0",
         "sourceUrl": "https://github.com/Mohdsuhailpgdi/JellyFetch/releases/download/v1.0.5/Jellyfin.Plugin.JellyFetch.zip",
-        "checksum": "8B5D4F8B547B0B320F0B188BF5EE5711",
+        "checksum": "FE33B789958338FCC6C6BCB67D690CE7",
         "timestamp": "2026-09-23T00:00:00Z"
       },
       {

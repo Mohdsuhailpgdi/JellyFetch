@@ -1,24 +1,21 @@
 /**
- * JellyFetch UI Injection Script — v1.0.2
+ * JellyFetch UI Injection Script — v1.0.5
  *
- * This file is embedded in Jellyfin.Plugin.JellyFetch.dll and automatically
- * written to /usr/share/jellyfin/web/ (or equivalent) when the plugin starts.
- * index.html is patched to load this script with a <script> tag.
- *
- * No webpack dependency. Pure DOM manipulation via hashchange + MutationObserver.
- * Globals used: window.ApiClient, window.Dashboard, window.Emby.Page
+ * Listens to Jellyfin's native viewshow / hashchange events.
+ * Zero MutationObservers. Zero recursive DOM loops.
  */
 (function () {
     'use strict';
 
-    // ── Spin animation ──────────────────────────────────────────────────
+    // ── Spin animation & play button suppression styles ──────────────────
     if (!document.getElementById('jf-styles')) {
         var st = document.createElement('style');
         st.id = 'jf-styles';
         st.textContent = [
             '@keyframes jf-spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}',
-            '.jf-spin{animation:jf-spin 1.2s linear infinite!important;display:inline-block!important;}'
-        ].join('');
+            '.jf-spin{animation:jf-spin 1.2s linear infinite!important;display:inline-block!important;}',
+            'body.jf-download-mode .btnPlay, body.jf-download-mode .btnReplay, body.jf-download-mode [data-action="play"], body.jf-download-mode [data-action="resume"] { display: none !important; }'
+        ].join('\n');
         document.head.appendChild(st);
     }
 
@@ -66,111 +63,164 @@
         return /[/#]details\?/.test(window.location.hash || '');
     }
 
-    function getApiClient() { return window.ApiClient; }
-
-    function waitFor(predFn, timeoutMs) {
-        return new Promise(function (resolve) {
-            var deadline = Date.now() + (timeoutMs || 5000);
-            (function check() {
-                var el = predFn();
-                if (el) { resolve(el); return; }
-                if (Date.now() > deadline) { resolve(null); return; }
-                setTimeout(check, 100);
-            }());
-        });
-    }
-
-    // ── DOM finders ──────────────────────────────────────────────────
-    function getActivePage() {
-        var page = document.getElementById('itemDetailPage')
-            || document.querySelector('.itemDetailPage');
-        if (page) return page;
-        var pages = document.querySelectorAll('.mainAnimatedPage');
-        return pages[pages.length - 1] || document.body;
-    }
-
-    function getButtonsArea(page) {
-        var p = page || getActivePage();
-        if (!p) return null;
-        return p.querySelector('.mainDetailButtons')
-            || p.querySelector('.itemDetailButtons')
-            || p.querySelector('.detailButtons')
-            || p.querySelector('.detailPageContent .itemDetailButtons')
-            || document.querySelector('.mainDetailButtons');
-    }
-
-    // ── Stop all background work ─────────────────────────────────────
     function stopAll() {
         if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
         if (state.navTimer)  { clearTimeout(state.navTimer);  state.navTimer  = null; }
     }
 
-    function removeInjectedUI(page) {
-        var btn = document.getElementById('jf-dl-btn');
-        if (btn) btn.remove();
-        var modal = document.getElementById('jf-dl-modal');
-        if (modal) modal.remove();
+    function waitFor(predFn, timeoutMs) {
+        return new Promise(function (resolve) {
+            var deadline = Date.now() + (timeoutMs || 3000);
+            (function check() {
+                var el = predFn();
+                if (el) { resolve(el); return; }
+                if (Date.now() > deadline) { resolve(null); return; }
+                setTimeout(check, 50);
+            }());
+        });
     }
 
-    // ── Sync play/download buttons ───────────────────────────────────
-    function syncButtons(page) {
-        var btn = document.getElementById('jf-dl-btn') || (page && page.querySelector('#jf-dl-btn'));
-        if (!btn) return;
+    // ── Button Creation & Styling ─────────────────────────────────────
+    function getButtonArea(container) {
+        var root = container || document;
+        return root.querySelector('.mainDetailButtons')
+            || root.querySelector('.itemDetailButtons')
+            || root.querySelector('.detailButtons');
+    }
+
+    function syncButton(view, itemId) {
+        var area = getButtonArea(view);
+        if (!area) {
+            waitFor(function () { return getButtonArea(view) || getButtonArea(document); }, 3000).then(function (found) {
+                if (found && state.itemId === itemId) syncButton(view, itemId);
+            });
+            return;
+        }
+
+        var shouldDownload = state.isDownloadable || state.isDownloading;
+
+        // Hide Play / Replay buttons
+        area.querySelectorAll('.btnPlay, .btnReplay, [data-action="play"], [data-action="resume"]').forEach(function (b) {
+            b.style.setProperty('display', shouldDownload ? 'none' : '', 'important');
+        });
+
+        if (shouldDownload) {
+            document.body.classList.add('jf-download-mode');
+        } else {
+            document.body.classList.remove('jf-download-mode');
+            var existing = area.querySelector('#jf-dl-btn');
+            if (existing) existing.remove();
+            return;
+        }
+
+        var btn = area.querySelector('#jf-dl-btn');
+        if (!btn) {
+            btn = document.createElement('button');
+            btn.id = 'jf-dl-btn';
+            btn.type = 'button';
+            btn.setAttribute('is', 'emby-button');
+            btn.className = 'button-flat detailButton';
+            btn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                showModal(view, itemId);
+            });
+
+            var playBtn = area.querySelector('.btnPlay, .btnReplay, [data-action="play"]');
+            if (playBtn && playBtn.parentNode === area) {
+                area.insertBefore(btn, playBtn);
+            } else if (area.firstChild) {
+                area.insertBefore(btn, area.firstChild);
+            } else {
+                area.appendChild(btn);
+            }
+        }
 
         if (state.isDownloading) {
-            var sTxt = state.status || 'Downloading...';
-            var pct  = state.progress || 0;
-            var isErr = /fail|stop/i.test(sTxt);
-            var isPaused = /pause/i.test(sTxt) || state.isPaused;
-            var label = pct ? sTxt + ' (' + pct + '%)' : sTxt;
-            var icon  = isErr ? 'error' : (isPaused ? 'pause' : 'sync');
-            var spinCls = (!isErr && !isPaused) ? ' jf-spin' : '';
-            var bg    = isErr ? '#f44336' : (isPaused ? '#ff9800' : '#00a4dc');
+            var pct      = state.progress || 0;
+            var sP       = (pct > 0) ? Math.round(pct) + '%' : '0%';
+            var isErr    = /fail|stop/i.test(state.status);
+            var isPaused = /pause/i.test(state.status) || state.isPaused;
+            if (isErr) sP = 'Error';
+            else if (isPaused) sP = Math.round(pct) + '%';
 
-            btn.style.cssText = 'background:' + bg + ';color:#fff;border:none;' +
-                'padding:0 16px;border-radius:4px;display:inline-flex;align-items:center;' +
-                'justify-content:center;min-width:160px;height:42px;cursor:pointer;' +
-                'box-shadow:0 2px 10px rgba(0,164,220,0.4);font-weight:600;font-size:14px;margin-right:10px;vertical-align:middle;';
-            btn.innerHTML = '<span class="material-icons' + spinCls + '" style="margin-right:6px;font-size:20px;">' +
-                icon + '</span><span>' + escHtml(label) + '</span>';
+            var icon        = isErr ? 'error' : (isPaused ? 'pause' : 'sync');
+            var spinCls     = (!isErr && !isPaused) ? ' jf-spin' : '';
+            var accentColor = isErr ? '#f44336' : (isPaused ? '#ff9800' : '#00a4dc');
+            var bgColor     = isErr ? 'rgba(244,67,54,0.18)' : (isPaused ? 'rgba(255,152,0,0.18)' : 'rgba(0,164,220,0.18)');
+            var borderColor = isErr ? 'rgba(244,67,54,0.45)' : (isPaused ? 'rgba(255,152,0,0.45)' : 'rgba(0,164,220,0.45)');
+
+            btn.setAttribute('data-downloading', 'true');
+            btn.title = (state.status || 'Downloading') + ' (' + sP + ') — Click to view details';
+            btn.style.cssText = 'background:' + bgColor + '!important;border:1px solid ' + borderColor + '!important;' +
+                'color:#fff!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;' +
+                'width:76px!important;min-width:76px!important;max-width:76px!important;height:38px!important;' +
+                'padding:0 8px!important;border-radius:19px!important;box-shadow:none!important;cursor:pointer!important;' +
+                'flex-direction:row!important;margin:0 0.5em 0 0!important;box-sizing:border-box!important;gap:5px!important;overflow:hidden!important;';
+            btn.innerHTML = '<span class="material-icons' + spinCls + '" style="font-size:18px;color:' + accentColor + ';line-height:1;" aria-hidden="true">' +
+                icon + '</span><span style="font-size:13px;font-weight:600;color:#fff;line-height:1;white-space:nowrap;">' +
+                escHtml(sP) + '</span>';
         } else {
-            btn.style.cssText = 'background:#00a4dc;color:#fff;border:none;' +
-                'padding:0 18px;border-radius:4px;display:inline-flex;align-items:center;' +
-                'justify-content:center;height:42px;cursor:pointer;font-weight:600;font-size:14px;gap:8px;margin-right:10px;vertical-align:middle;box-shadow:0 2px 8px rgba(0,164,220,0.3);';
-            btn.innerHTML = '<span class="material-icons" style="font-size:20px;">get_app</span><span>Download</span>';
-        }
-
-        // Hide default play buttons when in download mode
-        var shouldHidePlay = state.isDownloadable || state.isDownloading;
-        var p = page || getActivePage();
-        if (p) {
-            p.querySelectorAll('.btnPlay, .btnReplay, .btnResume, .btnShuffle, .btnInstantMix, [data-action="play"], [data-action="resume"]').forEach(function (b) {
-                b.style.display = shouldHidePlay ? 'none' : '';
-            });
+            btn.removeAttribute('data-downloading');
+            btn.title = 'Download';
+            btn.className = 'button-flat detailButton emby-button';
+            btn.style.cssText = 'cursor:pointer!important;background:none!important;border:none!important;box-shadow:none!important;' +
+                'color:inherit!important;padding:.7em .7em!important;margin:0!important;';
+            btn.innerHTML = '<div class="detailButton-content" style="display:flex;align-items:center;justify-content:center;">' +
+                '<span class="material-icons detailButton-icon" style="font-size:1.6em;" aria-hidden="true">download</span>' +
+                '</div>';
         }
     }
 
-    // ── Inject the download button ────────────────────────────────────
-    function injectButton(page, itemId) {
-        if (document.getElementById('jf-dl-btn')) return; // already injected
-        var area = getButtonsArea(page);
-        if (!area) return;
+    // ── Main Page Load Handler ────────────────────────────────────────
+    function handleView(view, itemId) {
+        if (!isDetailsPage()) return;
+        var targetId = itemId || getCurrentItemId();
+        if (!targetId) return;
 
-        var btn = document.createElement('button');
-        btn.id = 'jf-dl-btn';
-        btn.type = 'button';
-        btn.className = 'button-flat detailButton';
-        btn.addEventListener('click', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            showModal(page, itemId);
+        state.itemId = targetId;
+
+        // Query Status and Options in parallel
+        var statusPromise = jfFetch('/System/Configuration/Downloaders/Status/' + targetId + '?t=' + Date.now())
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .catch(function () { return null; });
+
+        var optionsPromise = jfFetch('/System/Configuration/Downloaders/Options/' + targetId)
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .catch(function () { return null; });
+
+        Promise.all([statusPromise, optionsPromise]).then(function (results) {
+            if (state.itemId !== targetId) return;
+            var st = results[0];
+            var optData = results[1];
+
+            var isActivelyDownloading = st && !st.Completed && st.Status !== 'Idle' && st.Status !== 'Stopped' && st.Status !== 'Failed';
+            var opts = Array.isArray(optData) ? optData : (optData && optData.Options ? optData.Options : []);
+            var isItemDownloadable = opts && opts.length > 0;
+
+            if (isActivelyDownloading) {
+                state.isDownloading = true;
+                state.isDownloadable = false;
+                state.status = st.Status;
+                state.progress = st.Progress || 0;
+                syncButton(view, targetId);
+                startPolling(view, targetId);
+            } else if (isItemDownloadable) {
+                state.isDownloadable = true;
+                state.isDownloading = false;
+                state.options = opts;
+                state.description = (optData && optData.Description) || '';
+                syncButton(view, targetId);
+            } else {
+                state.isDownloadable = false;
+                state.isDownloading = false;
+                syncButton(view, targetId);
+            }
         });
-        area.prepend(btn);
-        syncButtons(page);
     }
 
     // ── Download modal ────────────────────────────────────────────────
-    function ensureModal(page) {
+    function ensureModal() {
         var m = document.getElementById('jf-dl-modal');
         if (!m) {
             m = document.createElement('div');
@@ -184,28 +234,28 @@
         return m;
     }
 
-    function showModal(page, itemId) {
-        var modal = ensureModal(page);
-        renderModalContent(modal, page, itemId);
+    function showModal(view, itemId) {
+        var modal = ensureModal();
+        renderModalContent(modal, view, itemId);
         modal.classList.remove('hide');
     }
 
-    function renderModalContent(modal, page, itemId) {
+    function renderModalContent(modal, view, itemId) {
         var inner = modal.querySelector('.jf-modal-inner') || document.createElement('div');
         inner.className = 'jf-modal-inner';
         inner.style.cssText = 'background:#222;padding:24px;border-radius:8px;width:90%;' +
             'max-width:600px;color:#fff;max-height:80vh;overflow-y:auto;box-shadow:0 4px 20px rgba(0,0,0,0.6);';
 
         if (state.isDownloading) {
-            renderProgressView(inner, page, itemId);
+            renderProgressView(inner, modal, view, itemId);
         } else {
-            renderOptionsView(inner, page, itemId);
+            renderOptionsView(inner, modal, view, itemId);
         }
 
         if (!modal.contains(inner)) modal.appendChild(inner);
     }
 
-    function renderProgressView(inner, page, itemId) {
+    function renderProgressView(inner, modal, view, itemId) {
         var sTxt = state.status || 'Downloading...';
         var pct  = state.progress || 0;
         var isErr = /fail|stop/i.test(sTxt);
@@ -240,16 +290,15 @@
             '<div style="margin-top:20px;text-align:right;">' +
             '<button type="button" id="jf-btn-close" style="background:#444;color:#fff;padding:8px 20px;border-radius:4px;border:none;cursor:pointer;font-weight:600;">Close</button></div>';
 
-        // Wire buttons
         var closeBtn = inner.querySelector('#jf-btn-close');
-        if (closeBtn) closeBtn.addEventListener('click', function () { inner.closest('#jf-dl-modal').classList.add('hide'); });
+        if (closeBtn) closeBtn.addEventListener('click', function () { modal.classList.add('hide'); });
 
         var pauseBtn = inner.querySelector('#jf-btn-pause');
         if (pauseBtn) {
             pauseBtn.addEventListener('click', function () {
                 pauseBtn.disabled = true;
                 jfFetch('/System/Configuration/Downloaders/Pause/' + itemId, { method: 'POST' })
-                    .then(function () { state.isPaused = true; renderModalContent(inner.closest('#jf-dl-modal'), page, itemId); })
+                    .then(function () { state.isPaused = true; renderModalContent(modal, view, itemId); })
                     .catch(function () { pauseBtn.disabled = false; });
             });
         }
@@ -259,7 +308,7 @@
             resumeBtn.addEventListener('click', function () {
                 resumeBtn.disabled = true;
                 jfFetch('/System/Configuration/Downloaders/Resume/' + itemId, { method: 'POST' })
-                    .then(function () { state.isPaused = false; renderModalContent(inner.closest('#jf-dl-modal'), page, itemId); })
+                    .then(function () { state.isPaused = false; renderModalContent(modal, view, itemId); })
                     .catch(function () { resumeBtn.disabled = false; });
             });
         }
@@ -275,19 +324,19 @@
                         state.isDownloading = false;
                         state.isPaused = false;
                         state.isDownloadable = true;
-                        syncButtons(page);
-                        renderModalContent(inner.closest('#jf-dl-modal'), page, itemId);
+                        syncButton(view, itemId);
+                        renderModalContent(modal, view, itemId);
                     }).catch(function () {
                         stopAll();
                         state.isDownloading = false;
                         state.isDownloadable = true;
-                        syncButtons(page);
+                        syncButton(view, itemId);
                     });
             });
         }
     }
 
-    function renderOptionsView(inner, page, itemId) {
+    function renderOptionsView(inner, modal, view, itemId) {
         var opts = state.options || [];
         var langs = [];
         opts.forEach(function (m) {
@@ -329,12 +378,12 @@
             '<button type="button" id="jf-btn-close" style="background:#444;color:#fff;padding:8px 20px;border-radius:4px;border:none;cursor:pointer;font-weight:600;">Close</button></div>';
 
         var closeBtn = inner.querySelector('#jf-btn-close');
-        if (closeBtn) closeBtn.addEventListener('click', function () { inner.closest('#jf-dl-modal').classList.add('hide'); });
+        if (closeBtn) closeBtn.addEventListener('click', function () { modal.classList.add('hide'); });
 
         inner.querySelectorAll('.jf-lang-tab').forEach(function (tb) {
             tb.addEventListener('click', function () {
                 state.language = tb.getAttribute('data-lang');
-                renderModalContent(inner.closest('#jf-dl-modal'), page, itemId);
+                renderModalContent(modal, view, itemId);
             });
         });
 
@@ -344,14 +393,23 @@
                 if (!row) return;
                 var uri  = row.getAttribute('data-uri');
                 var size = parseFloat(row.getAttribute('data-size')) || 0;
-                startDownload(page, itemId, uri, size);
-                inner.closest('#jf-dl-modal').classList.add('hide');
+
+                // 1. Immediately switch modal to downloading progress view (DO NOT MINIMIZE!)
+                state.isDownloading = true;
+                state.isDownloadable = false;
+                state.status = 'Starting download...';
+                state.progress = 0;
+
+                renderModalContent(modal, view, itemId);
+                syncButton(view, itemId);
+
+                startDownload(modal, view, itemId, uri, size);
             });
         });
     }
 
-    // ── Start a download ──────────────────────────────────────────────
-    function startDownload(page, itemId, magnetUri, sizeGb) {
+    // ── Start Download & Polling ──────────────────────────────────────
+    function startDownload(modal, view, itemId, magnetUri, sizeGb) {
         jfFetch('/System/Configuration/Downloaders/Download/' + itemId, {
             method: 'POST',
             headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
@@ -362,28 +420,37 @@
             state.isDownloadable = false;
             state.status = 'Connecting to cloud...';
             state.progress = 0;
-            syncButtons(page);
-            startPolling(page, itemId);
+            syncButton(view, itemId);
+
+            if (modal && !modal.classList.contains('hide')) {
+                renderModalContent(modal, view, itemId);
+            }
+
+            startPolling(view, itemId);
         }).catch(function (err) {
             console.error('[JellyFetch] Failed to start download:', err);
+            state.isDownloading = false;
+            state.isDownloadable = true;
+            syncButton(view, itemId);
+            if (modal && !modal.classList.contains('hide')) {
+                renderModalContent(modal, view, itemId);
+            }
             alert('Failed to start download. Check server logs.');
         });
     }
 
-    // ── Polling ───────────────────────────────────────────────────────
-    function startPolling(page, itemId) {
+    function startPolling(view, itemId) {
         stopAll();
         state.pollTimer = setInterval(function () {
-            // If user navigated away from the page, stop silently
-            if (!page.isConnected || !document.body.contains(page)) {
+            if (getCurrentItemId() !== itemId) {
                 stopAll();
                 return;
             }
-            pollStatus(page, itemId);
-        }, 3000);
+            pollStatus(view, itemId);
+        }, 2000);
     }
 
-    function pollStatus(page, itemId) {
+    function pollStatus(view, itemId) {
         jfFetch('/System/Configuration/Downloaders/Status/' + itemId + '?t=' + Date.now())
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (info) {
@@ -393,23 +460,25 @@
                     stopAll();
                     state.isDownloading = false;
                     state.isDownloadable = false;
-                    page.querySelector('#jf-dl-modal')?.classList.add('hide');
-                    syncButtons(page);
+                    document.body.classList.remove('jf-download-mode');
+
+                    var modal = document.getElementById('jf-dl-modal');
+                    if (modal) modal.classList.add('hide');
+
+                    syncButton(view, itemId);
 
                     var resolvedId = info.NewItemId || itemId;
 
-                    // Trigger metadata refresh so images load before navigation
                     jfFetch('/Items/' + resolvedId + '/Refresh?metadataRefreshMode=FullRefresh&imageRefreshMode=FullRefresh&replaceAllImages=false&replaceAllMetadata=false', { method: 'POST' }).catch(function () {});
 
                     if (window.Dashboard) window.Dashboard.alert({ title: 'Download Complete', message: 'Download finished! Loading movie page...' });
 
-                    // Navigate after 5s — store timer so we can cancel if user navigates away
                     state.navTimer = setTimeout(function () {
                         state.navTimer = null;
                         if (window.Emby && window.Emby.Page) {
                             window.Emby.Page.showItem(resolvedId);
                         } else {
-                            window.location.hash = '#!/details?id=' + resolvedId;
+                            window.location.hash = '#/details?id=' + resolvedId;
                         }
                     }, 5000);
                     return;
@@ -420,7 +489,11 @@
                     state.isDownloading = false;
                     state.isDownloadable = true;
                     state.status = info.Status;
-                    syncButtons(page);
+                    syncButton(view, itemId);
+                    var m = document.getElementById('jf-dl-modal');
+                    if (m && !m.classList.contains('hide')) {
+                        renderModalContent(m, view, itemId);
+                    }
                     return;
                 }
 
@@ -428,9 +501,8 @@
                 state.progress = info.Progress  || 0;
                 state.isPaused = !!info.IsPaused;
 
-                syncButtons(page);
+                syncButton(view, itemId);
 
-                // Update modal elements if open
                 var bar = document.getElementById('jf-modal-bar');
                 if (bar) bar.style.width = state.progress + '%';
                 var sl  = document.getElementById('jf-modal-status');
@@ -441,111 +513,52 @@
             .catch(function () {});
     }
 
-    // ── Page initialization ───────────────────────────────────────────
-    function initPage() {
-        if (!isDetailsPage()) return;
+    // ── Event Listeners (Native Jellyfin Event-Driven) ────────────────
+    function onPageChange() {
+        if (!isDetailsPage()) {
+            document.body.classList.remove('jf-download-mode');
+            stopAll();
+            var btn = document.getElementById('jf-dl-btn');
+            if (btn) btn.remove();
+            state.itemId = null;
+            return;
+        }
 
         var itemId = getCurrentItemId();
         if (!itemId) return;
 
-        // If same item and already set up and button still in DOM, do nothing
-        if (itemId === state.itemId && (state.isDownloadable || state.isDownloading) && document.getElementById('jf-dl-btn')) return;
+        // Find active details page
+        var page = document.querySelector('.mainAnimatedPages > .mainAnimatedPage:not(.hide)')
+            || document.getElementById('itemDetailPage')
+            || document.body;
 
-        // Reset state for new item or re-init
-        stopAll();
-        state.itemId = itemId;
-        state.isDownloadable = false;
-        state.isDownloading  = false;
-        state.isPaused = false;
-        state.status   = '';
-        state.progress = 0;
-        state.options  = [];
-
-        // Wait for the details page buttons area to appear
-        waitFor(function () { return getButtonsArea(getActivePage()); }, 8000).then(function (area) {
-            if (!area || state.itemId !== itemId) return; // navigated away or timeout
-            var page = getActivePage();
-
-            // 1. Check if actively downloading
-            jfFetch('/System/Configuration/Downloaders/Status/' + itemId + '?t=' + Date.now())
-                .then(function (r) { return r.ok ? r.json() : null; })
-                .then(function (st) {
-                    if (state.itemId !== itemId) return;
-                    if (st && !st.Completed && st.Status !== 'Idle' && st.Status !== 'Stopped' && st.Status !== 'Failed') {
-                        state.isDownloading = true;
-                        state.status = st.Status;
-                        state.progress = st.Progress || 0;
-                        injectButton(page, itemId);
-                        startPolling(page, itemId);
-                        return;
-                    }
-                    // 2. Check if downloadable (.strm placeholder with available options)
-                    return jfFetch('/System/Configuration/Downloaders/Options/' + itemId)
-                        .then(function (r) { return r.ok ? r.json() : null; })
-                        .then(function (optData) {
-                            if (state.itemId !== itemId) return;
-                            var opts = Array.isArray(optData) ? optData : (optData && optData.Options ? optData.Options : []);
-                            if (opts && opts.length > 0) {
-                                state.options = opts;
-                                state.isDownloadable = true;
-                                state.description = (optData && optData.Description) || '';
-                                injectButton(page, itemId);
-                            }
-                        }).catch(function (e) {
-                            console.error('[JellyFetch] Options error:', e);
-                        });
-                }).catch(function (e) {
-                    console.error('[JellyFetch] Status error:', e);
-                });
-        });
+        handleView(page, itemId);
     }
 
-    // ── Page change detection ─────────────────────────────────────────
-    function onHashChange() {
+    // Jellyfin dispatches 'viewshow' with bubbles: true on the active view
+    document.addEventListener('viewshow', function (e) {
+        if (!isDetailsPage()) return;
+        var view = e.target;
+        var itemId = (e.detail && e.detail.params && e.detail.params.id) || getCurrentItemId();
+        handleView(view, itemId);
+    });
+
+    // Cleanup on view hide
+    document.addEventListener('viewhide', function () {
         if (!isDetailsPage()) {
             stopAll();
-            removeInjectedUI();
-            state.itemId = null;
-            return;
-        }
-        initPage();
-    }
-
-    window.addEventListener('hashchange', onHashChange);
-    window.addEventListener('popstate',   onHashChange);
-    document.addEventListener('viewshow', function () {
-        if (isDetailsPage()) onHashChange();
-    });
-
-    // Catch SPA navigation or React DOM re-renders
-    var navObserver = new MutationObserver(function () {
-        if (!isDetailsPage()) return;
-        var currentId = getCurrentItemId();
-        if (!currentId) return;
-
-        if (currentId !== state.itemId) {
-            onHashChange();
-        } else if (state.isDownloadable && !document.getElementById('jf-dl-btn')) {
-            var page = getActivePage();
-            var area = getButtonsArea(page);
-            if (area) {
-                injectButton(page, currentId);
-            }
+            document.body.classList.remove('jf-download-mode');
         }
     });
 
-    function startObserver() {
-        var target = document.getElementById('reactRoot') || document.querySelector('.mainAnimatedPages') || document.body;
-        navObserver.observe(target, { childList: true, subtree: true });
-    }
+    window.addEventListener('hashchange', onPageChange);
+    window.addEventListener('popstate', onPageChange);
 
+    // Initial check for hard refresh
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', startObserver);
+        document.addEventListener('DOMContentLoaded', onPageChange);
     } else {
-        startObserver();
+        setTimeout(onPageChange, 300);
     }
-
-    // Initial page check
-    setTimeout(initPage, 500);
 
 }());
