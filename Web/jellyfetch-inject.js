@@ -82,16 +82,21 @@
 
     // ── DOM finders ──────────────────────────────────────────────────
     function getActivePage() {
-        // Jellyfin renders the current page inside .mainAnimatedPage elements
+        var page = document.getElementById('itemDetailPage')
+            || document.querySelector('.itemDetailPage');
+        if (page) return page;
         var pages = document.querySelectorAll('.mainAnimatedPage');
-        return pages[pages.length - 1] || null;
+        return pages[pages.length - 1] || document.body;
     }
 
     function getButtonsArea(page) {
-        if (!page) return null;
-        return page.querySelector('.detailPageContent .itemDetailButtons')
-            || page.querySelector('.itemDetailButtons')
-            || page.querySelector('.detailButtons');
+        var p = page || getActivePage();
+        if (!p) return null;
+        return p.querySelector('.mainDetailButtons')
+            || p.querySelector('.itemDetailButtons')
+            || p.querySelector('.detailButtons')
+            || p.querySelector('.detailPageContent .itemDetailButtons')
+            || document.querySelector('.mainDetailButtons');
     }
 
     // ── Stop all background work ─────────────────────────────────────
@@ -101,18 +106,15 @@
     }
 
     function removeInjectedUI(page) {
-        var p = page || getActivePage();
-        if (p) {
-            var btn = p.querySelector('#jf-dl-btn');
-            if (btn) btn.remove();
-            var modal = p.querySelector('#jf-dl-modal');
-            if (modal) modal.remove();
-        }
+        var btn = document.getElementById('jf-dl-btn');
+        if (btn) btn.remove();
+        var modal = document.getElementById('jf-dl-modal');
+        if (modal) modal.remove();
     }
 
     // ── Sync play/download buttons ───────────────────────────────────
     function syncButtons(page) {
-        var btn = page && page.querySelector('#jf-dl-btn');
+        var btn = document.getElementById('jf-dl-btn') || (page && page.querySelector('#jf-dl-btn'));
         if (!btn) return;
 
         if (state.isDownloading) {
@@ -123,39 +125,44 @@
             var label = pct ? sTxt + ' (' + pct + '%)' : sTxt;
             var icon  = isErr ? 'error' : (isPaused ? 'pause' : 'sync');
             var spinCls = (!isErr && !isPaused) ? ' jf-spin' : '';
-            var bg    = isErr ? '#f44336' : (isPaused ? '#ff9800' : '#2196f3');
+            var bg    = isErr ? '#f44336' : (isPaused ? '#ff9800' : '#00a4dc');
 
             btn.style.cssText = 'background:' + bg + ';color:#fff;border:none;' +
-                'padding:0 14px;border-radius:20px;display:inline-flex;align-items:center;' +
-                'justify-content:center;min-width:160px;height:40px;cursor:pointer;' +
-                'box-shadow:0 2px 10px rgba(33,150,243,0.4);font-weight:600;font-size:14px;';
-            btn.innerHTML = '<span class="material-icons' + spinCls + '" style="margin-right:6px;font-size:18px;">' +
-                icon + '</span>' + escHtml(label);
+                'padding:0 16px;border-radius:4px;display:inline-flex;align-items:center;' +
+                'justify-content:center;min-width:160px;height:42px;cursor:pointer;' +
+                'box-shadow:0 2px 10px rgba(0,164,220,0.4);font-weight:600;font-size:14px;margin-right:10px;vertical-align:middle;';
+            btn.innerHTML = '<span class="material-icons' + spinCls + '" style="margin-right:6px;font-size:20px;">' +
+                icon + '</span><span>' + escHtml(label) + '</span>';
         } else {
-            btn.style.cssText = 'background:#2196f3;color:#fff;border:none;' +
-                'padding:0 14px;border-radius:20px;display:inline-flex;align-items:center;' +
-                'height:40px;cursor:pointer;font-weight:600;font-size:14px;gap:6px;';
-            btn.innerHTML = '<span class="material-icons" style="font-size:18px;">download</span>Download';
+            btn.style.cssText = 'background:#00a4dc;color:#fff;border:none;' +
+                'padding:0 18px;border-radius:4px;display:inline-flex;align-items:center;' +
+                'justify-content:center;height:42px;cursor:pointer;font-weight:600;font-size:14px;gap:8px;margin-right:10px;vertical-align:middle;box-shadow:0 2px 8px rgba(0,164,220,0.3);';
+            btn.innerHTML = '<span class="material-icons" style="font-size:20px;">get_app</span><span>Download</span>';
         }
 
         // Hide default play buttons when in download mode
         var shouldHidePlay = state.isDownloadable || state.isDownloading;
-        page.querySelectorAll('.btnPlay,.btnResume,.btnShuffle,.btnInstantMix').forEach(function (b) {
-            b.style.display = shouldHidePlay ? 'none' : '';
-        });
+        var p = page || getActivePage();
+        if (p) {
+            p.querySelectorAll('.btnPlay, .btnReplay, .btnResume, .btnShuffle, .btnInstantMix, [data-action="play"], [data-action="resume"]').forEach(function (b) {
+                b.style.display = shouldHidePlay ? 'none' : '';
+            });
+        }
     }
 
     // ── Inject the download button ────────────────────────────────────
     function injectButton(page, itemId) {
-        if (page.querySelector('#jf-dl-btn')) return; // already injected
+        if (document.getElementById('jf-dl-btn')) return; // already injected
         var area = getButtonsArea(page);
         if (!area) return;
 
         var btn = document.createElement('button');
         btn.id = 'jf-dl-btn';
         btn.type = 'button';
-        btn.className = 'detailButton';
-        btn.addEventListener('click', function () {
+        btn.className = 'button-flat detailButton';
+        btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
             showModal(page, itemId);
         });
         area.prepend(btn);
@@ -164,15 +171,15 @@
 
     // ── Download modal ────────────────────────────────────────────────
     function ensureModal(page) {
-        var m = page.querySelector('#jf-dl-modal');
+        var m = document.getElementById('jf-dl-modal');
         if (!m) {
             m = document.createElement('div');
             m.id = 'jf-dl-modal';
             m.className = 'dialogContainer hide';
-            m.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;' +
-                'background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;' +
-                'padding:20px;box-sizing:border-box;';
-            page.appendChild(m);
+            m.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:999999;' +
+                'background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;' +
+                'padding:20px;box-sizing:border-box;backdrop-filter:blur(4px);';
+            document.body.appendChild(m);
         }
         return m;
     }
@@ -345,12 +352,12 @@
 
     // ── Start a download ──────────────────────────────────────────────
     function startDownload(page, itemId, magnetUri, sizeGb) {
-        jfFetch('/System/Configuration/Downloaders/Start/' + itemId, {
+        jfFetch('/System/Configuration/Downloaders/Download/' + itemId, {
             method: 'POST',
             headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
-            body: JSON.stringify({ Uri: magnetUri, SizeGb: sizeGb })
+            body: JSON.stringify({ MagnetUri: magnetUri, SizeGb: sizeGb })
         }).then(function (res) {
-            if (!res.ok) throw new Error('start failed');
+            if (!res.ok) throw new Error('start failed with status ' + res.status);
             state.isDownloading = true;
             state.isDownloadable = false;
             state.status = 'Connecting to cloud...';
@@ -359,6 +366,7 @@
             startPolling(page, itemId);
         }).catch(function (err) {
             console.error('[JellyFetch] Failed to start download:', err);
+            alert('Failed to start download. Check server logs.');
         });
     }
 
@@ -440,12 +448,11 @@
         var itemId = getCurrentItemId();
         if (!itemId) return;
 
-        // If same item and already set up, do nothing
-        if (itemId === state.itemId && (state.isDownloadable || state.isDownloading)) return;
+        // If same item and already set up and button still in DOM, do nothing
+        if (itemId === state.itemId && (state.isDownloadable || state.isDownloading) && document.getElementById('jf-dl-btn')) return;
 
-        // New item — reset
+        // Reset state for new item or re-init
         stopAll();
-        var prevId = state.itemId;
         state.itemId = itemId;
         state.isDownloadable = false;
         state.isDownloading  = false;
@@ -454,13 +461,10 @@
         state.progress = 0;
         state.options  = [];
 
-        // Wait for the details page DOM to appear
-        waitFor(function () { return getButtonsArea(getActivePage()); }, 6000).then(function (area) {
-            if (!area || state.itemId !== itemId) return; // navigated away
+        // Wait for the details page buttons area to appear
+        waitFor(function () { return getButtonsArea(getActivePage()); }, 8000).then(function (area) {
+            if (!area || state.itemId !== itemId) return; // navigated away or timeout
             var page = getActivePage();
-
-            // Remove any old injected UI from a different page visit
-            removeInjectedUI(page);
 
             // 1. Check if actively downloading
             jfFetch('/System/Configuration/Downloaders/Status/' + itemId + '?t=' + Date.now())
@@ -475,7 +479,7 @@
                         startPolling(page, itemId);
                         return;
                     }
-                    // 2. Check if downloadable
+                    // 2. Check if downloadable (.strm placeholder with available options)
                     return jfFetch('/System/Configuration/Downloaders/Options/' + itemId)
                         .then(function (r) { return r.ok ? r.json() : null; })
                         .then(function (optData) {
@@ -487,16 +491,21 @@
                                 state.description = (optData && optData.Description) || '';
                                 injectButton(page, itemId);
                             }
-                        }).catch(function () {});
-                }).catch(function () {});
+                        }).catch(function (e) {
+                            console.error('[JellyFetch] Options error:', e);
+                        });
+                }).catch(function (e) {
+                    console.error('[JellyFetch] Status error:', e);
+                });
         });
     }
 
     // ── Page change detection ─────────────────────────────────────────
-    // Stop everything when navigating away from details page
     function onHashChange() {
         if (!isDetailsPage()) {
-            stopAll(); // cancel poll + nav timer if user navigated away
+            stopAll();
+            removeInjectedUI();
+            state.itemId = null;
             return;
         }
         initPage();
@@ -504,19 +513,30 @@
 
     window.addEventListener('hashchange', onHashChange);
     window.addEventListener('popstate',   onHashChange);
+    document.addEventListener('viewshow', function () {
+        if (isDetailsPage()) onHashChange();
+    });
 
-    // Catch SPA navigation that doesn't trigger hashchange (React router)
-    // by observing DOM mutations on the page container
+    // Catch SPA navigation or React DOM re-renders
     var navObserver = new MutationObserver(function () {
-        if (isDetailsPage() && getCurrentItemId() !== state.itemId) {
+        if (!isDetailsPage()) return;
+        var currentId = getCurrentItemId();
+        if (!currentId) return;
+
+        if (currentId !== state.itemId) {
             onHashChange();
+        } else if (state.isDownloadable && !document.getElementById('jf-dl-btn')) {
+            var page = getActivePage();
+            var area = getButtonsArea(page);
+            if (area) {
+                injectButton(page, currentId);
+            }
         }
     });
 
-    // Start observing once the body is available
     function startObserver() {
-        var target = document.querySelector('.mainAnimatedPages') || document.body;
-        navObserver.observe(target, { childList: true, subtree: false });
+        var target = document.getElementById('reactRoot') || document.querySelector('.mainAnimatedPages') || document.body;
+        navObserver.observe(target, { childList: true, subtree: true });
     }
 
     if (document.readyState === 'loading') {
@@ -525,7 +545,7 @@
         startObserver();
     }
 
-    // Initial page check (for direct deep-links)
-    setTimeout(initPage, 800);
+    // Initial page check
+    setTimeout(initPage, 500);
 
 }());

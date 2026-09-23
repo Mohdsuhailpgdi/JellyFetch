@@ -171,7 +171,20 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 
         if (html.Contains(ScriptMarker))
         {
-            _logger.LogInformation("[JellyFetch] index.html already contains the inject script — skipping patch.");
+            var updated = System.Text.RegularExpressions.Regex.Replace(
+                html,
+                @"jellyfetch-inject\.js(\?v=[^""]*)?",
+                $"{InjectScriptName}?v={Version}");
+
+            if (updated != html)
+            {
+                File.WriteAllText(indexPath, updated, Encoding.UTF8);
+                _logger.LogInformation("[JellyFetch] Updated index.html inject script to version {Version}", Version);
+            }
+            else
+            {
+                _logger.LogInformation("[JellyFetch] index.html already contains the inject script v{Version} — skipping patch.", Version);
+            }
             return;
         }
 

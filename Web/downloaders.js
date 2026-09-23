@@ -117,25 +117,28 @@ export default function(view, params) {
                         statusText.innerText = d.Status || (d.IsRunning ? 'Running...' : 'Idle');
                         updateLogDisplay(d.Logs);
                         
-                        if (!d.IsRunning && (pct === 100 || d.Status === 'Idle' || d.Status.startsWith('Error'))) {
+                        if (!d.IsRunning && (pct === 100 || d.Status === 'Idle' || d.Status.startsWith('Error') || d.Status.startsWith('Failed'))) {
                             clearInterval(pollInterval);
                             setTimeout(() => {
                                 btnRunScraper.style.display = 'block';
                                 if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
                                 btnStopScraper.style.display = 'none';
-                            }, 2500);
+                                progressContainer.style.display = 'none';
+                            }, 3000);
                         }
                     } else {
                         clearInterval(pollInterval);
                         btnRunScraper.style.display = 'block';
                         if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
                         btnStopScraper.style.display = 'none';
+                        progressContainer.style.display = 'none';
                     }
                 }).catch(() => {
                     clearInterval(pollInterval);
                     btnRunScraper.style.display = 'block';
                     if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
                     btnStopScraper.style.display = 'none';
+                    progressContainer.style.display = 'none';
                 });
             }, 1200);
         }
@@ -166,25 +169,28 @@ export default function(view, params) {
                         statusText.innerText = d.Status || (d.IsRunning ? 'Cleaning up...' : 'Idle');
                         updateLogDisplay(d.Logs);
                         
-                        if (!d.IsRunning && (pct === 100 || d.Status === 'Idle' || d.Status.startsWith('Error'))) {
+                        if (!d.IsRunning && (pct === 100 || d.Status === 'Idle' || d.Status.startsWith('Error') || d.Status.startsWith('Failed'))) {
                             clearInterval(pollInterval);
                             setTimeout(() => {
                                 btnRunScraper.style.display = 'block';
                                 if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
                                 btnStopScraper.style.display = 'none';
-                            }, 2500);
+                                progressContainer.style.display = 'none';
+                            }, 3000);
                         }
                     } else {
                         clearInterval(pollInterval);
                         btnRunScraper.style.display = 'block';
                         if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
                         btnStopScraper.style.display = 'none';
+                        progressContainer.style.display = 'none';
                     }
                 }).catch(() => {
                     clearInterval(pollInterval);
                     btnRunScraper.style.display = 'block';
                     if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
                     btnStopScraper.style.display = 'none';
+                    progressContainer.style.display = 'none';
                 });
             }, 1000);
         }
@@ -264,8 +270,34 @@ export default function(view, params) {
             btnRefreshHistory.addEventListener('click', loadHistory);
         }
 
-        // Kickoff polling immediately if running
-        startPolling();
+        function checkInitialStatus() {
+            fetch('/System/Configuration/Downloaders/Scrape/Status', {
+                headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
+            }).then(r => r.json()).then(d => {
+                if (d && d.IsRunning) {
+                    startPolling();
+                } else {
+                    fetch('/System/Configuration/Downloaders/CleanupStrm/Status', {
+                        headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
+                    }).then(r => r.json()).then(c => {
+                        if (c && c.IsRunning) {
+                            startCleanupPolling();
+                        } else {
+                            progressContainer.style.display = 'none';
+                            btnRunScraper.style.display = 'block';
+                            if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
+                            btnStopScraper.style.display = 'none';
+                        }
+                    }).catch(() => {
+                        progressContainer.style.display = 'none';
+                    });
+                }
+            }).catch(() => {
+                progressContainer.style.display = 'none';
+            });
+        }
+
+        checkInitialStatus();
         loadHistory();
 
         if (btnCleanupScraper) {

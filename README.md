@@ -5,7 +5,7 @@
   
   **Automated media scraping, cloud downloading, and library injection for Jellyfin.**
   
-  [![Version](https://img.shields.io/badge/version-1.0.4-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
+  [![Version](https://img.shields.io/badge/version-1.0.5-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
   [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9.x--12.x-orange)](https://jellyfin.org)
   [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey)](https://github.com/Mohdsuhailpgdi/JellyFetch)
 </div>
@@ -14,6 +14,16 @@
 
 ## 🇮🇳 Built for Regional Audiences
 This plugin is specifically optimized for Indian media consumers. The default scraping engine is deeply integrated with **1tamilmv**, providing robust, automated tracking and downloading of regional content, with extensive fallback capabilities.
+
+---
+
+## ✨ What's New in v1.0.5
+
+- **🎯 Fixed: Download Button Injection** — Corrected DOM selector to target Jellyfin's `.mainDetailButtons` container, ensuring the Download button renders reliably on all movie detail pages.
+- **🔄 Fixed: Play Button Hiding** — Added `.btnReplay` and `[data-action="play"]` to hidden selectors so the unplayed play button is replaced by the Download button.
+- **⚡ Fixed: Persistent 'Initializing... 0%' Progress Bar** — Replaced unconditional polling with conditional task status detection so the progress container stays cleanly hidden when no scraper or cleanup tasks are running.
+- **🚀 Fixed: Download API Routing** — Corrected modal download request endpoint to `/Download/{itemId}` with the proper `MagnetUri` schema.
+- **🛡️ Auto-Cache Busting** — `index.html` auto-updates the script tag version query string (`?v=1.0.5.0`) on startup, preventing browser caching issues.
 
 ---
 
