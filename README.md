@@ -5,7 +5,7 @@
   
   **Automated media scraping, cloud downloading, and library injection for Jellyfin.**
   
-  [![Version](https://img.shields.io/badge/version-1.0.5.1-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
+  [![Version](https://img.shields.io/badge/version-1.1.0-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
   [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9.x--12.x-orange)](https://jellyfin.org)
   [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey)](https://github.com/Mohdsuhailpgdi/JellyFetch)
 </div>
@@ -17,19 +17,20 @@ This plugin is specifically optimized for Indian media consumers. The default sc
 
 ---
 
-## ✨ What's New in v1.0.5.1
+## ✨ What's New in v1.1.0 — Initial Official Release
 
-- **🛑 Fixed: Browser Freeze ("Page Unresponsive") on Player Exit** — Eliminated an infinite Promise microtask loop in `syncButton` when exiting the video player, ensuring the player closes instantaneously without freezing the browser or mobile app.
-- **🛡️ Clean Uninstallation Lifecycle Hook** — Implemented Jellyfin's official `OnUninstalling()` lifecycle method. When uninstalled from the Jellyfin Dashboard, the plugin automatically removes the `<script>` tag from `index.html` and deletes `jellyfetch-inject.js`, cleanly restoring Jellyfin to stock.
-- **⚡ Zero-Recursion Button Sync & Player Lifecycle Guards** — Added `isPlayerActive()` guards to prevent `viewshow`, `viewhide`, and `onPageChange` from injecting buttons while the video player is active.
-- **🎨 Native Detail Button Styling** — Movie details Download button matches Jellyfin's default flat icon button theme (identical to checkmark, favorite, and more options buttons).
-- **📊 Fixed-Width Percentage Progress Indicator** — Transforms into a sleek fixed-width pill (76px) strictly displaying the sync icon and percentage (`🔄 74%`), eliminating layout jumping.
+- **🚀 Native Movie Detail Button** — Seamlessly matches Jellyfin's default flat icon button theme (adjacent to play, favorite, and watched) without layout jumping or color clashes.
+- **📊 Fixed-Width Percentage Progress Indicator** — Transforms into a sleek fixed-width pill (76px) strictly displaying the sync icon and percentage (`🔄 74%`).
+- **🛡️ Clean Uninstallation Lifecycle Hook** — Implements Jellyfin's official `OnUninstalling()` lifecycle method. When uninstalled from the Jellyfin Dashboard, the plugin automatically removes the `<script>` tag from `index.html` and deletes `jellyfetch-inject.js`, cleanly restoring Jellyfin to stock.
+- **🛑 Zero-Recursion Button Sync & Player Lifecycle Guards** — Protected with `isPlayerActive()` guards to prevent any interaction or freeze when entering or closing the video player.
+- **🌐 Multi-Language Movie Merging** — Atomically merges Tamil, Telugu, Malayalam, and Hindi releases under the same movie entry.
+- **🛡️ Real Library Deduplication** — Skips placeholder generation for titles already present in your Jellyfin library.
 
 <details>
-<summary><b>📜 Previous Version Highlights (v1.0.3 – v1.0.4)</b></summary>
+<summary><b>📜 Historical Development Notes (Pre-v1.1)</b></summary>
 
 - **v1.0.4**: Real library deduplication skips dummy `.strm` creation for owned movies. Redesigned Cleanup `.strm` tool with real-time percentage progress and live activity log box.
-- **v1.0.3**: Scraper cross-version compatibility for Jellyfin 10.9, 10.10, and 12.1+. Multi-language releases (e.g. Tamil and Malayalam) are cleanly merged under the same title without duplicate entries.
+- **v1.0.3**: Scraper cross-version compatibility for Jellyfin 10.9, 10.10, and 12.1+. Multi-language releases cleanly merged without duplicate entries.
 </details>
 
 ---
@@ -98,7 +99,7 @@ Inside the Plugin Settings page → **History** tab:
 dotnet build -c Release
 ```
 
-The plugin targets `.NET 8.0`. After building, copy `Jellyfin.Plugin.JellyFetch.dll` into your Jellyfin `/config/plugins/JellyFetch_1.0.5.1/` folder and restart the server.
+The plugin targets `.NET 8.0`. After building, copy `Jellyfin.Plugin.JellyFetch.dll` into your Jellyfin `/config/plugins/JellyFetch_1.1.0.0/` folder and restart the server.
 
 ### Project Structure
 

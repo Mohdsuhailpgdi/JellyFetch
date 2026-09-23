@@ -9,11 +9,11 @@
     "imageUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/icon.jpg",
     "versions": [
       {
-        "version": "1.0.5.1",
-        "changelog": "v1.0.5.1: Fix browser freeze ('Page Unresponsive') on video player exit by eliminating recursive syncButton microtask loop and adding video player guards. Automatic clean uninstallation hook (reverts index.html on plugin removal).",
+        "version": "1.1.0.0",
+        "changelog": "v1.1.0: Initial Official Release. Automated regional media scraping (1tamilmv), multi-provider cloud downloading (Seedr & Torbox), native movie details integration with real-time percentage progress, and automatic clean uninstallation.",
         "targetAbi": "10.9.9.0",
         "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
-        "checksum": "B4E1B8785DC6004B86FCCCF430BB3474",
+        "checksum": "204DC4D9C5EAF1FC5D2F687FF31A52C0",
         "timestamp": "2026-09-24T00:00:00Z"
       }
     ]
