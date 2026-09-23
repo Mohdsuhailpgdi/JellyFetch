@@ -187,47 +187,107 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             return (full, baseName, year);
         }
 
-        /// <summary>
-        /// Cross-version library lookup using reflection to prevent MissingMethodException
-        /// between Jellyfin 10.9 (List&lt;BaseItem&gt;) and 10.10+/12.1+ (IReadOnlyList&lt;BaseItem&gt;).
-        /// </summary>
-        private bool ItemExistsInLibrary(string baseN, string full)
+        public static string NormalizeKey(string s)
         {
-            if (_libraryManager == null) return false;
+            if (string.IsNullOrEmpty(s)) return string.Empty;
+            var clean = Regex.Replace(s, @"\(\d{4}\)", "");
+            clean = Regex.Replace(clean, @"\b(19\d{2}|20\d{2})\b", "");
+            clean = Regex.Replace(clean.ToLowerInvariant(), @"[^a-z0-9]", "");
+            if (clean.StartsWith("the") && clean.Length > 3) clean = clean.Substring(3);
+            return clean;
+        }
+
+        public HashSet<string> LoadRealLibraryMovieKeys(string downDir, Action<string, double> logger = null)
+        {
+            var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // 1. Check downDir for any directories containing actual downloaded video files
             try
             {
-                var query = new InternalItemsQuery
+                if (Directory.Exists(downDir))
                 {
-                    IncludeItemTypes = new[] { BaseItemKind.Movie },
-                    SearchTerm = baseN,
-                    Limit = 10
-                };
-
-                var method = _libraryManager.GetType().GetMethod("GetItemList", new[] { typeof(InternalItemsQuery) });
-                if (method != null)
-                {
-                    var result = method.Invoke(_libraryManager, new object[] { query }) as System.Collections.IEnumerable;
-                    if (result != null)
+                    foreach (var dir in Directory.GetDirectories(downDir))
                     {
-                        foreach (var obj in result)
+                        try
                         {
-                            if (obj is BaseItem item)
+                            if (Directory.GetFiles(dir).Any(f => f.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase) || 
+                                                                 f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) || 
+                                                                 f.EndsWith(".avi", StringComparison.OrdinalIgnoreCase)))
                             {
-                                if (string.Equals(item.Name, baseN, StringComparison.OrdinalIgnoreCase) || 
-                                    string.Equals(item.Name, full, StringComparison.OrdinalIgnoreCase))
+                                var dirName = Path.GetFileName(dir);
+                                var k = NormalizeKey(dirName);
+                                if (!string.IsNullOrEmpty(k)) keys.Add(k);
+                            }
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                logger?.Invoke($"Disk scan notice: {ex.Message}", -1);
+            }
+
+            // 2. Query ILibraryManager via reflection for all real movies in the library
+            if (_libraryManager != null)
+            {
+                try
+                {
+                    var getItemListMethod = _libraryManager.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                        .FirstOrDefault(m => m.Name == "GetItemList" && m.GetParameters().Length == 1);
+
+                    if (getItemListMethod != null)
+                    {
+                        var queryParamType = getItemListMethod.GetParameters()[0].ParameterType;
+                        var queryObj = Activator.CreateInstance(queryParamType);
+                        queryParamType.GetProperty("Recursive")?.SetValue(queryObj, true);
+
+                        var itemTypesProp = queryParamType.GetProperty("IncludeItemTypes");
+                        if (itemTypesProp != null)
+                        {
+                            var elemType = itemTypesProp.PropertyType.GetElementType();
+                            if (elemType != null && Enum.TryParse(elemType, "Movie", out var movieVal))
+                            {
+                                var arr = Array.CreateInstance(elemType, 1);
+                                arr.SetValue(movieVal, 0);
+                                itemTypesProp.SetValue(queryObj, arr);
+                            }
+                        }
+
+                        var items = getItemListMethod.Invoke(_libraryManager, new object[] { queryObj }) as System.Collections.IEnumerable;
+                        if (items != null)
+                        {
+                            foreach (var obj in items)
+                            {
+                                if (obj is BaseItem item)
                                 {
-                                    return true;
+                                    bool isStrm = !string.IsNullOrEmpty(item.Path) && 
+                                                  item.Path.EndsWith(".strm", StringComparison.OrdinalIgnoreCase);
+
+                                    // If not a .strm dummy (e.g. .mkv/.mp4 on Google Drive or local storage), record it
+                                    if (!isStrm)
+                                    {
+                                        var k1 = NormalizeKey(item.Name);
+                                        if (!string.IsNullOrEmpty(k1)) keys.Add(k1);
+
+                                        if (!string.IsNullOrEmpty(item.OriginalTitle))
+                                        {
+                                            var k2 = NormalizeKey(item.OriginalTitle);
+                                            if (!string.IsNullOrEmpty(k2)) keys.Add(k2);
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
+                catch (Exception ex)
+                {
+                    logger?.Invoke($"Library pre-scan notice: {ex.Message}", -1);
+                }
             }
-            catch
-            {
-                // Non-fatal: if library inspection fails, do not block scraping
-            }
-            return false;
+
+            return keys;
         }
 
         private async Task<(string Title, string Poster, List<ScrapedMagnetOption> Magnets)> ScrapeTopicAsync(string url, CancellationToken ct)
@@ -384,7 +444,10 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             }
             
             int totalTasks = tasksList.Count;
-            logger?.Invoke($"Found {totalTasks} topics to scrape. Starting parallel scrape...", 20);
+            logger?.Invoke($"Found {totalTasks} topics to scrape. Scanning library to prevent duplicates...", 20);
+
+            var realLibraryMovies = LoadRealLibraryMovieKeys(downDir, logger);
+            logger?.Invoke($"Identified {realLibraryMovies.Count} existing downloaded movies in library. Starting parallel scrape...", 22);
 
             int newMovies = 0;
             int processedTasks = 0;
@@ -404,8 +467,13 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                     var (full, baseN, _) = CleanMovieTitle(title);
                     if (string.IsNullOrEmpty(baseN) || baseN.Length < 2) return;
 
-                    // Check if already in Jellyfin library
-                    if (ItemExistsInLibrary(baseN, full)) return;
+                    // Prevent duplicate entries: skip if already downloaded anywhere in the Jellyfin library
+                    var normKey = NormalizeKey(baseN);
+                    if (realLibraryMovies.Contains(normKey))
+                    {
+                        logger?.Invoke($"Skipped {full} (Already in library)", -1);
+                        return;
+                    }
 
                     string mDir = Path.Combine(downDir, full);
                     
@@ -417,6 +485,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                         // If already downloaded (.mkv/.mp4/.avi), keep existing files
                         if (Directory.Exists(mDir) && Directory.GetFiles(mDir).Any(f => f.EndsWith(".mkv") || f.EndsWith(".mp4") || f.EndsWith(".avi")))
                         {
+                            realLibraryMovies.Add(normKey);
                             return;
                         }
 

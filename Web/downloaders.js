@@ -71,17 +71,35 @@ export default function(view, params) {
 
         const btnRunScraper = view.querySelector('#btnRunScraper');
         const btnStopScraper = view.querySelector('#btnStopScraper');
+        const btnCleanupScraper = view.querySelector('#btnCleanupScraper');
         const progressContainer = view.querySelector('#scraperProgressContainer');
         const progressBar = view.querySelector('#scraperProgressBar');
         const statusText = view.querySelector('#scraperStatusText');
         const pctText = view.querySelector('#scraperPctText');
+        const logContainer = view.querySelector('#operationLogContainer');
+        const logBox = view.querySelector('#operationLogBox');
+        const logCount = view.querySelector('#operationLogCount');
         let pollInterval = null;
+
+        function updateLogDisplay(logs) {
+            if (!logContainer || !logBox) return;
+            if (logs && logs.length > 0) {
+                logContainer.style.display = 'block';
+                logBox.textContent = logs.join('\n');
+                logBox.scrollTop = logBox.scrollHeight;
+                if (logCount) logCount.textContent = logs.length + ' entries';
+            }
+        }
 
         function startPolling() {
             if (pollInterval) clearInterval(pollInterval);
             progressContainer.style.display = 'block';
+            progressBar.style.backgroundColor = '#00a4dc';
             btnRunScraper.style.display = 'none';
+            if (btnCleanupScraper) btnCleanupScraper.style.display = 'none';
             btnStopScraper.style.display = 'block';
+            btnStopScraper.querySelector('span').innerText = 'Stop Scraper';
+            if (logBox) logBox.textContent = '';
             
             pollInterval = setInterval(() => {
                 fetch('/System/Configuration/Downloaders/Scrape/Status', {
@@ -90,33 +108,85 @@ export default function(view, params) {
                     if (d.IsRunning || d.Progress > 0) {
                         progressContainer.style.display = 'block';
                         btnRunScraper.style.display = 'none';
+                        if (btnCleanupScraper) btnCleanupScraper.style.display = 'none';
                         btnStopScraper.style.display = d.IsRunning ? 'block' : 'none';
                         
                         let pct = d.Progress || 0;
                         progressBar.style.width = pct + '%';
                         pctText.innerText = Math.round(pct) + '%';
                         statusText.innerText = d.Status || (d.IsRunning ? 'Running...' : 'Idle');
+                        updateLogDisplay(d.Logs);
                         
                         if (!d.IsRunning && (pct === 100 || d.Status === 'Idle' || d.Status.startsWith('Error'))) {
                             clearInterval(pollInterval);
                             setTimeout(() => {
                                 btnRunScraper.style.display = 'block';
+                                if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
                                 btnStopScraper.style.display = 'none';
-                                setTimeout(() => { progressContainer.style.display = 'none'; }, 5000);
-                            }, 2000);
+                            }, 2500);
                         }
                     } else {
                         clearInterval(pollInterval);
                         btnRunScraper.style.display = 'block';
+                        if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
                         btnStopScraper.style.display = 'none';
-                        progressContainer.style.display = 'none';
                     }
                 }).catch(() => {
                     clearInterval(pollInterval);
                     btnRunScraper.style.display = 'block';
+                    if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
                     btnStopScraper.style.display = 'none';
                 });
-            }, 1500);
+            }, 1200);
+        }
+
+        function startCleanupPolling() {
+            if (pollInterval) clearInterval(pollInterval);
+            progressContainer.style.display = 'block';
+            progressBar.style.backgroundColor = '#e05206';
+            btnRunScraper.style.display = 'none';
+            if (btnCleanupScraper) btnCleanupScraper.style.display = 'none';
+            btnStopScraper.style.display = 'block';
+            btnStopScraper.querySelector('span').innerText = 'Stop Cleanup';
+            if (logBox) logBox.textContent = '';
+            
+            pollInterval = setInterval(() => {
+                fetch('/System/Configuration/Downloaders/CleanupStrm/Status', {
+                    headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
+                }).then(r => r.json()).then(d => {
+                    if (d.IsRunning || d.Progress > 0) {
+                        progressContainer.style.display = 'block';
+                        btnRunScraper.style.display = 'none';
+                        if (btnCleanupScraper) btnCleanupScraper.style.display = 'none';
+                        btnStopScraper.style.display = d.IsRunning ? 'block' : 'none';
+                        
+                        let pct = d.Progress || 0;
+                        progressBar.style.width = pct + '%';
+                        pctText.innerText = Math.round(pct) + '%';
+                        statusText.innerText = d.Status || (d.IsRunning ? 'Cleaning up...' : 'Idle');
+                        updateLogDisplay(d.Logs);
+                        
+                        if (!d.IsRunning && (pct === 100 || d.Status === 'Idle' || d.Status.startsWith('Error'))) {
+                            clearInterval(pollInterval);
+                            setTimeout(() => {
+                                btnRunScraper.style.display = 'block';
+                                if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
+                                btnStopScraper.style.display = 'none';
+                            }, 2500);
+                        }
+                    } else {
+                        clearInterval(pollInterval);
+                        btnRunScraper.style.display = 'block';
+                        if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
+                        btnStopScraper.style.display = 'none';
+                    }
+                }).catch(() => {
+                    clearInterval(pollInterval);
+                    btnRunScraper.style.display = 'block';
+                    if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
+                    btnStopScraper.style.display = 'none';
+                });
+            }, 1000);
         }
 
         function loadHistory() {
@@ -198,32 +268,35 @@ export default function(view, params) {
         startPolling();
         loadHistory();
 
-        if (btnRunScraper) {
-            const btnCleanupScraper = view.querySelector('#btnCleanupScraper');
-            if (btnCleanupScraper) {
-                btnCleanupScraper.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    Dashboard.confirm({
-                        title: 'Cleanup Orphaned .strm Files',
-                        text: 'This will delete all .strm files in your Downloads Directory. The scraper will then recreate only the .strm files that match your current language settings on its next run. Downloaded movies (.mp4, .mkv) will NOT be affected. Are you sure you want to proceed?',
-                        confirmBtnText: 'Yes, Cleanup',
-                        cancelBtnText: 'Cancel'
-                    }).then(function () {
-                        Dashboard.showLoadingMsg();
-                        fetch('/System/Configuration/Downloaders/CleanupStrm', {
-                            method: 'POST',
-                            headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
-                        }).then(r => r.json()).then(resp => {
-                            Dashboard.hideLoadingMsg();
-                            Dashboard.alert({ message: resp.Message, title: 'Cleanup Complete' });
-                        }).catch(err => {
-                            Dashboard.hideLoadingMsg();
-                            Dashboard.alert({ message: 'Error cleaning up: ' + err, title: 'Error' });
-                        });
+        if (btnCleanupScraper) {
+            btnCleanupScraper.addEventListener('click', function (e) {
+                e.preventDefault();
+                var msg = 'Cleanup will remove duplicate .strm files for movies already downloaded in your library, movies in unchecked languages, or orphaned dummy files. Real downloaded video files (.mp4, .mkv) will NOT be touched. Are you sure you want to proceed?';
+                
+                var executeCleanup = function() {
+                    fetch('/System/Configuration/Downloaders/CleanupStrm', {
+                        method: 'POST',
+                        headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
+                    }).then(r => {
+                        if (r.ok) {
+                            startCleanupPolling();
+                        } else {
+                            r.json().then(j => alert(j.Message || 'Failed to start cleanup.'));
+                        }
+                    }).catch(err => {
+                        alert('Error starting cleanup: ' + err);
                     });
-                });
-            }
+                };
 
+                if (window.Dashboard && typeof window.Dashboard.confirm === 'function') {
+                    window.Dashboard.confirm(msg, 'Cleanup .strm Files', executeCleanup);
+                } else if (window.confirm(msg)) {
+                    executeCleanup();
+                }
+            });
+        }
+
+        if (btnRunScraper) {
             btnRunScraper.addEventListener('click', function(e) {
                 e.preventDefault();
                 fetch('/System/Configuration/Downloaders/Scrape', {
@@ -240,12 +313,18 @@ export default function(view, params) {
                 e.preventDefault();
                 btnStopScraper.disabled = true;
                 btnStopScraper.querySelector('span').innerText = 'Stopping...';
-                fetch('/System/Configuration/Downloaders/Scrape', {
-                    method: 'DELETE',
-                    headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
-                }).then(() => {
+                Promise.all([
+                    fetch('/System/Configuration/Downloaders/Scrape', {
+                        method: 'DELETE',
+                        headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
+                    }),
+                    fetch('/System/Configuration/Downloaders/CleanupStrm', {
+                        method: 'DELETE',
+                        headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
+                    })
+                ]).finally(() => {
                     btnStopScraper.disabled = false;
-                    btnStopScraper.querySelector('span').innerText = 'Stop Scraper';
+                    btnStopScraper.querySelector('span').innerText = 'Stop';
                 });
             });
         }

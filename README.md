@@ -5,7 +5,7 @@
   
   **Automated media scraping, cloud downloading, and library injection for Jellyfin.**
   
-  [![Version](https://img.shields.io/badge/version-1.0.3-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
+  [![Version](https://img.shields.io/badge/version-1.0.4-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
   [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9.x--12.x-orange)](https://jellyfin.org)
   [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey)](https://github.com/Mohdsuhailpgdi/JellyFetch)
 </div>
@@ -17,12 +17,22 @@ This plugin is specifically optimized for Indian media consumers. The default sc
 
 ---
 
+## ✨ What's New in v1.0.4
+
+- **🛡️ Real Library Deduplication** — Scraper automatically inspects existing downloaded movies in your library and skips dummy `.strm` generation for titles you already own, eliminating duplicate movie cards (`Balan - The Boy`, `Backrooms`, `The Bodyguard`, `Balti`).
+- **📊 Real-Time Cleanup Tool with Live Activity Log** — Redesigned "Cleanup .strm Files" tool with live percentage progress and an activity log box displaying every scanned and deleted directory.
+- **🧹 Deselected Language & Orphan Cleanup** — Removing or unchecking a language removes all un-downloaded dummy movie folders for that language while safely preserving real video files (`.mkv`, `.mp4`, `.avi`).
+- **⚡ Auto-Refresh Library on Cleanup** — Immediately triggers Jellyfin's `ValidateMediaLibrary` scan when cleanup finishes so the UI reflects changes without a server restart.
+
+---
+
 ## ✨ What's New in v1.0.3
 
 - **🔧 Fixed: Scraper Crash (`MissingMethodException`)** — Resolved interface signature differences in `ILibraryManager.GetItemList` across Jellyfin 10.9, 10.10, and 12.1+ so manual and automated scraping runs without crashing.
 - **🌐 Multi-Language Movie Merging** — When a movie has releases in multiple languages (e.g. Tamil and Malayalam releases of the same title), the scraper atomically merges all magnet options under the single movie entry instead of overwriting or creating duplicate entries.
 - **🏷️ Language Tabs in Download Modal** — The movie detail page allows switching between languages (Tamil, Malayalam, etc.) to view and download available sizes for each language.
 - **🧹 Non-Breaking Whitespace & Title Normalization** — Fixed topic titles containing Unicode non-breaking spaces (`\u00a0`) and non-bracketed year formatting.
+
 
 ---
 

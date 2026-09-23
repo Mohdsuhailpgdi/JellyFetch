@@ -79,6 +79,33 @@ public class DownloadersController : ControllerBase
     private static System.Threading.CancellationTokenSource? _scrapeCts;
     private static string _scrapeStatus = "Idle";
     private static double _scrapeProgress = 0;
+    private static readonly List<string> _scrapeLogs = new();
+    private static readonly object _scrapeLogLock = new();
+
+    private static System.Threading.CancellationTokenSource? _cleanupCts;
+    private static string _cleanupStatus = "Idle";
+    private static double _cleanupProgress = 0;
+    private static readonly List<string> _cleanupLogs = new();
+    private static readonly object _cleanupLogLock = new();
+
+    private static void AddScrapeLog(string msg)
+    {
+        lock (_scrapeLogLock)
+        {
+            _scrapeLogs.Add($"[{DateTime.Now:HH:mm:ss}] {msg}");
+            if (_scrapeLogs.Count > 120) _scrapeLogs.RemoveAt(0);
+        }
+    }
+
+    private static void AddCleanupLog(string msg)
+    {
+        lock (_cleanupLogLock)
+        {
+            _cleanupLogs.Add($"[{DateTime.Now:HH:mm:ss}] {msg}");
+            if (_cleanupLogs.Count > 120) _cleanupLogs.RemoveAt(0);
+        }
+    }
+
     private static readonly ConcurrentDictionary<string, DownloadProgressInfo> _activeDownloads = new(StringComparer.OrdinalIgnoreCase);
     
     private static string NormalizeId(string itemId)
@@ -858,26 +885,232 @@ public class DownloadersController : ControllerBase
                     _logger.LogError(ex, "Error processing Torbox download for {ItemPath}", itemPath);
                     progress.Status = "Failed";
                     progress.Error = ex.Message;
-                    _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = magnetSize, Provider = "Torbox", Status = "Failed", ErrorMessage = ex.Message });
                 }
     }
+
 
     
     [HttpPost("CleanupStrm")]
     [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public ActionResult CleanupStrm()
     {
+        if (_cleanupCts != null && !_cleanupCts.IsCancellationRequested)
+        {
+            return BadRequest(new { Message = "Cleanup is already running." });
+        }
+
         var config = Plugin.Instance?.Configuration ?? new PluginConfiguration();
         var targetDir = config.DownloadsDirectory;
-        if (string.IsNullOrEmpty(targetDir) || !Directory.Exists(targetDir)) return BadRequest(new { Message = "Invalid downloads directory." });
-        int count = 0;
-        try {
-            var strmFiles = Directory.GetFiles(targetDir, "*.strm", SearchOption.AllDirectories);
-            foreach (var file in strmFiles) { System.IO.File.Delete(file); count++; }
-            var dirs = Directory.GetDirectories(targetDir, "*", SearchOption.AllDirectories).OrderByDescending(d => d.Length);
-            foreach (var dir in dirs) { if (!Directory.EnumerateFileSystemEntries(dir).Any()) Directory.Delete(dir); }
-        } catch (Exception ex) { return StatusCode(500, new { Message = "Error during cleanup: " + ex.Message }); }
-        return Ok(new { Message = $"Cleanup successful. Removed {count} .strm files." });
+        if (string.IsNullOrEmpty(targetDir) || !Directory.Exists(targetDir))
+        {
+            return BadRequest(new { Message = "Downloads directory does not exist or is not configured." });
+        }
+
+        _cleanupCts = new System.Threading.CancellationTokenSource();
+        _cleanupProgress = 0;
+        _cleanupStatus = "Initializing cleanup...";
+        lock (_cleanupLogLock)
+        {
+            _cleanupLogs.Clear();
+        }
+
+        AddCleanupLog("Starting cleanup in: " + targetDir);
+
+        _ = Task.Run(async () =>
+        {
+            var ct = _cleanupCts.Token;
+            try
+            {
+                // 1. Load currently allowed languages
+                var allowedLangsPath = Path.Combine(Plugin.Instance.DataFolderPath, "allowed_languages.json");
+                var allowedLangs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                if (System.IO.File.Exists(allowedLangsPath))
+                {
+                    try
+                    {
+                        var json = System.IO.File.ReadAllText(allowedLangsPath);
+                        var list = JsonSerializer.Deserialize<List<string>>(json);
+                        if (list != null) foreach (var l in list) allowedLangs.Add(l);
+                    }
+                    catch { }
+                }
+                AddCleanupLog($"Active allowed languages: {(allowedLangs.Count > 0 ? string.Join(", ", allowedLangs) : "All")}");
+
+                // 2. Pre-scan library for real movies (to detect duplicates)
+                using var client = new HttpClient();
+                var scraper = new JellyfinScraper(client, _libraryManager);
+                var realLibraryMovies = scraper.LoadRealLibraryMovieKeys(targetDir, (msg, _) => AddCleanupLog(msg));
+                AddCleanupLog($"Library check: {realLibraryMovies.Count} existing downloaded movies identified.");
+
+                // 3. Scan subdirectories in targetDir
+                var subDirs = Directory.GetDirectories(targetDir);
+                int total = subDirs.Length;
+                int deletedCount = 0;
+                int keptCount = 0;
+                AddCleanupLog($"Found {total} folders in downloads directory to inspect.");
+
+                for (int i = 0; i < total; i++)
+                {
+                    if (ct.IsCancellationRequested) break;
+                    var dir = subDirs[i];
+                    var dirName = Path.GetFileName(dir);
+                    var pct = 10.0 + ((double)(i + 1) / (total == 0 ? 1 : total) * 75.0);
+                    _cleanupProgress = Math.Round(pct, 1);
+                    _cleanupStatus = $"Checking {i + 1}/{total}: {dirName}";
+
+                    try
+                    {
+                        // Check if folder contains real downloaded video files (.mkv, .mp4, .avi)
+                        bool hasRealVideo = Directory.GetFiles(dir).Any(f => 
+                            f.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase) || 
+                            f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) || 
+                            f.EndsWith(".avi", StringComparison.OrdinalIgnoreCase));
+
+                        if (hasRealVideo)
+                        {
+                            // Real downloaded movie - ALWAYS KEEP
+                            keptCount++;
+                            continue;
+                        }
+
+                        // Check if this is a duplicate of a movie already in the library
+                        var normKey = JellyfinScraper.NormalizeKey(dirName);
+                        bool isDuplicateOfLibrary = !string.IsNullOrEmpty(normKey) && realLibraryMovies.Contains(normKey);
+
+                        // Check language filter against downloads.json
+                        bool isDeselectedLanguage = false;
+                        string jsonPath = Path.Combine(dir, "downloads.json");
+                        List<string> movieLangs = new();
+                        if (System.IO.File.Exists(jsonPath) && allowedLangs.Count > 0)
+                        {
+                            try
+                            {
+                                var jContent = System.IO.File.ReadAllText(jsonPath);
+                                var options = JsonSerializer.Deserialize<List<ScrapedMagnetOption>>(jContent);
+                                if (options != null)
+                                {
+                                    foreach (var opt in options)
+                                    {
+                                        if (opt.languages != null) movieLangs.AddRange(opt.languages);
+                                    }
+                                    // If none of the movie's languages are in allowed languages
+                                    if (movieLangs.Count > 0 && !movieLangs.Any(l => allowedLangs.Contains(l)))
+                                    {
+                                        isDeselectedLanguage = true;
+                                    }
+                                }
+                            }
+                            catch { }
+                        }
+
+                        bool hasStrm = Directory.GetFiles(dir, "*.strm").Any();
+
+                        if (isDuplicateOfLibrary)
+                        {
+                            Directory.Delete(dir, true);
+                            deletedCount++;
+                            AddCleanupLog($"[Deleted Duplicate] {dirName} (Already downloaded in library)");
+                            _logger.LogInformation("[JellyFetch Cleanup] Deleted duplicate: {Dir}", dirName);
+                        }
+                        else if (isDeselectedLanguage)
+                        {
+                            Directory.Delete(dir, true);
+                            deletedCount++;
+                            AddCleanupLog($"[Deleted Language] {dirName} (Deselected: {string.Join(", ", movieLangs.Distinct())})");
+                            _logger.LogInformation("[JellyFetch Cleanup] Deleted deselected language movie: {Dir}", dirName);
+                        }
+                        else if (!hasStrm)
+                        {
+                            Directory.Delete(dir, true);
+                            deletedCount++;
+                            AddCleanupLog($"[Deleted Orphan] {dirName}");
+                        }
+                        else
+                        {
+                            keptCount++;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        AddCleanupLog($"[Error] Could not remove {dirName}: {ex.Message}");
+                    }
+                }
+
+                // 4. Refresh Jellyfin library if items were removed
+                if (deletedCount > 0)
+                {
+                    _cleanupStatus = $"Refreshing Jellyfin library ({deletedCount} movies removed)...";
+                    _cleanupProgress = 90;
+                    AddCleanupLog("Triggering Jellyfin library scan to update UI...");
+                    await _libraryManager.ValidateMediaLibrary(new Progress<double>(), System.Threading.CancellationToken.None);
+                }
+
+                _cleanupProgress = 100;
+                _cleanupStatus = $"Cleanup completed. Removed {deletedCount} folders. Kept {keptCount} movies.";
+                AddCleanupLog($"Done! Removed {deletedCount} folders. Kept {keptCount} movies.");
+            }
+            catch (OperationCanceledException)
+            {
+                _cleanupStatus = "Cleanup stopped by user.";
+                _cleanupProgress = 0;
+                AddCleanupLog("Cleanup stopped by user.");
+            }
+            catch (Exception ex)
+            {
+                _cleanupStatus = "Error during cleanup: " + ex.Message;
+                _cleanupProgress = 0;
+                AddCleanupLog("Error: " + ex.Message);
+                _logger.LogError(ex, "Cleanup error");
+            }
+            finally
+            {
+                var currentCts = _cleanupCts;
+                _ = Task.Delay(15000).ContinueWith(t =>
+                {
+                    if (_cleanupCts == currentCts)
+                    {
+                        _cleanupCts = null;
+                        if (_cleanupProgress == 100)
+                        {
+                            _cleanupStatus = "Idle";
+                            _cleanupProgress = 0;
+                        }
+                    }
+                });
+            }
+        });
+
+        return Ok(new { Message = "Cleanup started." });
+    }
+
+    [HttpGet("CleanupStrm/Status")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult GetCleanupStatus()
+    {
+        List<string> logsCopy;
+        lock (_cleanupLogLock)
+        {
+            logsCopy = new List<string>(_cleanupLogs);
+        }
+        return Ok(new
+        {
+            IsRunning = _cleanupCts != null && !_cleanupCts.IsCancellationRequested,
+            Progress = _cleanupProgress,
+            Status = _cleanupStatus,
+            Logs = logsCopy
+        });
+    }
+
+    [HttpDelete("CleanupStrm")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult StopCleanup()
+    {
+        if (_cleanupCts != null && !_cleanupCts.IsCancellationRequested)
+        {
+            _cleanupCts.Cancel();
+        }
+        return Ok(new { Message = "Cleanup stopped." });
     }
 
     [HttpPost("Scrape")]
@@ -892,19 +1125,25 @@ public class DownloadersController : ControllerBase
         _scrapeCts = new System.Threading.CancellationTokenSource();
         _scrapeStatus = "Starting scraper...";
         _scrapeProgress = 0;
+        lock (_scrapeLogLock)
+        {
+            _scrapeLogs.Clear();
+        }
+        AddScrapeLog("Scraper started.");
         
         _ = Task.Run(async () =>
         {
             try
             {
                 using var client = new HttpClient();
-                var scraper = new JellyfinScraper(client);
+                var scraper = new JellyfinScraper(client, _libraryManager);
                 var config = Plugin.Instance?.Configuration ?? new PluginConfiguration();
                 
                 var res = await scraper.RunScrapeAsync(config.DownloadsDirectory, (msg, pct) => 
                 {
                     if (pct >= 0) _scrapeProgress = pct;
                     _scrapeStatus = msg;
+                    AddScrapeLog(msg);
                     _logger.LogInformation("Scraper: {Msg}", msg);
                 }, _scrapeCts.Token);
                 
@@ -912,22 +1151,26 @@ public class DownloadersController : ControllerBase
                 {
                     _scrapeStatus = $"Scraping completed. Found {res.NewMoviesCount} new movies. Scanning library...";
                     _scrapeProgress = 95;
+                    AddScrapeLog("Scanning Jellyfin media library...");
                     await _libraryManager.ValidateMediaLibrary(new Progress<double>(), System.Threading.CancellationToken.None);
                 }
                 
                 _scrapeStatus = res.Success ? $"Completed. Found {res.NewMoviesCount} new movies." : $"Failed: {res.Error}";
                 _scrapeProgress = 100;
+                AddScrapeLog(_scrapeStatus);
             }
             catch (OperationCanceledException)
             {
                 _scrapeStatus = "Scraper stopped by user.";
                 _scrapeProgress = 0;
+                AddScrapeLog("Scraper stopped by user.");
                 _logger.LogInformation("Scraper stopped by user.");
             }
             catch (Exception ex)
             {
                 _scrapeStatus = "Error: " + ex.Message;
                 _scrapeProgress = 0;
+                AddScrapeLog("Error: " + ex.Message);
                 _logger.LogError(ex, "Scraper error");
             }
             finally
@@ -978,15 +1221,18 @@ public class DownloadersController : ControllerBase
         if (!string.IsNullOrEmpty(req.TorboxApiKey))
         {
             var reqMsg = new HttpRequestMessage(HttpMethod.Get, "https://api.torbox.app/v1/api/user/me");
-            reqMsg.Headers.Add("Authorization", $"Bearer {req.TorboxApiKey}");
-            try {
-                var resp = await client.SendAsync(reqMsg);
-                if (!resp.IsSuccessStatusCode)
+            reqMsg.Headers.Add("Authorization", "Bearer " + req.TorboxApiKey);
+            try
+            {
+                var res = await client.SendAsync(reqMsg);
+                if (!res.IsSuccessStatusCode)
                 {
-                    errors.Add("Torbox API key is invalid.");
+                    errors.Add("Torbox API key validation failed (Status " + res.StatusCode + ").");
                 }
-            } catch {
-                 errors.Add("Failed to connect to Torbox API.");
+            }
+            catch
+            {
+                errors.Add("Could not reach Torbox servers to validate API key.");
             }
         }
         
@@ -1002,10 +1248,16 @@ public class DownloadersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult GetScrapeStatus()
     {
+        List<string> logsCopy;
+        lock (_scrapeLogLock)
+        {
+            logsCopy = new List<string>(_scrapeLogs);
+        }
         return Ok(new { 
             IsRunning = _scrapeCts != null && !_scrapeCts.IsCancellationRequested,
             Progress = _scrapeProgress,
-            Status = _scrapeStatus
+            Status = _scrapeStatus,
+            Logs = logsCopy
         });
     }
 

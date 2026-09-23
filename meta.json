@@ -1,6 +1,6 @@
 {
     "category": "General",
-    "changelog": "v1.0.3: Fixed scraper MissingMethodException (Jellyfin cross-version compatibility). Multi-language releases for same movie are now merged under single movie entry without duplicates.",
+    "changelog": "v1.0.4: Real library deduplication skips dummy strm creation for owned movies. Redesigned Cleanup .strm tool with real-time percentage progress and live activity log box, deselected language removal, and auto-refresh library scan.",
     "description": "Native Downloads ecosystem for Jellyfin. Scrapes external forums for new media and integrates with Seedr and Torbox for downloading.",
     "guid": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
     "imageUrl": "",
@@ -8,15 +8,15 @@
     "overview": "External media scraper and download manager. Integrates Seedr and Torbox.",
     "owner": "LAB Hermes",
     "targetAbi": "10.9.0.0",
-    "timestamp": "2026-09-21T00:00:00Z",
+    "timestamp": "2026-09-23T00:00:00Z",
     "versions": [
         {
             "checksum": "",
-            "changelog": "v1.0.3: Fixed scraper MissingMethodException (Jellyfin cross-version compatibility). Multi-language releases for same movie are now merged under single movie entry without duplicates.",
+            "changelog": "v1.0.4: Real library deduplication skips dummy strm creation for owned movies. Redesigned Cleanup .strm tool with real-time percentage progress and live activity log box, deselected language removal, and auto-refresh library scan.",
             "targetAbi": "10.9.0.0",
             "sourceUrl": "",
-            "timestamp": "2026-09-21T00:00:00Z",
-            "version": "1.0.3.0"
+            "timestamp": "2026-09-23T00:00:00Z",
+            "version": "1.0.4.0"
         }
     ]
 }
