@@ -86,15 +86,18 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             }
         }
         
-        public static async Task ClearHistoryAsync()
+        public static async Task SaveAllEntriesAsync(List<DownloadHistoryEntry> entries)
         {
             await _lock.WaitAsync();
             try
             {
-                if (File.Exists(HistoryPath))
+                var dir = Path.GetDirectoryName(HistoryPath);
+                if (dir != null && !Directory.Exists(dir))
                 {
-                    File.Delete(HistoryPath);
+                    Directory.CreateDirectory(dir);
                 }
+                var outJson = JsonSerializer.Serialize(entries, new JsonSerializerOptions { WriteIndented = true });
+                await File.WriteAllTextAsync(HistoryPath, outJson);
             }
             finally
             {

@@ -312,11 +312,14 @@ public class DownloadersController : ControllerBase
         
         var config = Plugin.Instance.Configuration;
 
+        bool needsSave = false;
         // Add past history
         foreach (var h in history)
         {
             double entrySize = h.SizeGb;
-            if (entrySize <= 0 && !string.IsNullOrEmpty(config.DownloadsDirectory) && Directory.Exists(config.DownloadsDirectory))
+            string movieName = h.MovieName;
+
+            if (h.Status == "Completed" && !string.IsNullOrEmpty(config.DownloadsDirectory) && Directory.Exists(config.DownloadsDirectory))
             {
                 try
                 {
@@ -329,13 +332,24 @@ public class DownloadersController : ControllerBase
                     if (bestMatch == null)
                     {
                         bestMatch = files
-                            .Where(f => Math.Abs((f.CreationTimeUtc - h.Timestamp).TotalMinutes) < 120 || Math.Abs((f.LastWriteTimeUtc - h.Timestamp).TotalMinutes) < 120)
+                            .Where(f => Math.Abs((f.CreationTimeUtc - h.Timestamp).TotalMinutes) < 15 || Math.Abs((f.LastWriteTimeUtc - h.Timestamp).TotalMinutes) < 15)
                             .OrderBy(f => Math.Abs((f.LastWriteTimeUtc - h.Timestamp).TotalMinutes))
                             .FirstOrDefault();
                     }
                     if (bestMatch != null && bestMatch.Length > 0)
                     {
-                        entrySize = Math.Round((double)bestMatch.Length / (1024.0 * 1024.0 * 1024.0), 2);
+                        if (entrySize <= 0)
+                        {
+                            entrySize = Math.Round((double)bestMatch.Length / (1024.0 * 1024.0 * 1024.0), 2);
+                            h.SizeGb = entrySize;
+                            needsSave = true;
+                        }
+                        if (movieName == "Manual Download")
+                        {
+                            movieName = Path.GetFileNameWithoutExtension(bestMatch.Name);
+                            h.MovieName = movieName;
+                            needsSave = true;
+                        }
                     }
                 }
                 catch { }
@@ -343,12 +357,19 @@ public class DownloadersController : ControllerBase
 
             combined.Add(new {
                 Timestamp = h.Timestamp,
-                MovieName = h.MovieName,
+                MovieName = movieName,
                 SizeGb = entrySize,
                 Provider = h.Provider,
                 Status = h.Status,
                 ErrorMessage = h.ErrorMessage,
                 IsActive = false
+            });
+        }
+
+        if (needsSave)
+        {
+            _ = Task.Run(async () => {
+                try { await DownloadHistoryManager.SaveAllEntriesAsync(history); } catch { }
             });
         }
         
