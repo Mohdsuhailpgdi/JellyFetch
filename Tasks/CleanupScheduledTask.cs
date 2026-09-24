@@ -43,9 +43,19 @@ public class CleanupScheduledTask : IScheduledTask
     public async Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Starting JellyFetch .strm Cleanup Task...");
-        progress.Report(5);
-        await DownloadersController.ExecuteCleanupAsync(_libraryManager, _logger, progress, cancellationToken);
-        progress.Report(100);
-        _logger.LogInformation("Finished JellyFetch .strm Cleanup Task.");
+        progress.Report(1);
+        try
+        {
+            await DownloadersController.ExecuteCleanupAsync(_libraryManager, _logger, progress, cancellationToken);
+        }
+        finally
+        {
+            progress.Report(100);
+            _logger.LogInformation("Finished JellyFetch .strm Cleanup Task.");
+            _ = Task.Delay(10000).ContinueWith(_ =>
+            {
+                DownloadersController.ReportCleanupProgress("Idle", 0);
+            });
+        }
     }
 }

@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/icon.jpg",
     "versions": [
       {
+        "version": "1.2.3.0",
+        "changelog": "v1.2.3: Improved task execution robustness — reflection-based IScheduledTaskWorker execution, fresh log clearing on task start, delayed Idle reset after completion, and richer scraper progress granularity with per-stage domain discovery and per-language scanning milestones.",
+        "targetAbi": "10.9.9.0",
+        "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
+        "checksum": "PLACEHOLDER",
+        "timestamp": "2026-09-25T00:00:00Z"
+      },
+      {
         "version": "1.2.2.0",
         "changelog": "v1.2.2: Native Scheduled Tasks integration (Scrape and Cleanup registered as IScheduledTask in Jellyfin TaskManager), dashboard tab navigation persistence, and seamless progress reporting.",
         "targetAbi": "10.9.9.0",

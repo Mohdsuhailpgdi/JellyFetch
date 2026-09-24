@@ -90,12 +90,14 @@ public class DownloadersController : ControllerBase
     private static System.Threading.CancellationTokenSource? _scrapeCts;
     private static string _scrapeStatus = "Idle";
     private static double _scrapeProgress = 0;
+    private static DateTime _scrapeStartTime = DateTime.MinValue;
     private static readonly List<string> _scrapeLogs = new();
     private static readonly object _scrapeLogLock = new();
 
     private static System.Threading.CancellationTokenSource? _cleanupCts;
     private static string _cleanupStatus = "Idle";
     private static double _cleanupProgress = 0;
+    private static DateTime _cleanupStartTime = DateTime.MinValue;
     private static readonly List<string> _cleanupLogs = new();
     private static readonly object _cleanupLogLock = new();
 
@@ -111,6 +113,98 @@ public class DownloadersController : ControllerBase
         if (pct >= 0) _cleanupProgress = Math.Round(pct, 1);
         _cleanupStatus = msg;
         AddCleanupLog(msg);
+    }
+
+    public static void ResetScrapeLogs()
+    {
+        lock (_scrapeLogLock)
+        {
+            _scrapeLogs.Clear();
+        }
+    }
+
+    public static void ResetCleanupLogs()
+    {
+        lock (_cleanupLogLock)
+        {
+            _cleanupLogs.Clear();
+        }
+    }
+
+    private static MediaBrowser.Model.Tasks.IScheduledTaskWorker? GetTaskWorker(ITaskManager? taskManager, string taskTypeName, string taskKey)
+    {
+        if (taskManager == null) return null;
+        try
+        {
+            var prop = taskManager.GetType().GetProperty("ScheduledTasks")
+                    ?? typeof(ITaskManager).GetProperty("ScheduledTasks");
+            if (prop == null) return null;
+            var list = prop.GetValue(taskManager) as System.Collections.IEnumerable;
+            if (list == null) return null;
+            foreach (var item in list)
+            {
+                if (item is MediaBrowser.Model.Tasks.IScheduledTaskWorker worker && worker.ScheduledTask != null)
+                {
+                    var name = worker.ScheduledTask.GetType().Name;
+                    var key = worker.ScheduledTask.Key;
+                    if (string.Equals(name, taskTypeName, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(key, taskKey, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return worker;
+                    }
+                }
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    private static bool TryExecuteScheduledTask(ITaskManager? taskManager, MediaBrowser.Model.Tasks.IScheduledTaskWorker worker)
+    {
+        if (taskManager == null || worker == null) return false;
+        try
+        {
+            taskManager.Execute(worker, new TaskOptions());
+            return true;
+        }
+        catch
+        {
+            try
+            {
+                var method = taskManager.GetType().GetMethod("Execute", new[] { typeof(MediaBrowser.Model.Tasks.IScheduledTaskWorker), typeof(TaskOptions) });
+                if (method != null)
+                {
+                    method.Invoke(taskManager, new object[] { worker, new TaskOptions() });
+                    return true;
+                }
+            }
+            catch { }
+        }
+        return false;
+    }
+
+    private static bool TryCancelScheduledTask(ITaskManager? taskManager, MediaBrowser.Model.Tasks.IScheduledTaskWorker worker)
+    {
+        if (taskManager == null || worker == null) return false;
+        try
+        {
+            taskManager.Cancel(worker);
+            return true;
+        }
+        catch
+        {
+            try
+            {
+                var method = taskManager.GetType().GetMethod("Cancel", new[] { typeof(MediaBrowser.Model.Tasks.IScheduledTaskWorker) });
+                if (method != null)
+                {
+                    method.Invoke(taskManager, new object[] { worker });
+                    return true;
+                }
+            }
+            catch { }
+        }
+        return false;
     }
 
     private static void AddScrapeLog(string msg)
@@ -1071,6 +1165,7 @@ public class DownloadersController : ControllerBase
 
         try
         {
+            ResetCleanupLogs();
             ReportCleanupProgress("Starting cleanup in: " + targetDir, 5);
             taskProgress?.Report(5);
 
@@ -1242,23 +1337,24 @@ public class DownloadersController : ControllerBase
             return BadRequest(new { Message = "Downloads directory does not exist or is not configured." });
         }
 
-        if (_taskManager != null)
+        var worker = GetTaskWorker(_taskManager, "CleanupScheduledTask", "CleanJellyFetchStrm");
+        if (worker != null)
         {
-            var taskInfo = _taskManager.ScheduledTasks.FirstOrDefault(t => t.ScheduledTask is CleanupScheduledTask);
-            if (taskInfo != null && taskInfo.State == TaskState.Running)
+            if (worker.State == TaskState.Running)
             {
                 return BadRequest(new { Message = "Cleanup is already running." });
             }
 
-            _cleanupProgress = 0;
+            _cleanupProgress = 1;
+            _cleanupStartTime = DateTime.UtcNow;
             _cleanupStatus = "Starting cleanup...";
-            lock (_cleanupLogLock)
-            {
-                _cleanupLogs.Clear();
-            }
+            ResetCleanupLogs();
             AddCleanupLog("Starting cleanup in: " + targetDir);
-            _taskManager.CancelIfRunningAndQueue<CleanupScheduledTask>();
-            return Ok(new { Message = "Cleanup started." });
+
+            if (TryExecuteScheduledTask(_taskManager, worker))
+            {
+                return Ok(new { Message = "Cleanup started." });
+            }
         }
 
         if (_cleanupCts != null && !_cleanupCts.IsCancellationRequested)
@@ -1267,13 +1363,10 @@ public class DownloadersController : ControllerBase
         }
 
         _cleanupCts = new System.Threading.CancellationTokenSource();
-        _cleanupProgress = 0;
+        _cleanupProgress = 1;
+        _cleanupStartTime = DateTime.UtcNow;
         _cleanupStatus = "Initializing cleanup...";
-        lock (_cleanupLogLock)
-        {
-            _cleanupLogs.Clear();
-        }
-
+        ResetCleanupLogs();
         AddCleanupLog("Starting cleanup in: " + targetDir);
 
         _ = Task.Run(async () =>
@@ -1302,17 +1395,22 @@ public class DownloadersController : ControllerBase
     public ActionResult GetCleanupStatus()
     {
         bool isRunning = false;
-        if (_taskManager != null)
+        var worker = GetTaskWorker(_taskManager, "CleanupScheduledTask", "CleanJellyFetchStrm");
+        if (worker != null)
         {
-            var taskInfo = _taskManager.ScheduledTasks.FirstOrDefault(t => t.ScheduledTask is CleanupScheduledTask);
-            if (taskInfo != null)
+            isRunning = worker.State == TaskState.Running;
+            if (isRunning && _cleanupProgress <= 1 && worker.CurrentProgress.HasValue && worker.CurrentProgress.Value > 0)
             {
-                isRunning = taskInfo.State == TaskState.Running;
+                _cleanupProgress = Math.Round(worker.CurrentProgress.Value, 1);
             }
         }
         if (!isRunning)
         {
             isRunning = _cleanupCts != null && !_cleanupCts.IsCancellationRequested;
+        }
+        if (!isRunning && (DateTime.UtcNow - _cleanupStartTime).TotalSeconds < 10 && _cleanupStatus.StartsWith("Starting", StringComparison.OrdinalIgnoreCase))
+        {
+            isRunning = true;
         }
 
         List<string> logsCopy;
@@ -1333,9 +1431,10 @@ public class DownloadersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult StopCleanup()
     {
-        if (_taskManager != null)
+        var worker = GetTaskWorker(_taskManager, "CleanupScheduledTask", "CleanJellyFetchStrm");
+        if (worker != null)
         {
-            _taskManager.CancelIfRunning<CleanupScheduledTask>();
+            TryCancelScheduledTask(_taskManager, worker);
         }
         if (_cleanupCts != null && !_cleanupCts.IsCancellationRequested)
         {
@@ -1350,23 +1449,23 @@ public class DownloadersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult Scrape()
     {
-        if (_taskManager != null)
+        var worker = GetTaskWorker(_taskManager, "ScraperScheduledTask", "ExternalMediaScraper");
+        if (worker != null)
         {
-            var taskInfo = _taskManager.ScheduledTasks.FirstOrDefault(t => t.ScheduledTask is ScraperScheduledTask);
-            if (taskInfo != null && taskInfo.State == TaskState.Running)
+            if (worker.State == TaskState.Running)
             {
                 return BadRequest(new { Message = "Scraping is already running." });
             }
 
             _scrapeStatus = "Starting scraper...";
             _scrapeProgress = 0;
-            lock (_scrapeLogLock)
+            ResetScrapeLogs();
+            AddScrapeLog("Starting scraper task via Jellyfin TaskManager...");
+
+            if (TryExecuteScheduledTask(_taskManager, worker))
             {
-                _scrapeLogs.Clear();
+                return Ok(new { Message = "Scraping started." });
             }
-            AddScrapeLog("Scraper task queued in Jellyfin TaskManager.");
-            _taskManager.CancelIfRunningAndQueue<ScraperScheduledTask>();
-            return Ok(new { Message = "Scraping started." });
         }
 
         if (_scrapeCts != null && !_scrapeCts.IsCancellationRequested)
@@ -1377,11 +1476,8 @@ public class DownloadersController : ControllerBase
         _scrapeCts = new System.Threading.CancellationTokenSource();
         _scrapeStatus = "Starting scraper...";
         _scrapeProgress = 0;
-        lock (_scrapeLogLock)
-        {
-            _scrapeLogs.Clear();
-        }
-        AddScrapeLog("Scraper started.");
+        ResetScrapeLogs();
+        AddScrapeLog("Scraper started directly.");
         
         _ = Task.Run(async () =>
         {
@@ -1397,14 +1493,19 @@ public class DownloadersController : ControllerBase
                     _logger.LogInformation("Scraper: {Msg}", msg);
                 }, _scrapeCts.Token);
                 
-                if (res.Success && res.NewMoviesCount > 0)
+                if (res.Success)
                 {
-                    ReportScrapeProgress("Scanning Jellyfin media library...", 95);
-                    await _libraryManager.ValidateMediaLibrary(new Progress<double>(), System.Threading.CancellationToken.None);
+                    if (res.NewMoviesCount > 0)
+                    {
+                        ReportScrapeProgress("Scanning Jellyfin media library...", 95);
+                        await _libraryManager.ValidateMediaLibrary(new Progress<double>(), System.Threading.CancellationToken.None);
+                    }
+                    ReportScrapeProgress($"Completed. Found {res.NewMoviesCount} new movies.", 100);
                 }
-                
-                string finalMsg = res.Success ? $"Completed. Found {res.NewMoviesCount} new movies." : $"Failed: {res.Error}";
-                ReportScrapeProgress(finalMsg, 100);
+                else
+                {
+                    ReportScrapeProgress($"Failed: {res.Error}", 0);
+                }
             }
             catch (OperationCanceledException)
             {
@@ -1489,12 +1590,13 @@ public class DownloadersController : ControllerBase
     public ActionResult GetScrapeStatus()
     {
         bool isRunning = false;
-        if (_taskManager != null)
+        var worker = GetTaskWorker(_taskManager, "ScraperScheduledTask", "ExternalMediaScraper");
+        if (worker != null)
         {
-            var taskInfo = _taskManager.ScheduledTasks.FirstOrDefault(t => t.ScheduledTask is ScraperScheduledTask);
-            if (taskInfo != null)
+            isRunning = worker.State == TaskState.Running;
+            if (isRunning && _scrapeProgress == 0 && worker.CurrentProgress.HasValue && worker.CurrentProgress.Value > 0)
             {
-                isRunning = taskInfo.State == TaskState.Running;
+                _scrapeProgress = Math.Round(worker.CurrentProgress.Value, 1);
             }
         }
         if (!isRunning)
@@ -1519,9 +1621,10 @@ public class DownloadersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult StopScrape()
     {
-        if (_taskManager != null)
+        var worker = GetTaskWorker(_taskManager, "ScraperScheduledTask", "ExternalMediaScraper");
+        if (worker != null)
         {
-            _taskManager.CancelIfRunning<ScraperScheduledTask>();
+            TryCancelScheduledTask(_taskManager, worker);
         }
         if (_scrapeCts != null && !_scrapeCts.IsCancellationRequested)
         {

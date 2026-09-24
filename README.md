@@ -5,7 +5,7 @@
   
   **Automated media scraping, cloud downloading, and library injection for Jellyfin.**
   
-  [![Version](https://img.shields.io/badge/version-1.2.2-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
+  [![Version](https://img.shields.io/badge/version-1.2.3-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
   [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9.x--12.x-orange)](https://jellyfin.org)
   [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey)](https://github.com/Mohdsuhailpgdi/JellyFetch)
 </div>
@@ -17,12 +17,24 @@ This plugin is specifically optimized for Indian media consumers. The default sc
 
 ---
 
-## ✨ What's New in v1.2.2 — Native Scheduled Tasks & Dashboard Polish
+## ✨ What's New in v1.2.3 — Task Execution Hardening & Progress Granularity
 
-- ⏱️ **Jellyfin Native Scheduled Tasks (`IScheduledTask`)** — Scraper and Library Cleanup are now registered natively into Jellyfin's official TaskManager under the **JellyFetch** category. Run them on automated schedules or trigger them with a single click.
-- 🔄 **Unified Two-Way Progress Synchronization** — Running a task from either Jellyfin's *Scheduled Tasks* menu or the JellyFetch dashboard synchronizes live progress bars, real-time activity logs, and cancellation states seamlessly.
+- 🛡️ **Reflection-Based Task Worker Execution** — Fixed edge cases where triggering Scraper or Cleanup tasks from the plugin dashboard could fail with `InvalidCastException`. Now uses reflection to reliably resolve and invoke the native `IScheduledTaskWorker` regardless of Jellyfin version internals.
+- 🧹 **Fresh Log Panel on Each Run** — Activity logs now auto-clear when a new task starts, preventing stale entries from previous runs from cluttering the live log view.
+- ⏳ **Graceful Idle Reset** — After a task completes, the progress indicator holds at `100%` for 10 seconds before quietly resetting to `Idle`, giving users time to read the final status.
+- 📊 **Richer Scraper Progress Milestones** — Scraper now reports granular per-stage milestones: domain testing, connection confirmation, front page scan, and per-language subforum scanning with individual progress points.
+
+---
+
+<details>
+<summary><b>📜 What's New in v1.2.2 — Native Scheduled Tasks & Two-Way Sync</b></summary>
+
+- ⏱️ **Jellyfin Native Scheduled Tasks (`IScheduledTask`)** — Scraper and Library Cleanup are now registered natively into Jellyfin's official TaskManager under the **JellyFetch** category. Run them on automated schedules or trigger them with a single click from Dashboard -> Scheduled Tasks.
+- 🔄 **Bidirectional Progress & Log Synchronization** — Starting a task from either Jellyfin's *Scheduled Tasks* menu, the Jellyfin *Active Tasks* dashboard, or the JellyFetch plugin page reflects the exact same real-time progress bars, live console logs, and cancellation status across all interfaces in lockstep.
 - 📌 **Smart Tab Memory** — The plugin dashboard remembers your last active tab (`sessionStorage`), preventing jarring jumps back to Settings when navigating.
 - 🚀 **Smooth Manual Download Flow** — Initiating a manual magnet download confirms the provider and automatically transitions to the **Activity** tab to watch download progress in real time.
+
+</details>
 
 ---
 
@@ -136,7 +148,8 @@ JellyFetch-Plugin/
 │   ├── TorboxHelper.cs         ← Torbox API integration & direct downloading
 │   └── DownloadHistoryManager.cs ← JSON history storage & state manager
 ├── Tasks/
-│   └── ScraperScheduledTask.cs ← Background scheduled task
+│   ├── ScraperScheduledTask.cs ← Native IScheduledTask: 1TamilMV media scraper
+│   └── CleanupScheduledTask.cs ← Native IScheduledTask: Library & .strm cleanup
 └── Web/
     ├── downloaders.html        ← Tabbed plugin settings page
     ├── downloaders.js          ← Tabbed settings controller & event handlers
