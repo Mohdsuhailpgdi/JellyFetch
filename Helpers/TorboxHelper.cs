@@ -15,6 +15,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
         public bool Success { get; set; }
         public string DownloadUrl { get; set; }
         public string VideoName { get; set; }
+        public long SizeBytes { get; set; }
         public string Error { get; set; }
     }
 
@@ -174,11 +175,13 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                 vname = Regex.Replace(vname, @"^(?:www\.)?1[tT]amil[mM][vV]\.[a-zA-Z0-9]+\s*[-–]\s*", "", RegexOptions.IgnoreCase);
                 vname = Regex.Replace(vname, @"^(?:www\.)?[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}\s*[-–]\s*", "").Trim();
 
+                long fileSizeBytes = largestFile.TryGetProperty("size", out var sProp) ? sProp.GetInt64() : 0;
                 return new TorboxResult
                 {
                     Success = true,
                     DownloadUrl = downloadUrl,
-                    VideoName = vname
+                    VideoName = vname,
+                    SizeBytes = fileSizeBytes
                 };
             }
             catch (Exception ex)

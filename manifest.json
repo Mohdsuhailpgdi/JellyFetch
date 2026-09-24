@@ -13,7 +13,7 @@
         "changelog": "v1.2.0: Phase 1 Complete. Tabbed modern dashboard UI, manual magnet downloads with provider selection (Auto / Seedr / Torbox) & Activity auto-navigation, fallback download routing to configured directory, smooth movie detail button animations & hover transitions, friendly low-peer alert cards, scraper domain auto-discovery status badge & backup mirror override, and language cleanup improvements.",
         "targetAbi": "10.9.9.0",
         "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
-        "checksum": "6CE63E299E76288E89EE81645E83BC85",
+        "checksum": "E381CEB7AF7E750C25CF98FAD7C50195",
         "timestamp": "2026-09-24T00:00:00Z"
       }
     ]

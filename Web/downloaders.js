@@ -274,7 +274,7 @@ export default function(view, params) {
                         row.innerHTML = `
                             <td style="padding: 10px; vertical-align:top;">${dt}</td>
                             <td style="padding: 10px; vertical-align:top;">${item.MovieName}</td>
-                            <td style="padding: 10px; vertical-align:top;">${item.SizeGb.toFixed(2)} GB</td>
+                            <td style="padding: 10px; vertical-align:top;">${(item.SizeGb && item.SizeGb > 0) ? item.SizeGb.toFixed(2) + ' GB' : '—'}</td>
                             <td style="padding: 10px; vertical-align:top;">${statusStr}${actionsStr}</td>
                         `;
                         tbody.appendChild(row);

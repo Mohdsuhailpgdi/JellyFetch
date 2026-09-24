@@ -16,6 +16,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
         public string DownloadUrl { get; set; }
         public string VideoName { get; set; }
         public string FolderId { get; set; }
+        public long SizeBytes { get; set; }
         public string Error { get; set; }
     }
 
@@ -268,7 +269,8 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                             if (fetchRes.TryGetProperty("url", out var urlProp) && !string.IsNullOrEmpty(urlProp.GetString()))
                             {
                                 string vname = CleanMediaName(vfile.Value.GetProperty("name").GetString());
-                                return new SeedrResult { Success = true, DownloadUrl = urlProp.GetString(), VideoName = vname, FolderId = f.GetProperty("id").ToString() };
+                                long fileSizeBytes = vfile.Value.TryGetProperty("size", out var sProp) ? sProp.GetInt64() : 0;
+                                return new SeedrResult { Success = true, DownloadUrl = urlProp.GetString(), VideoName = vname, FolderId = f.GetProperty("id").ToString(), SizeBytes = fileSizeBytes };
                             }
                         }
                     }
@@ -516,7 +518,8 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             if (fetchRes2.TryGetProperty("url", out var fUrl) && !string.IsNullOrEmpty(fUrl.GetString()))
             {
                 string vname = CleanMediaName(targetVideo.Value.GetProperty("name").GetString());
-                return new SeedrResult { Success = true, DownloadUrl = fUrl.GetString(), VideoName = vname, FolderId = targetFolder.Value.GetProperty("id").ToString() };
+                long fileSizeBytes = targetVideo.Value.TryGetProperty("size", out var sProp2) ? sProp2.GetInt64() : 0;
+                return new SeedrResult { Success = true, DownloadUrl = fUrl.GetString(), VideoName = vname, FolderId = targetFolder.Value.GetProperty("id").ToString(), SizeBytes = fileSizeBytes };
             }
 
             return new SeedrResult { Error = "Failed to obtain direct download link from Seedr." };

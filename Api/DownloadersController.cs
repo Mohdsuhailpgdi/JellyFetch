@@ -310,13 +310,41 @@ public class DownloadersController : ControllerBase
             }
         }
         
+        var config = Plugin.Instance.Configuration;
+
         // Add past history
         foreach (var h in history)
         {
+            double entrySize = h.SizeGb;
+            if (entrySize <= 0 && !string.IsNullOrEmpty(config.DownloadsDirectory) && Directory.Exists(config.DownloadsDirectory))
+            {
+                try
+                {
+                    var files = new DirectoryInfo(config.DownloadsDirectory).GetFiles("*.*");
+                    FileInfo? bestMatch = null;
+                    if (h.MovieName != "Manual Download")
+                    {
+                        bestMatch = files.FirstOrDefault(f => Path.GetFileNameWithoutExtension(f.Name).Equals(h.MovieName, StringComparison.OrdinalIgnoreCase));
+                    }
+                    if (bestMatch == null)
+                    {
+                        bestMatch = files
+                            .Where(f => Math.Abs((f.CreationTimeUtc - h.Timestamp).TotalMinutes) < 120 || Math.Abs((f.LastWriteTimeUtc - h.Timestamp).TotalMinutes) < 120)
+                            .OrderBy(f => Math.Abs((f.LastWriteTimeUtc - h.Timestamp).TotalMinutes))
+                            .FirstOrDefault();
+                    }
+                    if (bestMatch != null && bestMatch.Length > 0)
+                    {
+                        entrySize = Math.Round((double)bestMatch.Length / (1024.0 * 1024.0 * 1024.0), 2);
+                    }
+                }
+                catch { }
+            }
+
             combined.Add(new {
                 Timestamp = h.Timestamp,
                 MovieName = h.MovieName,
-                SizeGb = h.SizeGb,
+                SizeGb = entrySize,
                 Provider = h.Provider,
                 Status = h.Status,
                 ErrorMessage = h.ErrorMessage,
@@ -698,6 +726,15 @@ public class DownloadersController : ControllerBase
                         var vname = res.VideoName;
                         var fId = res.FolderId;
                         progress.FolderId = fId;
+
+                        if (res.SizeBytes > 0 && progress.SizeGb <= 0)
+                        {
+                            progress.SizeGb = Math.Round((double)res.SizeBytes / (1024.0 * 1024.0 * 1024.0), 2);
+                        }
+                        if (!string.IsNullOrEmpty(vname) && (progress.MovieName == "Manual Download" || string.IsNullOrEmpty(progress.MovieName)))
+                        {
+                            progress.MovieName = Path.GetFileNameWithoutExtension(CleanMediaFileName(vname));
+                        }
                         
                         string? targetDir = null;
                         if (string.IsNullOrEmpty(itemPath))
@@ -779,7 +816,12 @@ public class DownloadersController : ControllerBase
                         progress.Status = "Completed";
                         progress.Progress = 100;
                         progress.Completed = true;
-                        _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = magnetSize, Provider = "Seedr", Status = "Completed" });
+                        double finalSize = progress.SizeGb > 0 ? progress.SizeGb : magnetSize;
+                        if (finalSize <= 0 && !string.IsNullOrEmpty(progress.TargetPath) && System.IO.File.Exists(progress.TargetPath))
+                        {
+                            try { finalSize = Math.Round((double)new FileInfo(progress.TargetPath).Length / (1024.0 * 1024.0 * 1024.0), 2); progress.SizeGb = finalSize; } catch { }
+                        }
+                        _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = finalSize, Provider = "Seedr", Status = "Completed" });
                         _ = Task.Delay(15000).ContinueWith(t => _activeDownloads.TryRemove(normalizedId, out var ignored));
                     }
                     else
@@ -787,14 +829,16 @@ public class DownloadersController : ControllerBase
                         _logger.LogError("Seedr download failed for {ItemPath}: {Error}", itemPath, res.Error);
                         progress.Status = "Failed";
                         progress.Error = res.Error ?? "Unknown Seedr error.";
-                        _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = magnetSize, Provider = "Seedr", Status = "Failed", ErrorMessage = progress.Error });
+                        double finalSize = progress.SizeGb > 0 ? progress.SizeGb : magnetSize;
+                        _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = finalSize, Provider = "Seedr", Status = "Failed", ErrorMessage = progress.Error });
                     }
                 }
                 catch (OperationCanceledException)
                 {
                     _logger.LogInformation("Seedr download cancelled for {ItemPath}", itemPath);
                     progress.Status = "Stopped";
-                    _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = magnetSize, Provider = "Seedr", Status = "Stopped" });
+                    double finalSize = progress.SizeGb > 0 ? progress.SizeGb : magnetSize;
+                    _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = finalSize, Provider = "Seedr", Status = "Stopped" });
                     var partFile = (progress.TargetPath ?? "") + ".part";
                     if (System.IO.File.Exists(partFile))
                     {
@@ -806,7 +850,8 @@ public class DownloadersController : ControllerBase
                     _logger.LogError(ex, "Error processing Seedr download for {ItemPath}", itemPath);
                     progress.Status = "Failed";
                     progress.Error = ex.Message;
-                    _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = magnetSize, Provider = "Seedr", Status = "Failed", ErrorMessage = ex.Message });
+                    double finalSize = progress.SizeGb > 0 ? progress.SizeGb : magnetSize;
+                    _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = finalSize, Provider = "Seedr", Status = "Failed", ErrorMessage = ex.Message });
                 }
     }
 
@@ -833,6 +878,15 @@ public class DownloadersController : ControllerBase
                     {
                         var finalUrl = res.DownloadUrl;
                         var fileName = CleanMediaFileName(res.VideoName);
+
+                        if (res.SizeBytes > 0 && progress.SizeGb <= 0)
+                        {
+                            progress.SizeGb = Math.Round((double)res.SizeBytes / (1024.0 * 1024.0 * 1024.0), 2);
+                        }
+                        if (!string.IsNullOrEmpty(res.VideoName) && (progress.MovieName == "Manual Download" || string.IsNullOrEmpty(progress.MovieName)))
+                        {
+                            progress.MovieName = Path.GetFileNameWithoutExtension(fileName);
+                        }
                         
                         string? targetDir = null;
                         if (string.IsNullOrEmpty(itemPath))
@@ -904,7 +958,12 @@ public class DownloadersController : ControllerBase
                             progress.Status = "Completed";
                             progress.Progress = 100;
                             progress.Completed = true;
-                            _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = magnetSize, Provider = "Torbox", Status = "Completed" });
+                            double finalSize = progress.SizeGb > 0 ? progress.SizeGb : magnetSize;
+                            if (finalSize <= 0 && !string.IsNullOrEmpty(progress.TargetPath) && System.IO.File.Exists(progress.TargetPath))
+                            {
+                                try { finalSize = Math.Round((double)new FileInfo(progress.TargetPath).Length / (1024.0 * 1024.0 * 1024.0), 2); progress.SizeGb = finalSize; } catch { }
+                            }
+                            _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = finalSize, Provider = "Torbox", Status = "Completed" });
                             _ = Task.Delay(15000).ContinueWith(t => _activeDownloads.TryRemove(normalizedId, out var ignored));
                         }
                     }
@@ -913,14 +972,16 @@ public class DownloadersController : ControllerBase
                         _logger.LogError("Torbox download failed for {ItemPath}: {Error}", itemPath, res.Error);
                         progress.Status = "Failed";
                         progress.Error = res.Error ?? "Torbox download failed.";
-                        _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = magnetSize, Provider = "Torbox", Status = "Failed", ErrorMessage = progress.Error });
+                        double finalSize = progress.SizeGb > 0 ? progress.SizeGb : magnetSize;
+                        _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = finalSize, Provider = "Torbox", Status = "Failed", ErrorMessage = progress.Error });
                     }
                 }
                 catch (OperationCanceledException)
                 {
                     _logger.LogInformation("Torbox download cancelled for {ItemPath}", itemPath);
                     progress.Status = "Stopped";
-                    _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = magnetSize, Provider = "Torbox", Status = "Stopped" });
+                    double finalSize = progress.SizeGb > 0 ? progress.SizeGb : magnetSize;
+                    _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = finalSize, Provider = "Torbox", Status = "Stopped" });
                     var partFile = (progress.TargetPath ?? "") + ".part";
                     if (System.IO.File.Exists(partFile))
                     {
@@ -932,6 +993,8 @@ public class DownloadersController : ControllerBase
                     _logger.LogError(ex, "Error processing Torbox download for {ItemPath}", itemPath);
                     progress.Status = "Failed";
                     progress.Error = ex.Message;
+                    double finalSize = progress.SizeGb > 0 ? progress.SizeGb : magnetSize;
+                    _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = finalSize, Provider = "Torbox", Status = "Failed", ErrorMessage = ex.Message });
                 }
     }
 
@@ -1415,6 +1478,10 @@ public class DownloadersController : ControllerBase
                     {
                         totalBytes += totalRead;
                     }
+                    if (totalBytes > 0 && progress.SizeGb <= 0)
+                    {
+                        progress.SizeGb = Math.Round((double)totalBytes / (1024.0 * 1024.0 * 1024.0), 2);
+                    }
                 }
 
                 using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -1483,6 +1550,18 @@ public class DownloadersController : ControllerBase
             try { System.IO.File.Delete(targetPath); } catch { }
         }
         System.IO.File.Move(tempPath, targetPath);
+        if (System.IO.File.Exists(targetPath))
+        {
+            try
+            {
+                var fi = new FileInfo(targetPath);
+                if (fi.Length > 0)
+                {
+                    progress.SizeGb = Math.Round((double)fi.Length / (1024.0 * 1024.0 * 1024.0), 2);
+                }
+            }
+            catch { }
+        }
     }
 
     public class ManualDownloadRequest
@@ -1504,11 +1583,29 @@ public class DownloadersController : ControllerBase
         var config = Plugin.Instance.Configuration;
         string fakeItemId = "manual-" + Guid.NewGuid().ToString("N").Substring(0, 8);
         string movieName = "Manual Download";
+        var dnMatch = System.Text.RegularExpressions.Regex.Match(request.MagnetUri, @"[?&]dn=([^&]+)");
+        if (dnMatch.Success)
+        {
+            try
+            {
+                var rawDn = Uri.UnescapeDataString(dnMatch.Groups[1].Value.Replace('+', ' '));
+                if (!string.IsNullOrWhiteSpace(rawDn))
+                {
+                    movieName = rawDn;
+                }
+            }
+            catch { }
+        }
 
         var cts = new System.Threading.CancellationTokenSource();
         
         string providerChoice = request.Provider?.ToLowerInvariant() ?? "auto";
         double fakeSize = 0.0; // Size dynamically detected by cloud providers
+        var xlMatch = System.Text.RegularExpressions.Regex.Match(request.MagnetUri, @"[?&]xl=([0-9]+)");
+        if (xlMatch.Success && long.TryParse(xlMatch.Groups[1].Value, out long xlBytes) && xlBytes > 0)
+        {
+            fakeSize = Math.Round((double)xlBytes / (1024.0 * 1024.0 * 1024.0), 2);
+        }
 
         var info = new DownloadProgressInfo
         {
