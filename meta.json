@@ -1,6 +1,6 @@
 {
     "category": "General",
-    "changelog": "v1.2.1: Dynamic file size tracking for manual downloads across streaming, disk, and cloud providers; title sanitation (stripping tracker domain prefixes and container file extensions); and multi-candidate directory search.",
+    "changelog": "v1.2.2: Native Scheduled Tasks integration (Scrape and Cleanup registered as IScheduledTask in Jellyfin TaskManager), dashboard tab navigation persistence, and seamless progress reporting.",
     "description": "Native Downloads ecosystem for Jellyfin. Scrapes external forums for new media and integrates with Seedr and Torbox for downloading.",
     "guid": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
     "imageUrl": "",
@@ -12,11 +12,11 @@
     "versions": [
         {
             "checksum": "",
-            "changelog": "v1.2.1: Dynamic file size tracking for manual downloads across streaming, disk, and cloud providers; title sanitation (stripping tracker domain prefixes and container file extensions); and multi-candidate directory search.",
+            "changelog": "v1.2.2: Native Scheduled Tasks integration (Scrape and Cleanup registered as IScheduledTask in Jellyfin TaskManager), dashboard tab navigation persistence, and seamless progress reporting.",
             "targetAbi": "10.9.0.0",
             "sourceUrl": "",
             "timestamp": "2026-09-25T00:00:00Z",
-            "version": "1.2.1.0"
+            "version": "1.2.2.0"
         }
     ]
 }

@@ -5,7 +5,7 @@
   
   **Automated media scraping, cloud downloading, and library injection for Jellyfin.**
   
-  [![Version](https://img.shields.io/badge/version-1.2.1-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
+  [![Version](https://img.shields.io/badge/version-1.2.2-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
   [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9.x--12.x-orange)](https://jellyfin.org)
   [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey)](https://github.com/Mohdsuhailpgdi/JellyFetch)
 </div>
@@ -14,6 +14,15 @@
 
 ## 🇮🇳 Built for Regional Audiences
 This plugin is specifically optimized for Indian media consumers. The default scraping engine is deeply integrated with **1tamilmv**, providing robust, automated tracking and downloading of regional content, with extensive fallback capabilities.
+
+---
+
+## ✨ What's New in v1.2.2 — Native Scheduled Tasks & Dashboard Polish
+
+- ⏱️ **Jellyfin Native Scheduled Tasks (`IScheduledTask`)** — Scraper and Library Cleanup are now registered natively into Jellyfin's official TaskManager under the **JellyFetch** category. Run them on automated schedules or trigger them with a single click.
+- 🔄 **Unified Two-Way Progress Synchronization** — Running a task from either Jellyfin's *Scheduled Tasks* menu or the JellyFetch dashboard synchronizes live progress bars, real-time activity logs, and cancellation states seamlessly.
+- 📌 **Smart Tab Memory** — The plugin dashboard remembers your last active tab (`sessionStorage`), preventing jarring jumps back to Settings when navigating.
+- 🚀 **Smooth Manual Download Flow** — Initiating a manual magnet download confirms the provider and automatically transitions to the **Activity** tab to watch download progress in real time.
 
 ---
 

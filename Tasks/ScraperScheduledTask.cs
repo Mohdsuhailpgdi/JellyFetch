@@ -1,16 +1,14 @@
-// JellyFetch Plugin for Jellyfin - Version 1.0.5.1
 using System;
 using System.Collections.Generic;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Diagnostics;
-using System.IO;
-using System.Net.Http;
+using Jellyfin.Plugin.JellyFetch.Api;
 using Jellyfin.Plugin.JellyFetch.Configuration;
 using Jellyfin.Plugin.JellyFetch.Helpers;
+using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Logging;
-using MediaBrowser.Controller.Library;
 
 namespace Jellyfin.Plugin.JellyFetch.Tasks;
 
@@ -29,9 +27,9 @@ public class ScraperScheduledTask : IScheduledTask
 
     public string Key => "ExternalMediaScraper";
 
-    public string Description => "Scrapes 1tamilmv and other configured forums for new content.";
+    public string Description => "Scrapes 1TamilMV and configured forums for new releases, creating .strm stubs.";
 
-    public string Category => "Downloads";
+    public string Category => "JellyFetch";
 
     public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()
     {
@@ -48,7 +46,8 @@ public class ScraperScheduledTask : IScheduledTask
     public async Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Starting External Media Scraper Task...");
-        progress.Report(10);
+        progress.Report(5);
+        DownloadersController.ReportScrapeProgress("Starting External Media Scraper...", 5);
         
         try
         {
@@ -58,22 +57,40 @@ public class ScraperScheduledTask : IScheduledTask
             
             var res = await scraper.RunScrapeAsync(config.DownloadsDirectory, (msg, pct) => 
             {
-                progress.Report(pct > 0 ? pct : 0);
+                if (pct >= 0)
+                {
+                    progress.Report(pct);
+                }
                 _logger.LogInformation("Scraper Task: {Msg}", msg);
+                DownloadersController.ReportScrapeProgress(msg, pct);
             }, cancellationToken);
             
             if (res.Success)
             {
                 _logger.LogInformation($"Scraper finished successfully. Found {res.NewMoviesCount} new movies.");
+                if (res.NewMoviesCount > 0)
+                {
+                    DownloadersController.ReportScrapeProgress("Scanning Jellyfin media library...", 95);
+                    progress.Report(95);
+                    await _libraryManager.ValidateMediaLibrary(new Progress<double>(), cancellationToken);
+                }
+                DownloadersController.ReportScrapeProgress($"Completed. Found {res.NewMoviesCount} new movies.", 100);
             }
             else
             {
                 _logger.LogError($"Scraper encountered an error: {res.Error}");
+                DownloadersController.ReportScrapeProgress($"Failed: {res.Error}", 0);
             }
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Scraper task stopped by user.");
+            DownloadersController.ReportScrapeProgress("Scraper stopped by user.", 0);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error executing native C# scraper scheduled task");
+            _logger.LogError(ex, "Error executing scraper scheduled task");
+            DownloadersController.ReportScrapeProgress("Error: " + ex.Message, 0);
         }
         
         progress.Report(100);

@@ -8,8 +8,10 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyFetch.Configuration;
 using Jellyfin.Plugin.JellyFetch.Helpers;
+using Jellyfin.Plugin.JellyFetch.Tasks;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Model.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -84,6 +86,7 @@ public class DownloadersController : ControllerBase
 {
     private readonly ILibraryManager _libraryManager;
     private readonly ILogger<DownloadersController> _logger;
+    private readonly ITaskManager? _taskManager;
     private static System.Threading.CancellationTokenSource? _scrapeCts;
     private static string _scrapeStatus = "Idle";
     private static double _scrapeProgress = 0;
@@ -95,6 +98,20 @@ public class DownloadersController : ControllerBase
     private static double _cleanupProgress = 0;
     private static readonly List<string> _cleanupLogs = new();
     private static readonly object _cleanupLogLock = new();
+
+    public static void ReportScrapeProgress(string msg, double pct)
+    {
+        if (pct >= 0) _scrapeProgress = Math.Round(pct, 1);
+        _scrapeStatus = msg;
+        AddScrapeLog(msg);
+    }
+
+    public static void ReportCleanupProgress(string msg, double pct)
+    {
+        if (pct >= 0) _cleanupProgress = Math.Round(pct, 1);
+        _cleanupStatus = msg;
+        AddCleanupLog(msg);
+    }
 
     private static void AddScrapeLog(string msg)
     {
@@ -125,10 +142,11 @@ public class DownloadersController : ControllerBase
         return (itemId ?? string.Empty).Trim().ToLowerInvariant();
     }
 
-    public DownloadersController(ILibraryManager libraryManager, ILogger<DownloadersController> logger)
+    public DownloadersController(ILibraryManager libraryManager, ILogger<DownloadersController> logger, ITaskManager? taskManager = null)
     {
         _libraryManager = libraryManager;
         _logger = logger;
+        _taskManager = taskManager;
     }
 
     [HttpGet("Options/{itemId}")]
@@ -1037,22 +1055,215 @@ public class DownloadersController : ControllerBase
     }
 
 
-    
+    public static async Task ExecuteCleanupAsync(
+        ILibraryManager libraryManager,
+        ILogger logger,
+        IProgress<double>? taskProgress,
+        System.Threading.CancellationToken ct)
+    {
+        var config = Plugin.Instance?.Configuration ?? new PluginConfiguration();
+        var targetDir = config.DownloadsDirectory;
+        if (string.IsNullOrEmpty(targetDir) || !Directory.Exists(targetDir))
+        {
+            ReportCleanupProgress("Downloads directory does not exist or is not configured.", 0);
+            return;
+        }
+
+        try
+        {
+            ReportCleanupProgress("Starting cleanup in: " + targetDir, 5);
+            taskProgress?.Report(5);
+
+            // 1. Load currently allowed languages
+            var allowedLangsPath = Path.Combine(Plugin.Instance.DataFolderPath, "allowed_languages.json");
+            var allowedLangs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            bool languagesConfigured = false;
+            if (System.IO.File.Exists(allowedLangsPath))
+            {
+                try
+                {
+                    var json = System.IO.File.ReadAllText(allowedLangsPath);
+                    var list = JsonSerializer.Deserialize<List<string>>(json);
+                    if (list != null)
+                    {
+                        languagesConfigured = true;
+                        foreach (var l in list) allowedLangs.Add(l);
+                    }
+                }
+                catch { }
+            }
+
+            string langStatusText = languagesConfigured
+                ? (allowedLangs.Count > 0 ? string.Join(", ", allowedLangs) : "None (all languages deselected)")
+                : "All";
+            ReportCleanupProgress($"Active allowed languages: {langStatusText}", 10);
+            taskProgress?.Report(10);
+
+            // 2. Pre-scan library for real movies (to detect duplicates)
+            using var client = new HttpClient();
+            var scraper = new JellyfinScraper(client, libraryManager);
+            var realLibraryMovies = scraper.LoadRealLibraryMovieKeys(targetDir, (msg, _) => AddCleanupLog(msg));
+            ReportCleanupProgress($"Library check: {realLibraryMovies.Count} existing downloaded movies identified.", 15);
+            taskProgress?.Report(15);
+
+            // 3. Scan subdirectories in targetDir
+            var subDirs = Directory.GetDirectories(targetDir);
+            int total = subDirs.Length;
+            int deletedCount = 0;
+            int keptCount = 0;
+            ReportCleanupProgress($"Found {total} folders in downloads directory to inspect.", 15);
+
+            for (int i = 0; i < total; i++)
+            {
+                if (ct.IsCancellationRequested) break;
+                var dir = subDirs[i];
+                var dirName = Path.GetFileName(dir);
+                var pct = 15.0 + ((double)(i + 1) / (total == 0 ? 1 : total) * 75.0);
+                var roundedPct = Math.Round(pct, 1);
+                ReportCleanupProgress($"Checking {i + 1}/{total}: {dirName}", roundedPct);
+                taskProgress?.Report(roundedPct);
+
+                try
+                {
+                    // Check if folder contains real downloaded video files (.mkv, .mp4, .avi)
+                    bool hasRealVideo = Directory.GetFiles(dir).Any(f => 
+                        f.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase) || 
+                        f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) || 
+                        f.EndsWith(".avi", StringComparison.OrdinalIgnoreCase));
+
+                    if (hasRealVideo)
+                    {
+                        keptCount++;
+                        continue;
+                    }
+
+                    // Check if this is a duplicate of a movie already in the library
+                    var normKey = JellyfinScraper.NormalizeKey(dirName);
+                    bool isDuplicateOfLibrary = !string.IsNullOrEmpty(normKey) && realLibraryMovies.Contains(normKey);
+
+                    // Check language filter against downloads.json
+                    bool isDeselectedLanguage = false;
+                    string jsonPath = Path.Combine(dir, "downloads.json");
+                    List<string> movieLangs = new();
+                    if (System.IO.File.Exists(jsonPath) && languagesConfigured)
+                    {
+                        try
+                        {
+                            var jContent = System.IO.File.ReadAllText(jsonPath);
+                            var options = JsonSerializer.Deserialize<List<ScrapedMagnetOption>>(jContent);
+                            if (options != null)
+                            {
+                                foreach (var opt in options)
+                                {
+                                    if (opt.languages != null) movieLangs.AddRange(opt.languages);
+                                }
+                                if (movieLangs.Count > 0)
+                                {
+                                    if (!movieLangs.Any(l => allowedLangs.Contains(l)))
+                                    {
+                                        isDeselectedLanguage = true;
+                                    }
+                                }
+                                else if (allowedLangs.Count == 0)
+                                {
+                                    isDeselectedLanguage = true;
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+
+                    bool hasStrm = Directory.GetFiles(dir, "*.strm").Any();
+
+                    if (isDuplicateOfLibrary)
+                    {
+                        Directory.Delete(dir, true);
+                        deletedCount++;
+                        AddCleanupLog($"[Deleted Duplicate] {dirName} (Already downloaded in library)");
+                        logger.LogInformation("[JellyFetch Cleanup] Deleted duplicate: {Dir}", dirName);
+                    }
+                    else if (isDeselectedLanguage)
+                    {
+                        Directory.Delete(dir, true);
+                        deletedCount++;
+                        AddCleanupLog($"[Deleted Language] {dirName} (Deselected: {string.Join(", ", movieLangs.Distinct())})");
+                        logger.LogInformation("[JellyFetch Cleanup] Deleted deselected language movie: {Dir}", dirName);
+                    }
+                    else if (!hasStrm)
+                    {
+                        Directory.Delete(dir, true);
+                        deletedCount++;
+                        AddCleanupLog($"[Deleted Orphan] {dirName}");
+                    }
+                    else
+                    {
+                        keptCount++;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AddCleanupLog($"[Error] Could not remove {dirName}: {ex.Message}");
+                }
+            }
+
+            // 4. Refresh Jellyfin library if items were removed
+            if (deletedCount > 0)
+            {
+                ReportCleanupProgress($"Refreshing Jellyfin library ({deletedCount} movies removed)...", 92);
+                taskProgress?.Report(92);
+                AddCleanupLog("Triggering Jellyfin library scan to update UI...");
+                await libraryManager.ValidateMediaLibrary(new Progress<double>(), System.Threading.CancellationToken.None);
+            }
+
+            ReportCleanupProgress($"Cleanup completed. Removed {deletedCount} folders. Kept {keptCount} movies.", 100);
+            taskProgress?.Report(100);
+            AddCleanupLog($"Done! Removed {deletedCount} folders. Kept {keptCount} movies.");
+        }
+        catch (OperationCanceledException)
+        {
+            ReportCleanupProgress("Cleanup stopped by user.", 0);
+        }
+        catch (Exception ex)
+        {
+            ReportCleanupProgress("Error during cleanup: " + ex.Message, 0);
+            logger.LogError(ex, "Cleanup error");
+        }
+    }
+
     [HttpPost("CleanupStrm")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public ActionResult CleanupStrm()
     {
-        if (_cleanupCts != null && !_cleanupCts.IsCancellationRequested)
-        {
-            return BadRequest(new { Message = "Cleanup is already running." });
-        }
-
         var config = Plugin.Instance?.Configuration ?? new PluginConfiguration();
         var targetDir = config.DownloadsDirectory;
         if (string.IsNullOrEmpty(targetDir) || !Directory.Exists(targetDir))
         {
             return BadRequest(new { Message = "Downloads directory does not exist or is not configured." });
+        }
+
+        if (_taskManager != null)
+        {
+            var taskInfo = _taskManager.ScheduledTasks.FirstOrDefault(t => t.ScheduledTask is CleanupScheduledTask);
+            if (taskInfo != null && taskInfo.State == TaskState.Running)
+            {
+                return BadRequest(new { Message = "Cleanup is already running." });
+            }
+
+            _cleanupProgress = 0;
+            _cleanupStatus = "Starting cleanup...";
+            lock (_cleanupLogLock)
+            {
+                _cleanupLogs.Clear();
+            }
+            AddCleanupLog("Starting cleanup in: " + targetDir);
+            _taskManager.CancelIfRunningAndQueue<CleanupScheduledTask>();
+            return Ok(new { Message = "Cleanup started." });
+        }
+
+        if (_cleanupCts != null && !_cleanupCts.IsCancellationRequested)
+        {
+            return BadRequest(new { Message = "Cleanup is already running." });
         }
 
         _cleanupCts = new System.Threading.CancellationTokenSource();
@@ -1067,182 +1278,20 @@ public class DownloadersController : ControllerBase
 
         _ = Task.Run(async () =>
         {
-            var ct = _cleanupCts.Token;
-            try
+            await ExecuteCleanupAsync(_libraryManager, _logger, null, _cleanupCts.Token);
+            var currentCts = _cleanupCts;
+            _ = Task.Delay(15000).ContinueWith(t =>
             {
-                // 1. Load currently allowed languages
-                var allowedLangsPath = Path.Combine(Plugin.Instance.DataFolderPath, "allowed_languages.json");
-                var allowedLangs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                bool languagesConfigured = false;
-                if (System.IO.File.Exists(allowedLangsPath))
+                if (_cleanupCts == currentCts)
                 {
-                    try
+                    _cleanupCts = null;
+                    if (_cleanupProgress == 100)
                     {
-                        var json = System.IO.File.ReadAllText(allowedLangsPath);
-                        var list = JsonSerializer.Deserialize<List<string>>(json);
-                        if (list != null)
-                        {
-                            languagesConfigured = true;
-                            foreach (var l in list) allowedLangs.Add(l);
-                        }
-                    }
-                    catch { }
-                }
-
-                string langStatusText = languagesConfigured
-                    ? (allowedLangs.Count > 0 ? string.Join(", ", allowedLangs) : "None (all languages deselected)")
-                    : "All";
-                AddCleanupLog($"Active allowed languages: {langStatusText}");
-
-                // 2. Pre-scan library for real movies (to detect duplicates)
-                using var client = new HttpClient();
-                var scraper = new JellyfinScraper(client, _libraryManager);
-                var realLibraryMovies = scraper.LoadRealLibraryMovieKeys(targetDir, (msg, _) => AddCleanupLog(msg));
-                AddCleanupLog($"Library check: {realLibraryMovies.Count} existing downloaded movies identified.");
-
-                // 3. Scan subdirectories in targetDir
-                var subDirs = Directory.GetDirectories(targetDir);
-                int total = subDirs.Length;
-                int deletedCount = 0;
-                int keptCount = 0;
-                AddCleanupLog($"Found {total} folders in downloads directory to inspect.");
-
-                for (int i = 0; i < total; i++)
-                {
-                    if (ct.IsCancellationRequested) break;
-                    var dir = subDirs[i];
-                    var dirName = Path.GetFileName(dir);
-                    var pct = 10.0 + ((double)(i + 1) / (total == 0 ? 1 : total) * 75.0);
-                    _cleanupProgress = Math.Round(pct, 1);
-                    _cleanupStatus = $"Checking {i + 1}/{total}: {dirName}";
-
-                    try
-                    {
-                        // Check if folder contains real downloaded video files (.mkv, .mp4, .avi)
-                        bool hasRealVideo = Directory.GetFiles(dir).Any(f => 
-                            f.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase) || 
-                            f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) || 
-                            f.EndsWith(".avi", StringComparison.OrdinalIgnoreCase));
-
-                        if (hasRealVideo)
-                        {
-                            // Real downloaded movie - ALWAYS KEEP
-                            keptCount++;
-                            continue;
-                        }
-
-                        // Check if this is a duplicate of a movie already in the library
-                        var normKey = JellyfinScraper.NormalizeKey(dirName);
-                        bool isDuplicateOfLibrary = !string.IsNullOrEmpty(normKey) && realLibraryMovies.Contains(normKey);
-
-                        // Check language filter against downloads.json
-                        bool isDeselectedLanguage = false;
-                        string jsonPath = Path.Combine(dir, "downloads.json");
-                        List<string> movieLangs = new();
-                        if (System.IO.File.Exists(jsonPath) && languagesConfigured)
-                        {
-                            try
-                            {
-                                var jContent = System.IO.File.ReadAllText(jsonPath);
-                                var options = JsonSerializer.Deserialize<List<ScrapedMagnetOption>>(jContent);
-                                if (options != null)
-                                {
-                                    foreach (var opt in options)
-                                    {
-                                        if (opt.languages != null) movieLangs.AddRange(opt.languages);
-                                    }
-                                    // If none of the movie's languages are in allowed languages (or if allowedLangs is empty, all are deselected)
-                                    if (movieLangs.Count > 0)
-                                    {
-                                        if (!movieLangs.Any(l => allowedLangs.Contains(l)))
-                                        {
-                                            isDeselectedLanguage = true;
-                                        }
-                                    }
-                                    else if (allowedLangs.Count == 0)
-                                    {
-                                        isDeselectedLanguage = true;
-                                    }
-                                }
-                            }
-                            catch { }
-                        }
-
-                        bool hasStrm = Directory.GetFiles(dir, "*.strm").Any();
-
-                        if (isDuplicateOfLibrary)
-                        {
-                            Directory.Delete(dir, true);
-                            deletedCount++;
-                            AddCleanupLog($"[Deleted Duplicate] {dirName} (Already downloaded in library)");
-                            _logger.LogInformation("[JellyFetch Cleanup] Deleted duplicate: {Dir}", dirName);
-                        }
-                        else if (isDeselectedLanguage)
-                        {
-                            Directory.Delete(dir, true);
-                            deletedCount++;
-                            AddCleanupLog($"[Deleted Language] {dirName} (Deselected: {string.Join(", ", movieLangs.Distinct())})");
-                            _logger.LogInformation("[JellyFetch Cleanup] Deleted deselected language movie: {Dir}", dirName);
-                        }
-                        else if (!hasStrm)
-                        {
-                            Directory.Delete(dir, true);
-                            deletedCount++;
-                            AddCleanupLog($"[Deleted Orphan] {dirName}");
-                        }
-                        else
-                        {
-                            keptCount++;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        AddCleanupLog($"[Error] Could not remove {dirName}: {ex.Message}");
+                        _cleanupStatus = "Idle";
+                        _cleanupProgress = 0;
                     }
                 }
-
-                // 4. Refresh Jellyfin library if items were removed
-                if (deletedCount > 0)
-                {
-                    _cleanupStatus = $"Refreshing Jellyfin library ({deletedCount} movies removed)...";
-                    _cleanupProgress = 90;
-                    AddCleanupLog("Triggering Jellyfin library scan to update UI...");
-                    await _libraryManager.ValidateMediaLibrary(new Progress<double>(), System.Threading.CancellationToken.None);
-                }
-
-                _cleanupProgress = 100;
-                _cleanupStatus = $"Cleanup completed. Removed {deletedCount} folders. Kept {keptCount} movies.";
-                AddCleanupLog($"Done! Removed {deletedCount} folders. Kept {keptCount} movies.");
-            }
-            catch (OperationCanceledException)
-            {
-                _cleanupStatus = "Cleanup stopped by user.";
-                _cleanupProgress = 0;
-                AddCleanupLog("Cleanup stopped by user.");
-            }
-            catch (Exception ex)
-            {
-                _cleanupStatus = "Error during cleanup: " + ex.Message;
-                _cleanupProgress = 0;
-                AddCleanupLog("Error: " + ex.Message);
-                _logger.LogError(ex, "Cleanup error");
-            }
-            finally
-            {
-                var currentCts = _cleanupCts;
-                _ = Task.Delay(15000).ContinueWith(t =>
-                {
-                    if (_cleanupCts == currentCts)
-                    {
-                        _cleanupCts = null;
-                        if (_cleanupProgress == 100)
-                        {
-                            _cleanupStatus = "Idle";
-                            _cleanupProgress = 0;
-                        }
-                    }
-                });
-            }
+            });
         });
 
         return Ok(new { Message = "Cleanup started." });
@@ -1252,6 +1301,20 @@ public class DownloadersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult GetCleanupStatus()
     {
+        bool isRunning = false;
+        if (_taskManager != null)
+        {
+            var taskInfo = _taskManager.ScheduledTasks.FirstOrDefault(t => t.ScheduledTask is CleanupScheduledTask);
+            if (taskInfo != null)
+            {
+                isRunning = taskInfo.State == TaskState.Running;
+            }
+        }
+        if (!isRunning)
+        {
+            isRunning = _cleanupCts != null && !_cleanupCts.IsCancellationRequested;
+        }
+
         List<string> logsCopy;
         lock (_cleanupLogLock)
         {
@@ -1259,7 +1322,7 @@ public class DownloadersController : ControllerBase
         }
         return Ok(new
         {
-            IsRunning = _cleanupCts != null && !_cleanupCts.IsCancellationRequested,
+            IsRunning = isRunning,
             Progress = _cleanupProgress,
             Status = _cleanupStatus,
             Logs = logsCopy
@@ -1270,10 +1333,16 @@ public class DownloadersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult StopCleanup()
     {
+        if (_taskManager != null)
+        {
+            _taskManager.CancelIfRunning<CleanupScheduledTask>();
+        }
         if (_cleanupCts != null && !_cleanupCts.IsCancellationRequested)
         {
             _cleanupCts.Cancel();
         }
+        _cleanupStatus = "Cleanup stopped by user.";
+        AddCleanupLog("Cleanup stopped by user.");
         return Ok(new { Message = "Cleanup stopped." });
     }
 
@@ -1281,6 +1350,25 @@ public class DownloadersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult Scrape()
     {
+        if (_taskManager != null)
+        {
+            var taskInfo = _taskManager.ScheduledTasks.FirstOrDefault(t => t.ScheduledTask is ScraperScheduledTask);
+            if (taskInfo != null && taskInfo.State == TaskState.Running)
+            {
+                return BadRequest(new { Message = "Scraping is already running." });
+            }
+
+            _scrapeStatus = "Starting scraper...";
+            _scrapeProgress = 0;
+            lock (_scrapeLogLock)
+            {
+                _scrapeLogs.Clear();
+            }
+            AddScrapeLog("Scraper task queued in Jellyfin TaskManager.");
+            _taskManager.CancelIfRunningAndQueue<ScraperScheduledTask>();
+            return Ok(new { Message = "Scraping started." });
+        }
+
         if (_scrapeCts != null && !_scrapeCts.IsCancellationRequested)
         {
             return BadRequest(new { Message = "Scraping is already running." });
@@ -1305,36 +1393,26 @@ public class DownloadersController : ControllerBase
                 
                 var res = await scraper.RunScrapeAsync(config.DownloadsDirectory, (msg, pct) => 
                 {
-                    if (pct >= 0) _scrapeProgress = pct;
-                    _scrapeStatus = msg;
-                    AddScrapeLog(msg);
+                    ReportScrapeProgress(msg, pct);
                     _logger.LogInformation("Scraper: {Msg}", msg);
                 }, _scrapeCts.Token);
                 
                 if (res.Success && res.NewMoviesCount > 0)
                 {
-                    _scrapeStatus = $"Scraping completed. Found {res.NewMoviesCount} new movies. Scanning library...";
-                    _scrapeProgress = 95;
-                    AddScrapeLog("Scanning Jellyfin media library...");
+                    ReportScrapeProgress("Scanning Jellyfin media library...", 95);
                     await _libraryManager.ValidateMediaLibrary(new Progress<double>(), System.Threading.CancellationToken.None);
                 }
                 
-                _scrapeStatus = res.Success ? $"Completed. Found {res.NewMoviesCount} new movies." : $"Failed: {res.Error}";
-                _scrapeProgress = 100;
-                AddScrapeLog(_scrapeStatus);
+                string finalMsg = res.Success ? $"Completed. Found {res.NewMoviesCount} new movies." : $"Failed: {res.Error}";
+                ReportScrapeProgress(finalMsg, 100);
             }
             catch (OperationCanceledException)
             {
-                _scrapeStatus = "Scraper stopped by user.";
-                _scrapeProgress = 0;
-                AddScrapeLog("Scraper stopped by user.");
-                _logger.LogInformation("Scraper stopped by user.");
+                ReportScrapeProgress("Scraper stopped by user.", 0);
             }
             catch (Exception ex)
             {
-                _scrapeStatus = "Error: " + ex.Message;
-                _scrapeProgress = 0;
-                AddScrapeLog("Error: " + ex.Message);
+                ReportScrapeProgress("Error: " + ex.Message, 0);
                 _logger.LogError(ex, "Scraper error");
             }
             finally
@@ -1352,8 +1430,6 @@ public class DownloadersController : ControllerBase
                         _scrapeProgress = 0;
                     }
                     
-                    // Clear the token source if this is still the active one, 
-                    // so IsRunning evaluates to false.
                     if (_scrapeCts == currentCts)
                     {
                         _scrapeCts = null;
@@ -1412,13 +1488,27 @@ public class DownloadersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult GetScrapeStatus()
     {
+        bool isRunning = false;
+        if (_taskManager != null)
+        {
+            var taskInfo = _taskManager.ScheduledTasks.FirstOrDefault(t => t.ScheduledTask is ScraperScheduledTask);
+            if (taskInfo != null)
+            {
+                isRunning = taskInfo.State == TaskState.Running;
+            }
+        }
+        if (!isRunning)
+        {
+            isRunning = _scrapeCts != null && !_scrapeCts.IsCancellationRequested;
+        }
+
         List<string> logsCopy;
         lock (_scrapeLogLock)
         {
             logsCopy = new List<string>(_scrapeLogs);
         }
         return Ok(new { 
-            IsRunning = _scrapeCts != null && !_scrapeCts.IsCancellationRequested,
+            IsRunning = isRunning,
             Progress = _scrapeProgress,
             Status = _scrapeStatus,
             Logs = logsCopy
@@ -1429,10 +1519,15 @@ public class DownloadersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult StopScrape()
     {
+        if (_taskManager != null)
+        {
+            _taskManager.CancelIfRunning<ScraperScheduledTask>();
+        }
         if (_scrapeCts != null && !_scrapeCts.IsCancellationRequested)
         {
             _scrapeCts.Cancel();
         }
+        ReportScrapeProgress("Scraper stopped by user.", 0);
         return Ok(new { Message = "Scraper stopped." });
     }
 
