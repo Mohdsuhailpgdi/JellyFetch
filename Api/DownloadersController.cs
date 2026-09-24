@@ -1459,6 +1459,63 @@ public class DownloadersController : ControllerBase
         System.IO.File.Move(tempPath, targetPath);
     }
 
+    public class ManualDownloadRequest
+    {
+        public string MagnetUri { get; set; }
+        public double EstimatedSizeGb { get; set; }
+    }
+
+    [HttpPost("ManualDownload")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult StartManualDownload([FromBody] ManualDownloadRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request?.MagnetUri))
+        {
+            return BadRequest("Magnet URI is required.");
+        }
+
+        var config = Plugin.Instance.Configuration;
+        string fakeItemId = "manual-" + Guid.NewGuid().ToString("N").Substring(0, 8);
+        string movieName = "Manual Download";
+
+        var cts = new System.Threading.CancellationTokenSource();
+
+        var info = new DownloadProgressInfo
+        {
+            ItemId = fakeItemId,
+            MovieName = movieName,
+            SizeGb = request.EstimatedSizeGb,
+            Status = "Queued",
+            Provider = "Unknown",
+            Timestamp = DateTime.UtcNow,
+            Cts = cts,
+            MagnetUri = request.MagnetUri,
+            ItemPath = ""
+        };
+        _activeDownloads[fakeItemId] = info;
+
+        if (request.EstimatedSizeGb <= 4.0 && config.EnableSeedr)
+        {
+            info.Provider = "Seedr";
+            _ = ProcessSeedrDownload(info, config, "", request.MagnetUri, request.EstimatedSizeGb, null, null);
+            return Ok(new { Success = true, Provider = "Seedr" });
+        }
+        else if (config.EnableTorbox)
+        {
+            info.Provider = "Torbox";
+            _ = ProcessTorboxDownload(info, config, "", request.MagnetUri, request.EstimatedSizeGb, null, null);
+            return Ok(new { Success = true, Provider = "Torbox" });
+        }
+        else
+        {
+            info.Status = "Failed";
+            info.Error = "No eligible download provider enabled.";
+            info.Completed = true;
+            return BadRequest(new { Success = false, ErrorMessage = info.Error });
+        }
+    }
+
     private static string CleanMediaFileName(string fileName)
     {
         if (string.IsNullOrWhiteSpace(fileName)) return fileName;

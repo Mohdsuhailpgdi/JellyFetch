@@ -62,6 +62,10 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             new PluginPageInfo
             {
                 Name = "Downloaders",
+                DisplayName = "JellyFetch",
+                EnableInMainMenu = true,
+                MenuSection = "plugins",
+                MenuIcon = "cloud_download",
                 EmbeddedResourcePath = GetType().Namespace + ".Web.downloaders.html"
             },
             new PluginPageInfo

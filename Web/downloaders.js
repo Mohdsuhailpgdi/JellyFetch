@@ -491,6 +491,77 @@ export default function(view, params) {
         });
     });
 
+    // Tab switching logic
+    const tabBtns = view.querySelectorAll('.plugin-tab-btn');
+    const tabContents = view.querySelectorAll('.tabContent');
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            tabBtns.forEach(b => {
+                b.style.color = '#888';
+                b.style.borderBottom = '2px solid transparent';
+            });
+            this.style.color = '#00a4dc';
+            this.style.borderBottom = '2px solid #00a4dc';
+            
+            const targetId = this.getAttribute('data-tab');
+            tabContents.forEach(c => {
+                if (c.id === targetId) {
+                    c.style.display = 'block';
+                    c.classList.add('is-active');
+                } else {
+                    c.style.display = 'none';
+                    c.classList.remove('is-active');
+                }
+            });
+        });
+    });
+
+    // Manual Download logic
+    const formManual = view.querySelector('#formManualDownload');
+    if (formManual) {
+        formManual.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const uri = view.querySelector('#txtMagnetUri').value.trim();
+            const size = parseFloat(view.querySelector('#txtMagnetSize').value || '0');
+            const statusDiv = view.querySelector('#manualDownloadStatus');
+            
+            if (!uri) return;
+
+            statusDiv.style.display = 'block';
+            statusDiv.style.color = '#ff9800';
+            statusDiv.innerText = 'Starting download...';
+            
+            fetch('/System/Configuration/Downloaders/ManualDownload', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"'
+                },
+                body: JSON.stringify({ MagnetUri: uri, EstimatedSizeGb: size })
+            }).then(async r => {
+                if (!r.ok) {
+                    let errStr = await r.text();
+                    throw new Error(errStr || "HTTP Error " + r.status);
+                }
+                return r.json();
+            }).then(res => {
+                if (res.Success) {
+                    statusDiv.style.color = '#4caf50';
+                    statusDiv.innerText = 'Download started successfully via ' + res.Provider;
+                    const btnRefresh = view.querySelector('#btnRefreshHistory');
+                    if (btnRefresh) btnRefresh.click();
+                    view.querySelector('#txtMagnetUri').value = '';
+                } else {
+                    statusDiv.style.color = '#f44336';
+                    statusDiv.innerText = 'Failed: ' + (res.ErrorMessage || 'Unknown error');
+                }
+            }).catch(err => {
+                statusDiv.style.color = '#f44336';
+                statusDiv.innerText = 'Error: ' + err.message;
+            });
+        });
+    }
+
     view.addEventListener('viewshow', function (e) {
         loadPage();
     });

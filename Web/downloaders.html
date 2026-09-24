@@ -1,79 +1,122 @@
-<div id="DownloadersConfigurationPage" data-role="page" class="page type-interior pluginConfigurationPage" data-controller="__plugin/downloadersjs">
+<div id="DownloadersConfigurationPage" data-role="page" class="page type-interior pluginConfigurationPage withTabs" data-controller="__plugin/downloadersjs">
     <div class="content-primary">
-        <div style="display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-start;">
-            
-            <!-- Left Column: Settings Form -->
-            <div style="flex: 1 1 400px; max-width: 600px;">
-                <div class="verticalSection">
-                    <div class="sectionTitleContainer flex align-items-center">
-                        <h2 class="sectionTitle">Downloaders Configuration</h2>
+        
+        <div style="border-bottom: 1px solid #333; margin-bottom: 1em; display: flex; gap: 20px; padding: 0 10px;">
+            <button type="button" class="plugin-tab-btn" data-tab="tabProviders" style="background:none; border:none; color:#00a4dc; padding:10px 5px; font-size:1.1em; font-weight:bold; cursor:pointer; border-bottom: 2px solid #00a4dc;">Settings</button>
+            <button type="button" class="plugin-tab-btn" data-tab="tabManual" style="background:none; border:none; color:#888; padding:10px 5px; font-size:1.1em; font-weight:bold; cursor:pointer; border-bottom: 2px solid transparent;">Manual Download</button>
+            <button type="button" class="plugin-tab-btn" data-tab="tabTasks" style="background:none; border:none; color:#888; padding:10px 5px; font-size:1.1em; font-weight:bold; cursor:pointer; border-bottom: 2px solid transparent;">Scraper & Tasks</button>
+            <button type="button" class="plugin-tab-btn" data-tab="tabActivity" style="background:none; border:none; color:#888; padding:10px 5px; font-size:1.1em; font-weight:bold; cursor:pointer; border-bottom: 2px solid transparent;">Activity</button>
+        </div>
+
+        <!-- Tab 0: Providers & Settings -->
+        <div id="tabProviders" class="tabContent is-active" style="padding-top: 2em; max-width: 600px; margin: 0 auto;">
+            <form class="downloadersConfigurationForm">
+
+                <h3 class="checkboxListLabel">Seedr Configuration</h3>
+                <div class="checkboxContainer" style="margin-bottom: 0.5em;">
+                    <label>
+                        <input type="checkbox" is="emby-checkbox" id="chkEnableSeedr" name="chkEnableSeedr" />
+                        <span>Enable Seedr for files &le; 4GB</span>
+                    </label>
+                </div>
+                <div id="seedrActiveStatus" style="font-size: 0.85em; color: #4caf50; display: none; margin-bottom: 1.5em; padding-left: 28px;">
+                    <span class="material-icons" style="font-size:16px; vertical-align:middle; margin-right:4px;">check_circle</span>
+                    <span style="vertical-align:middle;">Seedr cloud downloader active</span>
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="txtSeedrUsername">Seedr Username / Email</label>
+                    <input type="text" id="txtSeedrUsername" name="txtSeedrUsername" class="emby-input" />
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="txtSeedrPassword">Seedr Password</label>
+                    <input type="password" id="txtSeedrPassword" name="txtSeedrPassword" class="emby-input" />
+                </div>
+
+                <h3 class="checkboxListLabel" style="margin-top: 2em;">Torbox Configuration</h3>
+                <div class="checkboxContainer" style="margin-bottom: 0.5em;">
+                    <label>
+                        <input type="checkbox" is="emby-checkbox" id="chkEnableTorbox" name="chkEnableTorbox" />
+                        <span>Enable Torbox for files &gt; 4GB</span>
+                    </label>
+                </div>
+                <div id="torboxActiveStatus" style="font-size: 0.85em; color: #4caf50; display: none; margin-bottom: 1.5em; padding-left: 28px;">
+                    <span class="material-icons" style="font-size:16px; vertical-align:middle; margin-right:4px;">check_circle</span>
+                    <span style="vertical-align:middle;">Torbox cloud downloader active</span>
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="txtTorboxApiKey">Torbox API Key</label>
+                    <input type="password" id="txtTorboxApiKey" name="txtTorboxApiKey" class="emby-input" />
+                </div>
+
+                <h3 class="checkboxListLabel" style="margin-top: 2em;">Scraper Configuration</h3>
+                <div id="domainStatusContainer" style="display:flex; align-items:center; gap:8px; margin-bottom: 1.2em; font-size: 0.9em; background: rgba(0, 164, 220, 0.08); padding: 8px 12px; border-radius: 6px; border: 1px solid rgba(0, 164, 220, 0.25);">
+                    <span class="material-icons" style="font-size:18px; color:#00a4dc;">language</span>
+                    <span style="color:#aaa;">Latest Auto-Discovered Domain:</span>
+                    <span id="lblActiveDomain" style="color:#00a4dc; font-weight:700;">Checking...</span>
+                </div>
+                <div class="inputContainer" style="margin-bottom: 1.5em;">
+                    <label class="inputLabel inputLabelUnfocused" for="txtCustomDomain">1TamilMV Domain / Mirror (Backup Override)</label>
+                    <input type="text" id="txtCustomDomain" name="txtCustomDomain" class="emby-input" placeholder="Leave blank to use auto-discovered domain" />
+                    <div class="fieldDescription" style="font-size:0.9em; color:#888; margin-top:4px;">Custom backup domain if the scraper needs a specific mirror. Leave blank to auto-detect.</div>
+                </div>
+                <div class="inputContainer" style="margin-bottom: 1.5em;">
+                    <label class="inputLabel inputLabelUnfocused" for="txtDownloadsDirectory">Downloads Directory Path</label>
+                    <input type="text" id="txtDownloadsDirectory" name="txtDownloadsDirectory" class="emby-input" placeholder="/media/Downloads" />
+                    <div class="fieldDescription" style="font-size:0.9em; color:#888; margin-top:4px;">The absolute path where the scraper will create strm files and save downloads.</div>
+                </div>
+                <div class="inputContainer" style="margin-bottom: 2em;">
+                    <p style="margin-bottom: 1em;">Select which languages the automated media scraper should discover from 1TamilMV:</p>
+                    <div class="checkboxList" style="display:flex; flex-wrap:wrap; gap:15px; margin-bottom: 1em;">
+                        <label><input type="checkbox" is="emby-checkbox" name="chkLanguage" value="Tamil" /> <span>Tamil</span></label>
+                        <label><input type="checkbox" is="emby-checkbox" name="chkLanguage" value="Malayalam" /> <span>Malayalam</span></label>
+                        <label><input type="checkbox" is="emby-checkbox" name="chkLanguage" value="English" /> <span>English</span></label>
+                        <label><input type="checkbox" is="emby-checkbox" name="chkLanguage" value="Hindi" /> <span>Hindi</span></label>
+                        <label><input type="checkbox" is="emby-checkbox" name="chkLanguage" value="Telugu" /> <span>Telugu</span></label>
+                        <label><input type="checkbox" is="emby-checkbox" name="chkLanguage" value="Kannada" /> <span>Kannada</span></label>
                     </div>
                 </div>
 
-                <form class="downloadersConfigurationForm">
-
-                    <h3 class="checkboxListLabel">Seedr Configuration</h3>
-            <div class="checkboxContainer" style="margin-bottom: 0.5em;">
-                <label>
-                    <input type="checkbox" is="emby-checkbox" id="chkEnableSeedr" name="chkEnableSeedr" />
-                    <span>Enable Seedr for files &le; 4GB</span>
-                </label>
-            </div>
-            <div id="seedrActiveStatus" style="font-size: 0.85em; color: #4caf50; display: none; margin-bottom: 1.5em; padding-left: 28px;">
-                <span class="material-icons" style="font-size:16px; vertical-align:middle; margin-right:4px;">check_circle</span>
-                <span style="vertical-align:middle;">Seedr cloud downloader active</span>
-            </div>
-            <div class="inputContainer">
-                <label class="inputLabel inputLabelUnfocused" for="txtSeedrUsername">Seedr Username / Email</label>
-                <input type="text" id="txtSeedrUsername" name="txtSeedrUsername" class="emby-input" />
-            </div>
-            <div class="inputContainer">
-                <label class="inputLabel inputLabelUnfocused" for="txtSeedrPassword">Seedr Password</label>
-                <input type="password" id="txtSeedrPassword" name="txtSeedrPassword" class="emby-input" />
-            </div>
-
-            <h3 class="checkboxListLabel" style="margin-top: 2em;">Torbox Configuration</h3>
-            <div class="checkboxContainer" style="margin-bottom: 0.5em;">
-                <label>
-                    <input type="checkbox" is="emby-checkbox" id="chkEnableTorbox" name="chkEnableTorbox" />
-                    <span>Enable Torbox for files &gt; 4GB</span>
-                </label>
-            </div>
-            <div id="torboxActiveStatus" style="font-size: 0.85em; color: #4caf50; display: none; margin-bottom: 1.5em; padding-left: 28px;">
-                <span class="material-icons" style="font-size:16px; vertical-align:middle; margin-right:4px;">check_circle</span>
-                <span style="vertical-align:middle;">Torbox cloud downloader active</span>
-            </div>
-            <div class="inputContainer">
-                <label class="inputLabel inputLabelUnfocused" for="txtTorboxApiKey">Torbox API Key</label>
-                <input type="password" id="txtTorboxApiKey" name="txtTorboxApiKey" class="emby-input" />
-            </div>
-
-            <h3 class="checkboxListLabel" style="margin-top: 2em;">Scraper Configuration</h3>
-            <div id="domainStatusContainer" style="display:flex; align-items:center; gap:8px; margin-bottom: 1.2em; font-size: 0.9em; background: rgba(0, 164, 220, 0.08); padding: 8px 12px; border-radius: 6px; border: 1px solid rgba(0, 164, 220, 0.25);">
-                <span class="material-icons" style="font-size:18px; color:#00a4dc;">language</span>
-                <span style="color:#aaa;">Latest Auto-Discovered Domain:</span>
-                <span id="lblActiveDomain" style="color:#00a4dc; font-weight:700;">Checking...</span>
-            </div>
-            <div class="inputContainer" style="margin-bottom: 1.5em;">
-                <label class="inputLabel inputLabelUnfocused" for="txtCustomDomain">1TamilMV Domain / Mirror (Backup Override)</label>
-                <input type="text" id="txtCustomDomain" name="txtCustomDomain" class="emby-input" placeholder="Leave blank to use auto-discovered domain" />
-                <div class="fieldDescription" style="font-size:0.9em; color:#888; margin-top:4px;">Custom backup domain if the scraper needs a specific mirror. Leave blank to auto-detect.</div>
-            </div>
-            <div class="inputContainer" style="margin-bottom: 1.5em;">
-                <label class="inputLabel inputLabelUnfocused" for="txtDownloadsDirectory">Downloads Directory Path</label>
-                <input type="text" id="txtDownloadsDirectory" name="txtDownloadsDirectory" class="emby-input" placeholder="/media/Downloads" />
-                <div class="fieldDescription" style="font-size:0.9em; color:#888; margin-top:4px;">The absolute path where the scraper will create strm files and save downloads.</div>
-            </div>
-            <div class="inputContainer" style="margin-bottom: 2em;">
-                <p style="margin-bottom: 1em;">Select which languages the automated media scraper should discover from 1TamilMV:</p>
-                <div class="checkboxList" style="display:flex; flex-wrap:wrap; gap:15px; margin-bottom: 1em;">
-                    <label><input type="checkbox" is="emby-checkbox" name="chkLanguage" value="Tamil" /> <span>Tamil</span></label>
-                    <label><input type="checkbox" is="emby-checkbox" name="chkLanguage" value="Malayalam" /> <span>Malayalam</span></label>
-                    <label><input type="checkbox" is="emby-checkbox" name="chkLanguage" value="English" /> <span>English</span></label>
-                    <label><input type="checkbox" is="emby-checkbox" name="chkLanguage" value="Hindi" /> <span>Hindi</span></label>
-                    <label><input type="checkbox" is="emby-checkbox" name="chkLanguage" value="Telugu" /> <span>Telugu</span></label>
-                    <label><input type="checkbox" is="emby-checkbox" name="chkLanguage" value="Kannada" /> <span>Kannada</span></label>
+                <div>
+                    <button is="emby-button" type="submit" class="raised button-submit block formDialogFooterItem">
+                        <span>Save Settings</span>
+                    </button>
                 </div>
+            </form>
+        </div>
+
+        <!-- Tab 1: Manual Download -->
+        <div id="tabManual" class="tabContent" style="display: none; padding-top: 2em; max-width: 600px; margin: 0 auto;">
+            <div class="verticalSection">
+                <div class="sectionTitleContainer flex align-items-center">
+                    <h2 class="sectionTitle">Add Magnet Manually</h2>
+                </div>
+                <p style="margin-bottom: 1.5em; color: #aaa;">Paste a magnet URI directly to send it to Torbox or Seedr without using the scraper.</p>
+                <form id="formManualDownload">
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="txtMagnetUri">Magnet URI</label>
+                        <input type="text" id="txtMagnetUri" name="txtMagnetUri" class="emby-input" required placeholder="magnet:?xt=urn:btih:..." />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="txtMagnetSize">Estimated Size (GB)</label>
+                        <input type="number" id="txtMagnetSize" name="txtMagnetSize" class="emby-input" step="0.01" required placeholder="2.5" />
+                        <div class="fieldDescription" style="font-size:0.9em; color:#888; margin-top:4px;">Size dictates whether it routes to Seedr (<= 4GB) or Torbox (> 4GB).</div>
+                    </div>
+                    <button is="emby-button" type="submit" class="raised" style="background-color:#00a4dc; color:white; padding:0.5em 1em; border-radius:4px; font-weight:bold;">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 5px;">cloud_download</span>
+                        <span style="vertical-align: middle;">Start Download</span>
+                    </button>
+                </form>
+                <div id="manualDownloadStatus" style="margin-top: 15px; font-weight: bold; display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Tab 2: Scraper & Tasks -->
+        <div id="tabTasks" class="tabContent" style="display: none; padding-top: 2em; max-width: 800px; margin: 0 auto;">
+            <div class="verticalSection" style="margin-bottom: 3em;">
+                <div class="sectionTitleContainer flex align-items-center">
+                    <h2 class="sectionTitle">Web Scraper</h2>
+                </div>
+                <p style="color: #aaa; margin-bottom: 1em;">Manually trigger the 1TamilMV scraper to fetch the latest movie topics and magnet links.</p>
                 <div style="display:flex; align-items:center; gap:10px;">
                     <button is="emby-button" type="button" id="btnRunScraper" class="raised" style="background-color:#00a4dc; color:white; padding:0.5em 1em; border-radius:4px; font-weight:bold;">
                         <span>Run Scraper Now</span>
@@ -81,67 +124,69 @@
                     <button is="emby-button" type="button" id="btnStopScraper" class="raised" style="background-color:#dc0000; color:white; padding:0.5em 1em; border-radius:4px; font-weight:bold; display:none;">
                         <span>Stop Scraper</span>
                     </button>
+                </div>
+            </div>
+
+            <div class="verticalSection" style="margin-bottom: 3em;">
+                <div class="sectionTitleContainer flex align-items-center">
+                    <h2 class="sectionTitle">Database Cleanup</h2>
+                </div>
+                <p style="color: #aaa; margin-bottom: 1em;">Remove duplicate .strm files for movies already downloaded, movies in unchecked languages, or orphaned dummy files. Real video files (.mp4, .mkv) are never touched.</p>
+                <div style="display:flex; align-items:center; gap:10px;">
                     <button is="emby-button" type="button" id="btnCleanupScraper" class="raised" style="background-color:#e05206; color:white; padding:0.5em 1em; border-radius:4px; font-weight:bold;">
                         <span>Cleanup .strm Files</span>
                     </button>
                 </div>
-                <div id="scraperProgressContainer" style="margin-top: 1em; display: none;">
-                    <div style="display:flex; justify-content:space-between; margin-bottom:5px; font-size:0.9em; font-weight:bold;">
-                        <span id="scraperStatusText">Initializing...</span>
-                        <span id="scraperPctText">0%</span>
+            </div>
+            
+            <div id="cleanupResultBanner" style="display:none;align-items:center;gap:10px;padding:10px 14px;border-radius:6px;border:1px solid;margin-bottom:12px;font-size:0.9em;font-weight:500;"></div>
+
+            <div id="scraperProgressContainer" style="margin-top: 1em; display: none;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px; font-size:0.9em; font-weight:bold;">
+                    <span id="scraperStatusText">Initializing...</span>
+                    <span id="scraperPctText">0%</span>
+                </div>
+                <div style="width: 100%; height: 10px; background-color: #333; border-radius: 5px; overflow: hidden;">
+                    <div id="scraperProgressBar" style="width: 0%; height: 100%; background-color: #00a4dc; transition: width 0.3s ease;"></div>
+                </div>
+                <div id="operationLogContainer" style="margin-top: 12px; display: none;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.85em; font-weight: bold; margin-bottom: 4px; color: #aaa;">
+                        <span>Activity Log:</span>
+                        <span id="operationLogCount" style="color: #666;">0 entries</span>
                     </div>
-                    <div style="width: 100%; height: 10px; background-color: #333; border-radius: 5px; overflow: hidden;">
-                        <div id="scraperProgressBar" style="width: 0%; height: 100%; background-color: #00a4dc; transition: width 0.3s ease;"></div>
-                    </div>
-                    <div id="operationLogContainer" style="margin-top: 12px; display: none;">
-                        <div style="display: flex; justify-content: space-between; font-size: 0.85em; font-weight: bold; margin-bottom: 4px; color: #aaa;">
-                            <span>Activity Log:</span>
-                            <span id="operationLogCount" style="color: #666;">0 entries</span>
-                        </div>
-                        <div id="operationLogBox" style="background: #151515; border: 1px solid #333; border-radius: 4px; padding: 10px; max-height: 160px; overflow-y: auto; font-family: monospace; font-size: 0.82em; color: #00bcd4; line-height: 1.5; white-space: pre-wrap;"></div>
-                    </div>
+                    <div id="operationLogBox" style="background: #151515; border: 1px solid #333; border-radius: 4px; padding: 10px; max-height: 250px; overflow-y: auto; font-family: monospace; font-size: 0.82em; color: #00bcd4; line-height: 1.5; white-space: pre-wrap;"></div>
                 </div>
             </div>
-
-            <div>
-                <button is="emby-button" type="submit" class="raised button-submit block formDialogFooterItem">
-                    <span>Save</span>
-                </button>
-            </div>
-        </form>
-
-                </form>
-            </div>
-
-            <!-- Right Column: History Table -->
-            <div style="flex: 1 1 500px;">
-                <div class="verticalSection">
-                    <div class="sectionTitleContainer flex align-items-center">
-                        <h2 class="sectionTitle">Download History</h2>
-                        <button is="emby-button" type="button" id="btnRefreshHistory" class="raised" style="margin-left: 15px; padding: 0.3em 0.8em; border-radius: 4px;">
-                            <span class="material-icons" style="font-size: 1.2em; vertical-align: middle;">refresh</span>
-                            <span style="vertical-align: middle;">Refresh</span>
-                        </button>
-                    </div>
-                    <div id="cleanupResultBanner" style="display:none;align-items:center;gap:10px;padding:10px 14px;border-radius:6px;border:1px solid;margin-bottom:12px;font-size:0.9em;font-weight:500;"></div>
-                    <div id="historyTableContainer" style="overflow-x: auto; margin-top: 1em; max-height: 600px; overflow-y: auto;">
-                        <table class="tblHistory" style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.9em;">
-                            <thead>
-                                <tr style="border-bottom: 1px solid #333;">
-                                    <th style="padding: 10px;">Date/Time</th>
-                                    <th style="padding: 10px;">Movie</th>
-                                    <th style="padding: 10px;">Size</th>
-                                    <th style="padding: 10px;">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody id="historyTableBody">
-                                <tr><td colspan="4" style="padding: 10px; text-align: center; color: #888;">Loading history...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
         </div>
+
+        <!-- Tab 3: Activity -->
+        <div id="tabActivity" class="tabContent" style="display: none; padding-top: 2em; max-width: 1000px; margin: 0 auto;">
+            <div class="verticalSection">
+                <div class="sectionTitleContainer flex align-items-center">
+                    <h2 class="sectionTitle">Download History & Queue</h2>
+                    <button is="emby-button" type="button" id="btnRefreshHistory" class="raised" style="margin-left: auto; padding: 0.3em 0.8em; border-radius: 4px;">
+                        <span class="material-icons" style="font-size: 1.2em; vertical-align: middle;">refresh</span>
+                        <span style="vertical-align: middle;">Refresh</span>
+                    </button>
+                </div>
+                
+                <div id="historyTableContainer" style="overflow-x: auto; margin-top: 1em; max-height: 600px; overflow-y: auto;">
+                    <table class="tblHistory" style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.95em;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid #333;">
+                                <th style="padding: 10px;">Date/Time</th>
+                                <th style="padding: 10px;">Movie</th>
+                                <th style="padding: 10px;">Size</th>
+                                <th style="padding: 10px;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody">
+                            <tr><td colspan="4" style="padding: 10px; text-align: center; color: #888;">Loading history...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
     </div>
 </div>
