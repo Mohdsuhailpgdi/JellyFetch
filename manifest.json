@@ -9,12 +9,12 @@
     "imageUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/icon.jpg",
     "versions": [
       {
-        "version": "1.2.0.0",
-        "changelog": "v1.2.0: Phase 1 Complete. Tabbed modern dashboard UI, manual magnet downloads with provider selection (Auto / Seedr / Torbox), Activity auto-navigation, dynamic file size and media title resolution, fallback download routing to configured directory, smooth movie detail button animations & hover transitions, friendly low-peer alert cards, scraper domain auto-discovery status badge & backup mirror override, and language cleanup improvements.",
+        "version": "1.2.1.0",
+        "changelog": "v1.2.1: Maintenance Release. Dynamic file size detection across cloud APIs, HTTP streaming, and disk; movie title sanitization (removes 1TamilMV website prefixes and .mkv/.mp4 extensions); and recursive multi-directory candidate search for existing downloads.",
         "targetAbi": "10.9.9.0",
         "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
-        "checksum": "08C1FA3EFEA8F0981D53E58DD80519FC",
-        "timestamp": "2026-09-24T00:00:00Z"
+        "checksum": "376896D2D769ADFF831903E1F2A2C0CE",
+        "timestamp": "2026-09-25T00:00:00Z"
       }
     ]
   }

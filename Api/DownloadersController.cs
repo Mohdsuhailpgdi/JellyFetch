@@ -313,46 +313,63 @@ public class DownloadersController : ControllerBase
         var config = Plugin.Instance.Configuration;
 
         bool needsSave = false;
+        var candidateDirs = new List<string>();
+        if (!string.IsNullOrEmpty(config.DownloadsDirectory) && Directory.Exists(config.DownloadsDirectory))
+        {
+            candidateDirs.Add(config.DownloadsDirectory);
+        }
+        string[] fallbackDirs = { "/media", "/media/Downloads", "/mnt/msp/Movies", "/mnt/gdrive/Jellyfin/Movies" };
+        foreach (var fb in fallbackDirs)
+        {
+            if (Directory.Exists(fb) && !candidateDirs.Contains(fb)) candidateDirs.Add(fb);
+        }
+
         // Add past history
         foreach (var h in history)
         {
             double entrySize = h.SizeGb;
-            string movieName = h.MovieName;
+            string movieName = CleanMediaTitle(h.MovieName);
 
-            if (h.Status == "Completed" && !string.IsNullOrEmpty(config.DownloadsDirectory) && Directory.Exists(config.DownloadsDirectory))
+            if (h.Status == "Completed" && candidateDirs.Count > 0)
             {
-                try
+                foreach (var dir in candidateDirs)
                 {
-                    var files = new DirectoryInfo(config.DownloadsDirectory).GetFiles("*.*");
-                    FileInfo? bestMatch = null;
-                    if (h.MovieName != "Manual Download")
+                    try
                     {
-                        bestMatch = files.FirstOrDefault(f => Path.GetFileNameWithoutExtension(f.Name).Equals(h.MovieName, StringComparison.OrdinalIgnoreCase));
-                    }
-                    if (bestMatch == null)
-                    {
-                        bestMatch = files
-                            .Where(f => Math.Abs((f.CreationTimeUtc - h.Timestamp).TotalMinutes) < 15 || Math.Abs((f.LastWriteTimeUtc - h.Timestamp).TotalMinutes) < 15)
-                            .OrderBy(f => Math.Abs((f.LastWriteTimeUtc - h.Timestamp).TotalMinutes))
-                            .FirstOrDefault();
-                    }
-                    if (bestMatch != null && bestMatch.Length > 0)
-                    {
-                        if (entrySize <= 0)
+                        var files = new DirectoryInfo(dir).GetFiles("*.*", SearchOption.AllDirectories);
+                        FileInfo? bestMatch = null;
+                        if (!string.IsNullOrEmpty(h.MovieName) && h.MovieName != "Manual Download")
                         {
-                            entrySize = Math.Round((double)bestMatch.Length / (1024.0 * 1024.0 * 1024.0), 2);
-                            h.SizeGb = entrySize;
-                            needsSave = true;
+                            var cleanHName = CleanMediaTitle(h.MovieName);
+                            bestMatch = files.FirstOrDefault(f => CleanMediaTitle(f.Name).Equals(cleanHName, StringComparison.OrdinalIgnoreCase) ||
+                                                                  f.Name.Contains(cleanHName, StringComparison.OrdinalIgnoreCase));
                         }
-                        if (movieName == "Manual Download")
+                        if (bestMatch == null)
                         {
-                            movieName = Path.GetFileNameWithoutExtension(bestMatch.Name);
-                            h.MovieName = movieName;
-                            needsSave = true;
+                            bestMatch = files
+                                .Where(f => Math.Abs((f.CreationTimeUtc - h.Timestamp).TotalMinutes) < 15 || Math.Abs((f.LastWriteTimeUtc - h.Timestamp).TotalMinutes) < 15)
+                                .OrderBy(f => Math.Abs((f.LastWriteTimeUtc - h.Timestamp).TotalMinutes))
+                                .FirstOrDefault();
+                        }
+                        if (bestMatch != null && bestMatch.Length > 0)
+                        {
+                            if (entrySize <= 0)
+                            {
+                                entrySize = Math.Round((double)bestMatch.Length / (1024.0 * 1024.0 * 1024.0), 2);
+                                h.SizeGb = entrySize;
+                                needsSave = true;
+                            }
+                            if (h.MovieName == "Manual Download" || h.MovieName.Contains("1TamilMV", StringComparison.OrdinalIgnoreCase) || h.MovieName.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase))
+                            {
+                                movieName = CleanMediaTitle(bestMatch.Name);
+                                h.MovieName = movieName;
+                                needsSave = true;
+                            }
+                            break;
                         }
                     }
+                    catch { }
                 }
-                catch { }
             }
 
             combined.Add(new {
@@ -752,9 +769,9 @@ public class DownloadersController : ControllerBase
                         {
                             progress.SizeGb = Math.Round((double)res.SizeBytes / (1024.0 * 1024.0 * 1024.0), 2);
                         }
-                        if (!string.IsNullOrEmpty(vname) && (progress.MovieName == "Manual Download" || string.IsNullOrEmpty(progress.MovieName)))
+                        if (!string.IsNullOrEmpty(vname))
                         {
-                            progress.MovieName = Path.GetFileNameWithoutExtension(CleanMediaFileName(vname));
+                            progress.MovieName = CleanMediaTitle(vname);
                         }
                         
                         string? targetDir = null;
@@ -904,9 +921,9 @@ public class DownloadersController : ControllerBase
                         {
                             progress.SizeGb = Math.Round((double)res.SizeBytes / (1024.0 * 1024.0 * 1024.0), 2);
                         }
-                        if (!string.IsNullOrEmpty(res.VideoName) && (progress.MovieName == "Manual Download" || string.IsNullOrEmpty(progress.MovieName)))
+                        if (!string.IsNullOrEmpty(res.VideoName))
                         {
-                            progress.MovieName = Path.GetFileNameWithoutExtension(fileName);
+                            progress.MovieName = CleanMediaTitle(res.VideoName);
                         }
                         
                         string? targetDir = null;
@@ -1612,7 +1629,7 @@ public class DownloadersController : ControllerBase
                 var rawDn = Uri.UnescapeDataString(dnMatch.Groups[1].Value.Replace('+', ' '));
                 if (!string.IsNullOrWhiteSpace(rawDn))
                 {
-                    movieName = rawDn;
+                    movieName = CleanMediaTitle(rawDn);
                 }
             }
             catch { }
@@ -1661,6 +1678,36 @@ public class DownloadersController : ControllerBase
             info.Completed = true;
             return BadRequest(new { Success = false, ErrorMessage = info.Error });
         }
+    }
+
+    private static string CleanMediaTitle(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return "Manual Download";
+
+        string name = raw.Trim();
+        string ext = Path.GetExtension(name);
+        if (!string.IsNullOrEmpty(ext) && (ext.Equals(".mkv", StringComparison.OrdinalIgnoreCase) || 
+                                           ext.Equals(".mp4", StringComparison.OrdinalIgnoreCase) || 
+                                           ext.Equals(".avi", StringComparison.OrdinalIgnoreCase) || 
+                                           ext.Equals(".mov", StringComparison.OrdinalIgnoreCase) || 
+                                           ext.Equals(".webm", StringComparison.OrdinalIgnoreCase)))
+        {
+            name = Path.GetFileNameWithoutExtension(name);
+        }
+
+        name = System.Text.RegularExpressions.Regex.Replace(
+            name,
+            @"^(?:https?:\/\/)?(?:www\.)?[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}\s*[-–_:]\s*",
+            "",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        name = System.Text.RegularExpressions.Regex.Replace(
+            name,
+            @"^\[?[a-zA-Z0-9.-]*1[tT]amil[mM][vV][a-zA-Z0-9.-]*\]?\s*[-–_:]?\s*",
+            "",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        return string.IsNullOrWhiteSpace(name) ? raw.Trim() : name.Trim();
     }
 
     private static string CleanMediaFileName(string fileName)

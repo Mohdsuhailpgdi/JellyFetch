@@ -1,6 +1,6 @@
 {
     "category": "General",
-    "changelog": "v1.2.0: Phase 1 Complete. Tabbed Modern Plugin Dashboard, Manual Magnet URI downloading with provider selection (Auto / Seedr / Torbox) & Activity auto-navigation, fallback download routing to configured directory, smooth movie detail button animations & hover transitions, friendly low-peer alert cards, scraper domain auto-discovery status badge & backup mirror override, and language cleanup improvements.",
+    "changelog": "v1.2.1: Dynamic file size tracking for manual downloads across streaming, disk, and cloud providers; title sanitation (stripping tracker domain prefixes and container file extensions); and multi-candidate directory search.",
     "description": "Native Downloads ecosystem for Jellyfin. Scrapes external forums for new media and integrates with Seedr and Torbox for downloading.",
     "guid": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
     "imageUrl": "",
@@ -8,15 +8,15 @@
     "overview": "External media scraper and download manager. Integrates Seedr and Torbox.",
     "owner": "LAB Hermes",
     "targetAbi": "10.9.0.0",
-    "timestamp": "2026-09-24T00:00:00Z",
+    "timestamp": "2026-09-25T00:00:00Z",
     "versions": [
         {
             "checksum": "",
-            "changelog": "v1.2.0: Phase 1 Complete. Tabbed Modern Plugin Dashboard, Manual Magnet URI downloading with provider selection (Auto / Seedr / Torbox) & Activity auto-navigation, fallback download routing to configured directory, smooth movie detail button animations & hover transitions, friendly low-peer alert cards, scraper domain auto-discovery status badge & backup mirror override, and language cleanup improvements.",
+            "changelog": "v1.2.1: Dynamic file size tracking for manual downloads across streaming, disk, and cloud providers; title sanitation (stripping tracker domain prefixes and container file extensions); and multi-candidate directory search.",
             "targetAbi": "10.9.0.0",
             "sourceUrl": "",
-            "timestamp": "2026-09-24T00:00:00Z",
-            "version": "1.2.0.0"
+            "timestamp": "2026-09-25T00:00:00Z",
+            "version": "1.2.1.0"
         }
     ]
 }
