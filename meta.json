@@ -1,6 +1,6 @@
 {
     "category": "General",
-    "changelog": "v1.1.0: Initial Official Release. Automated regional media scraping (1tamilmv), multi-provider cloud downloading (Seedr & Torbox), native movie details integration with real-time percentage progress, and automatic clean uninstallation.",
+    "changelog": "v1.2.0: Phase 1 Complete. Tabbed Modern Plugin Dashboard, Manual Magnet URI downloading with provider selection (Auto / Seedr / Torbox) & Activity auto-navigation, fallback download routing to configured directory, smooth movie detail button animations & hover transitions, friendly low-peer alert cards, scraper domain auto-discovery status badge & backup mirror override, and language cleanup improvements.",
     "description": "Native Downloads ecosystem for Jellyfin. Scrapes external forums for new media and integrates with Seedr and Torbox for downloading.",
     "guid": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
     "imageUrl": "",
@@ -12,11 +12,11 @@
     "versions": [
         {
             "checksum": "",
-            "changelog": "v1.1.0: Initial Official Release. Automated regional media scraping (1tamilmv), multi-provider cloud downloading (Seedr & Torbox), native movie details integration with real-time percentage progress, and automatic clean uninstallation.",
+            "changelog": "v1.2.0: Phase 1 Complete. Tabbed Modern Plugin Dashboard, Manual Magnet URI downloading with provider selection (Auto / Seedr / Torbox) & Activity auto-navigation, fallback download routing to configured directory, smooth movie detail button animations & hover transitions, friendly low-peer alert cards, scraper domain auto-discovery status badge & backup mirror override, and language cleanup improvements.",
             "targetAbi": "10.9.0.0",
             "sourceUrl": "",
             "timestamp": "2026-09-24T00:00:00Z",
-            "version": "1.1.0.0"
+            "version": "1.2.0.0"
         }
     ]
 }

@@ -9,7 +9,7 @@
         </div>
 
         <!-- Tab 0: Providers & Settings -->
-        <div id="tabProviders" class="tabContent is-active" style="padding-top: 2em; max-width: 600px; margin: 0 auto;">
+        <div id="tabProviders" class="tabContent is-active" style="padding-top: 2em; max-width: 800px; margin: 0;">
             <form class="downloadersConfigurationForm">
 
                 <h3 class="checkboxListLabel">Seedr Configuration</h3>
@@ -85,7 +85,7 @@
         </div>
 
         <!-- Tab 1: Manual Download -->
-        <div id="tabManual" class="tabContent" style="display: none; padding-top: 2em; max-width: 600px; margin: 0 auto;">
+        <div id="tabManual" class="tabContent" style="display: none; padding-top: 2em; max-width: 800px; margin: 0;">
             <div class="verticalSection">
                 <div class="sectionTitleContainer flex align-items-center">
                     <h2 class="sectionTitle">Add Magnet Manually</h2>
@@ -96,10 +96,14 @@
                         <label class="inputLabel inputLabelUnfocused" for="txtMagnetUri">Magnet URI</label>
                         <input type="text" id="txtMagnetUri" name="txtMagnetUri" class="emby-input" required placeholder="magnet:?xt=urn:btih:..." />
                     </div>
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="txtMagnetSize">Estimated Size (GB)</label>
-                        <input type="number" id="txtMagnetSize" name="txtMagnetSize" class="emby-input" step="0.01" required placeholder="2.5" />
-                        <div class="fieldDescription" style="font-size:0.9em; color:#888; margin-top:4px;">Size dictates whether it routes to Seedr (<= 4GB) or Torbox (> 4GB).</div>
+                    <div class="selectContainer">
+                        <label class="selectLabel" for="selManualProvider">Download Provider</label>
+                        <select id="selManualProvider" name="selManualProvider" class="emby-select-withcolor emby-select">
+                            <option value="auto">Auto-detect (Requires Torbox)</option>
+                            <option value="seedr">Seedr</option>
+                            <option value="torbox">Torbox</option>
+                        </select>
+                        <div class="fieldDescription" style="font-size:0.9em; color:#888; margin-top:4px;">Choose which cloud downloader to use. Auto-detect will use Torbox if available.</div>
                     </div>
                     <button is="emby-button" type="submit" class="raised" style="background-color:#00a4dc; color:white; padding:0.5em 1em; border-radius:4px; font-weight:bold;">
                         <span class="material-icons" style="vertical-align: middle; margin-right: 5px;">cloud_download</span>
@@ -111,7 +115,7 @@
         </div>
 
         <!-- Tab 2: Scraper & Tasks -->
-        <div id="tabTasks" class="tabContent" style="display: none; padding-top: 2em; max-width: 800px; margin: 0 auto;">
+        <div id="tabTasks" class="tabContent" style="display: none; padding-top: 2em; max-width: 800px; margin: 0;">
             <div class="verticalSection" style="margin-bottom: 3em;">
                 <div class="sectionTitleContainer flex align-items-center">
                     <h2 class="sectionTitle">Web Scraper</h2>
@@ -160,7 +164,7 @@
         </div>
 
         <!-- Tab 3: Activity -->
-        <div id="tabActivity" class="tabContent" style="display: none; padding-top: 2em; max-width: 1000px; margin: 0 auto;">
+        <div id="tabActivity" class="tabContent" style="display: none; padding-top: 2em; max-width: 1000px; margin: 0;">
             <div class="verticalSection">
                 <div class="sectionTitleContainer flex align-items-center">
                     <h2 class="sectionTitle">Download History & Queue</h2>

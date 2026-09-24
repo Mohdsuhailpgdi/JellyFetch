@@ -699,8 +699,21 @@ public class DownloadersController : ControllerBase
                         var fId = res.FolderId;
                         progress.FolderId = fId;
                         
-                        var targetDir = Path.GetDirectoryName(itemPath);
-                        if (Directory.Exists(targetDir))
+                        string? targetDir = null;
+                        if (string.IsNullOrEmpty(itemPath))
+                        {
+                            targetDir = config.DownloadsDirectory;
+                            if (string.IsNullOrEmpty(targetDir)) targetDir = "/media/Downloads";
+                            if (!Directory.Exists(targetDir)) {
+                                try { Directory.CreateDirectory(targetDir); } catch { }
+                            }
+                        }
+                        else
+                        {
+                            targetDir = Path.GetDirectoryName(itemPath);
+                        }
+
+                        if (!string.IsNullOrEmpty(targetDir) && Directory.Exists(targetDir))
                         {
                             var fileName = CleanMediaFileName(vname);
                             var targetPath = Path.Combine(targetDir, fileName);
@@ -821,8 +834,21 @@ public class DownloadersController : ControllerBase
                         var finalUrl = res.DownloadUrl;
                         var fileName = CleanMediaFileName(res.VideoName);
                         
-                        var targetDir = Path.GetDirectoryName(itemPath);
-                        if (Directory.Exists(targetDir))
+                        string? targetDir = null;
+                        if (string.IsNullOrEmpty(itemPath))
+                        {
+                            targetDir = config.DownloadsDirectory;
+                            if (string.IsNullOrEmpty(targetDir)) targetDir = "/media/Downloads";
+                            if (!Directory.Exists(targetDir)) {
+                                try { Directory.CreateDirectory(targetDir); } catch { }
+                            }
+                        }
+                        else
+                        {
+                            targetDir = Path.GetDirectoryName(itemPath);
+                        }
+
+                        if (!string.IsNullOrEmpty(targetDir) && Directory.Exists(targetDir))
                         {
                             var targetPath = Path.Combine(targetDir, fileName);
                             progress.TargetPath = targetPath;
@@ -1461,8 +1487,8 @@ public class DownloadersController : ControllerBase
 
     public class ManualDownloadRequest
     {
-        public string MagnetUri { get; set; }
-        public double EstimatedSizeGb { get; set; }
+        public string MagnetUri { get; set; } = string.Empty;
+        public string Provider { get; set; } = "auto";
     }
 
     [HttpPost("ManualDownload")]
@@ -1480,12 +1506,15 @@ public class DownloadersController : ControllerBase
         string movieName = "Manual Download";
 
         var cts = new System.Threading.CancellationTokenSource();
+        
+        string providerChoice = request.Provider?.ToLowerInvariant() ?? "auto";
+        double fakeSize = 0.0; // Size dynamically detected by cloud providers
 
         var info = new DownloadProgressInfo
         {
             ItemId = fakeItemId,
             MovieName = movieName,
-            SizeGb = request.EstimatedSizeGb,
+            SizeGb = fakeSize,
             Status = "Queued",
             Provider = "Unknown",
             Timestamp = DateTime.UtcNow,
@@ -1495,22 +1524,22 @@ public class DownloadersController : ControllerBase
         };
         _activeDownloads[fakeItemId] = info;
 
-        if (request.EstimatedSizeGb <= 4.0 && config.EnableSeedr)
+        if (providerChoice == "seedr" || (providerChoice == "auto" && config.EnableSeedr && !config.EnableTorbox))
         {
             info.Provider = "Seedr";
-            _ = ProcessSeedrDownload(info, config, "", request.MagnetUri, request.EstimatedSizeGb, null, null);
+            _ = ProcessSeedrDownload(info, config, "", request.MagnetUri, fakeSize, null, null);
             return Ok(new { Success = true, Provider = "Seedr" });
         }
-        else if (config.EnableTorbox)
+        else if (providerChoice == "torbox" || (providerChoice == "auto" && config.EnableTorbox))
         {
             info.Provider = "Torbox";
-            _ = ProcessTorboxDownload(info, config, "", request.MagnetUri, request.EstimatedSizeGb, null, null);
+            _ = ProcessTorboxDownload(info, config, "", request.MagnetUri, fakeSize, null, null);
             return Ok(new { Success = true, Provider = "Torbox" });
         }
         else
         {
             info.Status = "Failed";
-            info.Error = "No eligible download provider enabled.";
+            info.Error = "No eligible download provider enabled or selected.";
             info.Completed = true;
             return BadRequest(new { Success = false, ErrorMessage = info.Error });
         }

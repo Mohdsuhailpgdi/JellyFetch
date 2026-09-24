@@ -522,7 +522,7 @@ export default function(view, params) {
         formManual.addEventListener('submit', function(e) {
             e.preventDefault();
             const uri = view.querySelector('#txtMagnetUri').value.trim();
-            const size = parseFloat(view.querySelector('#txtMagnetSize').value || '0');
+            const provider = view.querySelector('#selManualProvider').value;
             const statusDiv = view.querySelector('#manualDownloadStatus');
             
             if (!uri) return;
@@ -537,7 +537,7 @@ export default function(view, params) {
                     'Content-Type': 'application/json',
                     'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"'
                 },
-                body: JSON.stringify({ MagnetUri: uri, EstimatedSizeGb: size })
+                body: JSON.stringify({ MagnetUri: uri, Provider: provider })
             }).then(async r => {
                 if (!r.ok) {
                     let errStr = await r.text();
@@ -547,10 +547,18 @@ export default function(view, params) {
             }).then(res => {
                 if (res.Success) {
                     statusDiv.style.color = '#4caf50';
-                    statusDiv.innerText = 'Download started successfully via ' + res.Provider;
+                    statusDiv.innerText = 'Download started successfully via ' + res.Provider + '. Switching to Activity tab...';
                     const btnRefresh = view.querySelector('#btnRefreshHistory');
                     if (btnRefresh) btnRefresh.click();
                     view.querySelector('#txtMagnetUri').value = '';
+                    
+                    const activityTabBtn = view.querySelector('.plugin-tab-btn[data-tab="tabActivity"]');
+                    if (activityTabBtn) {
+                        setTimeout(() => {
+                            activityTabBtn.click();
+                            statusDiv.style.display = 'none';
+                        }, 1500);
+                    }
                 } else {
                     statusDiv.style.color = '#f44336';
                     statusDiv.innerText = 'Failed: ' + (res.ErrorMessage || 'Unknown error');

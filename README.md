@@ -5,7 +5,7 @@
   
   **Automated media scraping, cloud downloading, and library injection for Jellyfin.**
   
-  [![Version](https://img.shields.io/badge/version-1.1.0-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
+  [![Version](https://img.shields.io/badge/version-1.2.0-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
   [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9.x--12.x-orange)](https://jellyfin.org)
   [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey)](https://github.com/Mohdsuhailpgdi/JellyFetch)
 </div>
@@ -17,10 +17,29 @@ This plugin is specifically optimized for Indian media consumers. The default sc
 
 ---
 
+## ✨ What's New in v1.2.0 — Phase 1: Dashboard UI & Manual Downloads
+
+- 📑 **Tabbed Modern Dashboard** — Rebuilt the plugin dashboard into 4 clean, focused tabs (*Providers & Settings*, *Manual Download*, *Scraper & Tasks*, *Activity / History*) with left-aligned inputs and responsive sizing.
+- 🧲 **Manual Magnet Downloads** — Directly paste any Magnet URI into the dashboard with your choice of downloader (*Auto-detect*, *Seedr*, or *Torbox*). Automatically redirects to the Activity tab to track download progress.
+- 📂 **Standalone Media Fallback** — Manual downloads without a pre-existing `.strm` placeholder cleanly route into the configured Jellyfin Downloads directory without errors.
+- 🎨 **Enhanced Button Styling & Micro-Animations** — Download button on movie details now features smooth circular hover plates, scaling animations, and glowing states matching Jellyfin's native buttons (`✓` Watched, `♥` Favorite).
+- ⚠️ **Friendly Low-Peer Alert Cards** — Replaced technical jargon ("0 peers") with clear, actionable amber alert cards and glowing amber badges when torrents are inactive or lack seeders.
+- 🌐 **Scraper Mirror Auto-Discovery Badge** — Real-time badge shows the latest active domain discovered by the engine, with support for custom backup mirror overrides.
+- 🧹 **Robust Language Cleanup Handling** — Unchecking languages now reliably synchronizes to the server before running cleanup, accurately pruning deselected `.strm` files with instant history updates.
+
+<details>
+<summary><b>📜 Previous Releases (v1.1.0)</b></summary>
+
+- **v1.1.0 (Initial Official Release)**: Automated 1TamilMV scraping, Seedr/Torbox cloud orchestration, native movie detail injection with fixed-width percentage pills, multi-language title merging, real library deduplication, and zero-config clean uninstallation hooks.
+</details>
+
+---
+
 ## 🌟 Key Features
 
 - **🚀 Native Movie Detail Integration** — Download button seamlessly matches Jellyfin's default flat icon button theme (adjacent to play, favorite, and watched) without layout shifts or color clashes.
 - **📊 Real-Time Percentage Progress** — Transforms dynamically into a fixed-width pill (76px) strictly displaying the sync icon and percentage (`🔄 74%`).
+- **🧲 Direct Magnet Ingestion** — Paste custom magnet links straight from the dashboard for on-demand cloud downloading.
 - **☁️ Multi-Provider Cloud Orchestration** — Downloads via **Seedr** and **Torbox** APIs with smart quota pooling and automatic queuing.
 - **🌐 Multi-Language Movie Merging** — Automatically tracks and merges multi-language releases (Tamil, Malayalam, Telugu, Hindi) under a single movie entry.
 - **🛡️ Real Library Deduplication** — Automatically detects movies already present in your Jellyfin library and skips dummy placeholders.
@@ -68,12 +87,13 @@ After restarting, configure your cloud provider:
 4. The button transforms into a live progress indicator. You can pause, resume, or stop at any time.
 5. When done, the movie page automatically refreshes with full metadata and the Play button appears.
 
-### The History Tab
+### The Dashboard Tabs
 
-Inside the Plugin Settings page → **History** tab:
-- View all **Active**, **Paused**, and **Queued** downloads.
-- Monitor live progress.
-- **Pause / Resume / Cancel** any active download.
+Inside the Plugin Settings page:
+- **Providers & Settings**: Configure cloud accounts (Seedr, Torbox) and storage directories.
+- **Manual Download**: Paste magnet links directly and choose your preferred provider.
+- **Scraper & Tasks**: Monitor scraper mirrors, configure language filters, and trigger manual scraping or cleanup.
+- **Activity**: Monitor live download progress, view historical events, and cancel/resume downloads.
 
 ---
 
@@ -83,7 +103,7 @@ Inside the Plugin Settings page → **History** tab:
 dotnet build -c Release
 ```
 
-The plugin targets `.NET 8.0`. After building, copy `Jellyfin.Plugin.JellyFetch.dll` into your Jellyfin `/config/plugins/JellyFetch_1.1.0.0/` folder and restart the server.
+The plugin targets `.NET 8.0`. After building, copy `Jellyfin.Plugin.JellyFetch.dll` into your Jellyfin `/config/plugins/JellyFetch_1.2.0.0/` folder and restart the server.
 
 ### Project Structure
 
@@ -101,8 +121,8 @@ JellyFetch-Plugin/
 ├── Tasks/
 │   └── ScraperScheduledTask.cs ← Background scheduled task
 └── Web/
-    ├── downloaders.html         ← Plugin settings page
-    ├── downloaders.js           ← Plugin settings JS
+    ├── downloaders.html        ← Tabbed plugin settings page
+    ├── downloaders.js          ← Tabbed settings controller & event handlers
     └── jellyfetch-inject.js    ← Frontend injection script (auto-deployed to web dir)
 ```
 
