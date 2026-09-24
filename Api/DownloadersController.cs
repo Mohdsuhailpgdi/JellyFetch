@@ -46,6 +46,9 @@ public class DownloadProgressInfo
     public double SizeGb { get; set; } = 0;
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 
+    /// <summary>True when the Seedr cloud torrent has had 0 peers for ≥ 3 consecutive poll cycles (~12s).</summary>
+    public bool LowPeerWarning { get; set; } = false;
+
     [System.Text.Json.Serialization.JsonIgnore]
     public System.Threading.CancellationTokenSource? Cts { get; set; }
 
@@ -66,7 +69,12 @@ public class DownloadProgressInfo
 
     [System.Text.Json.Serialization.JsonIgnore]
     public System.Diagnostics.Process? ActiveProcess { get; set; }
+
+    /// <summary>Internal: consecutive zero-peer poll cycles (not serialized to client).</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int ZeroPeerCycles { get; set; } = 0;
 }
+
 
 [ApiController]
 [Authorize]
@@ -360,17 +368,31 @@ public class DownloadersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult GetDomain()
     {
+        string lastDomain = "1tamilmv.meme";
         var path = System.IO.Path.Combine(Plugin.Instance.DataFolderPath, ".last_domain");
         if (System.IO.File.Exists(path))
         {
             try
             {
                 var content = System.IO.File.ReadAllText(path).Trim();
-                if (!string.IsNullOrEmpty(content)) return Ok(new { Domain = content });
+                if (!string.IsNullOrEmpty(content)) lastDomain = content;
             }
             catch { }
         }
-        return Ok(new { Domain = "1tamilmv.meme" });
+
+        string customOverride = "";
+        var overridePath = System.IO.Path.Combine(Plugin.Instance.DataFolderPath, ".custom_domain");
+        if (System.IO.File.Exists(overridePath))
+        {
+            try
+            {
+                var content = System.IO.File.ReadAllText(overridePath).Trim();
+                if (!string.IsNullOrEmpty(content)) customOverride = content;
+            }
+            catch { }
+        }
+
+        return Ok(new { Domain = lastDomain, Override = customOverride });
     }
 
     [HttpPost("Domain")]
@@ -382,17 +404,33 @@ public class DownloadersController : ControllerBase
         {
             domain = d.GetString();
         }
+
+        var overridePath = System.IO.Path.Combine(Plugin.Instance.DataFolderPath, ".custom_domain");
+        var dir = Path.GetDirectoryName(overridePath);
+        if (dir != null && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+
         if (string.IsNullOrWhiteSpace(domain))
         {
-            return BadRequest(new { Message = "Domain cannot be empty." });
+            if (System.IO.File.Exists(overridePath)) System.IO.File.Delete(overridePath);
+            _logger.LogInformation("Cleared 1TamilMV custom domain override. Auto-discovery will be used.");
+
+            string activeDomain = "1tamilmv.meme";
+            var lastPath = System.IO.Path.Combine(Plugin.Instance.DataFolderPath, ".last_domain");
+            if (System.IO.File.Exists(lastPath))
+            {
+                try { activeDomain = System.IO.File.ReadAllText(lastPath).Trim(); } catch { }
+            }
+            return Ok(new { Message = "Custom override cleared. Auto-detection active.", Domain = activeDomain, Override = "" });
         }
+
         domain = domain.Trim().ToLowerInvariant().Replace("https://", "").Replace("http://", "").TrimEnd('/');
-        var path = System.IO.Path.Combine(Plugin.Instance.DataFolderPath, ".last_domain");
-        var dir = Path.GetDirectoryName(path);
-        if (dir != null && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
-        System.IO.File.WriteAllText(path, domain);
-        _logger.LogInformation("Updated 1TamilMV domain to {Domain}", domain);
-        return Ok(new { Message = "Domain updated successfully.", Domain = domain });
+        System.IO.File.WriteAllText(overridePath, domain);
+
+        var lastDomainPath = System.IO.Path.Combine(Plugin.Instance.DataFolderPath, ".last_domain");
+        System.IO.File.WriteAllText(lastDomainPath, domain);
+
+        _logger.LogInformation("Updated 1TamilMV domain override to {Domain}", domain);
+        return Ok(new { Message = "Domain override saved.", Domain = domain, Override = domain });
     }
 
     [HttpPost("Stop/{itemId}")]
@@ -651,7 +689,8 @@ public class DownloadersController : ControllerBase
                         }, 
                         activeFolderIds,
                         progress.MovieName,
-                        progress.Cts.Token);
+                        progress.Cts.Token,
+                        (isLowPeer) => { progress.LowPeerWarning = isLowPeer; }); // Item #7 -- Low-Peer Warning
 
                     if (res.Success)
                     {
@@ -907,17 +946,26 @@ public class DownloadersController : ControllerBase
                 // 1. Load currently allowed languages
                 var allowedLangsPath = Path.Combine(Plugin.Instance.DataFolderPath, "allowed_languages.json");
                 var allowedLangs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                bool languagesConfigured = false;
                 if (System.IO.File.Exists(allowedLangsPath))
                 {
                     try
                     {
                         var json = System.IO.File.ReadAllText(allowedLangsPath);
                         var list = JsonSerializer.Deserialize<List<string>>(json);
-                        if (list != null) foreach (var l in list) allowedLangs.Add(l);
+                        if (list != null)
+                        {
+                            languagesConfigured = true;
+                            foreach (var l in list) allowedLangs.Add(l);
+                        }
                     }
                     catch { }
                 }
-                AddCleanupLog($"Active allowed languages: {(allowedLangs.Count > 0 ? string.Join(", ", allowedLangs) : "All")}");
+
+                string langStatusText = languagesConfigured
+                    ? (allowedLangs.Count > 0 ? string.Join(", ", allowedLangs) : "None (all languages deselected)")
+                    : "All";
+                AddCleanupLog($"Active allowed languages: {langStatusText}");
 
                 // 2. Pre-scan library for real movies (to detect duplicates)
                 using var client = new HttpClient();
@@ -964,7 +1012,7 @@ public class DownloadersController : ControllerBase
                         bool isDeselectedLanguage = false;
                         string jsonPath = Path.Combine(dir, "downloads.json");
                         List<string> movieLangs = new();
-                        if (System.IO.File.Exists(jsonPath) && allowedLangs.Count > 0)
+                        if (System.IO.File.Exists(jsonPath) && languagesConfigured)
                         {
                             try
                             {
@@ -976,8 +1024,15 @@ public class DownloadersController : ControllerBase
                                     {
                                         if (opt.languages != null) movieLangs.AddRange(opt.languages);
                                     }
-                                    // If none of the movie's languages are in allowed languages
-                                    if (movieLangs.Count > 0 && !movieLangs.Any(l => allowedLangs.Contains(l)))
+                                    // If none of the movie's languages are in allowed languages (or if allowedLangs is empty, all are deselected)
+                                    if (movieLangs.Count > 0)
+                                    {
+                                        if (!movieLangs.Any(l => allowedLangs.Contains(l)))
+                                        {
+                                            isDeselectedLanguage = true;
+                                        }
+                                    }
+                                    else if (allowedLangs.Count == 0)
                                     {
                                         isDeselectedLanguage = true;
                                     }

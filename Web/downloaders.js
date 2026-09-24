@@ -51,9 +51,11 @@ export default function(view, params) {
             fetch('/System/Configuration/Downloaders/Domain', {
                 headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
             }).then(r => r.json()).then(d => {
-                if (d && d.Domain) {
+                if (d) {
+                    const activeDom = view.querySelector('#lblActiveDomain');
+                    if (activeDom) activeDom.textContent = d.Domain || '1tamilmv.meme';
                     const domInput = view.querySelector('#txtCustomDomain');
-                    if (domInput) domInput.value = d.Domain;
+                    if (domInput) domInput.value = d.Override || '';
                 }
             }).catch(e => console.error("Error loading domain:", e));
 
@@ -93,6 +95,7 @@ export default function(view, params) {
 
         function startPolling() {
             if (pollInterval) clearInterval(pollInterval);
+            hideCleanupBanner(); // clear any stale cleanup banner when scraper starts
             progressContainer.style.display = 'block';
             progressBar.style.backgroundColor = '#00a4dc';
             btnRunScraper.style.display = 'none';
@@ -143,8 +146,24 @@ export default function(view, params) {
             }, 1200);
         }
 
+        // Item #2 — helper to show/clear the persistent cleanup result banner
+        function showCleanupBanner(msg, isError) {
+            var banner = view.querySelector('#cleanupResultBanner');
+            if (!banner) return;
+            banner.innerText = msg;
+            banner.style.display = 'flex';
+            banner.style.background = isError ? 'rgba(244,67,54,0.12)' : 'rgba(76,175,80,0.12)';
+            banner.style.borderColor  = isError ? 'rgba(244,67,54,0.4)' : 'rgba(76,175,80,0.4)';
+            banner.style.color = isError ? '#f44336' : '#4caf50';
+        }
+        function hideCleanupBanner() {
+            var banner = view.querySelector('#cleanupResultBanner');
+            if (banner) banner.style.display = 'none';
+        }
+
         function startCleanupPolling() {
             if (pollInterval) clearInterval(pollInterval);
+            hideCleanupBanner(); // clear any previous result banner when a new cleanup starts
             progressContainer.style.display = 'block';
             progressBar.style.backgroundColor = '#e05206';
             btnRunScraper.style.display = 'none';
@@ -152,7 +171,7 @@ export default function(view, params) {
             btnStopScraper.style.display = 'block';
             btnStopScraper.querySelector('span').innerText = 'Stop Cleanup';
             if (logBox) logBox.textContent = '';
-            
+
             pollInterval = setInterval(() => {
                 fetch('/System/Configuration/Downloaders/CleanupStrm/Status', {
                     headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
@@ -162,15 +181,29 @@ export default function(view, params) {
                         btnRunScraper.style.display = 'none';
                         if (btnCleanupScraper) btnCleanupScraper.style.display = 'none';
                         btnStopScraper.style.display = d.IsRunning ? 'block' : 'none';
-                        
+
                         let pct = d.Progress || 0;
                         progressBar.style.width = pct + '%';
                         pctText.innerText = Math.round(pct) + '%';
                         statusText.innerText = d.Status || (d.IsRunning ? 'Cleaning up...' : 'Idle');
                         updateLogDisplay(d.Logs);
-                        
-                        if (!d.IsRunning && (pct === 100 || d.Status === 'Idle' || d.Status.startsWith('Error') || d.Status.startsWith('Failed'))) {
+
+                        var isErr = d.Status && (d.Status.startsWith('Error') || d.Status.startsWith('Failed'));
+                        var isComplete = !d.IsRunning && (pct === 100 || d.Status === 'Idle' || isErr);
+
+                        if (isComplete) {
                             clearInterval(pollInterval);
+
+                            // Item #2a — auto-refresh history table so new state is reflected immediately
+                            loadHistory();
+
+                            // Item #2b — show persistent result banner with the backend's status message
+                            if (!isErr && pct === 100) {
+                                showCleanupBanner('✓ ' + (d.Status || 'Cleanup complete.'), false);
+                            } else if (isErr) {
+                                showCleanupBanner('✗ ' + (d.Status || 'Cleanup encountered an error.'), true);
+                            }
+
                             setTimeout(() => {
                                 btnRunScraper.style.display = 'block';
                                 if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
@@ -306,9 +339,21 @@ export default function(view, params) {
                 var msg = 'Cleanup will remove duplicate .strm files for movies already downloaded in your library, movies in unchecked languages, or orphaned dummy files. Real downloaded video files (.mp4, .mkv) will NOT be touched. Are you sure you want to proceed?';
                 
                 var executeCleanup = function() {
-                    fetch('/System/Configuration/Downloaders/CleanupStrm', {
+                    var checkboxes = view.querySelectorAll('input[name="chkLanguage"]:checked');
+                    var selectedLangs = Array.from(checkboxes).map(function(cb) { return cb.value; });
+                    
+                    fetch('/System/Configuration/Downloaders/Languages', {
                         method: 'POST',
-                        headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"'
+                        },
+                        body: JSON.stringify(selectedLangs)
+                    }).then(function() {
+                        return fetch('/System/Configuration/Downloaders/CleanupStrm', {
+                            method: 'POST',
+                            headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
+                        });
                     }).then(r => {
                         if (r.ok) {
                             startCleanupPolling();
@@ -331,9 +376,21 @@ export default function(view, params) {
         if (btnRunScraper) {
             btnRunScraper.addEventListener('click', function(e) {
                 e.preventDefault();
-                fetch('/System/Configuration/Downloaders/Scrape', {
+                var checkboxes = view.querySelectorAll('input[name="chkLanguage"]:checked');
+                var selectedLangs = Array.from(checkboxes).map(function(cb) { return cb.value; });
+
+                fetch('/System/Configuration/Downloaders/Languages', {
                     method: 'POST',
-                    headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"'
+                    },
+                    body: JSON.stringify(selectedLangs)
+                }).then(function() {
+                    return fetch('/System/Configuration/Downloaders/Scrape', {
+                        method: 'POST',
+                        headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
+                    });
                 }).then(r => {
                     if (r.ok) startPolling();
                 });
@@ -399,16 +456,19 @@ export default function(view, params) {
                     const selectedLangs = Array.from(checkboxes).map(cb => cb.value);
                     
                     const customDomain = (view.querySelector('#txtCustomDomain').value || '').trim();
-                    if (customDomain) {
-                        fetch('/System/Configuration/Downloaders/Domain', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"'
-                            },
-                            body: JSON.stringify({ Domain: customDomain })
-                        }).catch(e => console.error("Error saving domain:", e));
-                    }
+                    fetch('/System/Configuration/Downloaders/Domain', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"'
+                        },
+                        body: JSON.stringify({ Domain: customDomain })
+                    }).then(r => r.json()).then(d => {
+                        if (d && d.Domain) {
+                            const activeDom = view.querySelector('#lblActiveDomain');
+                            if (activeDom) activeDom.textContent = d.Domain;
+                        }
+                    }).catch(e => console.error("Error saving domain:", e));
 
                     fetch('/System/Configuration/Downloaders/Languages', {
                         method: 'POST',

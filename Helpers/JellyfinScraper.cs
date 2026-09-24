@@ -56,7 +56,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                 {
                     var json = File.ReadAllText(p);
                     var list = JsonSerializer.Deserialize<List<string>>(json);
-                    if (list != null && list.Count > 0) return new HashSet<string>(list, StringComparer.OrdinalIgnoreCase);
+                    if (list != null) return new HashSet<string>(list, StringComparer.OrdinalIgnoreCase);
                 }
                 catch { }
             }
@@ -66,8 +66,27 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
         private async Task<string> GetWorkingDomainAsync(CancellationToken ct)
         {
             var domains = new List<string> { "1tamilmv.meme", "1tamilmv.rocks", "1tamilmv.ing", "1tamilmv.xyz", "1tamilmv.pizza", "1tamilmv.pics", "1tamilmv.eu", "1tamilmv.tf" };
-            var cacheFile = GetCacheFile();
+            
+            // Priority 1: User's manual backup override (if configured)
+            var overrideFile = Path.Combine(Plugin.Instance.DataFolderPath, ".custom_domain");
+            bool hasOverride = false;
+            if (File.Exists(overrideFile))
+            {
+                try
+                {
+                    var custom = (await File.ReadAllTextAsync(overrideFile, ct)).Trim();
+                    if (!string.IsNullOrEmpty(custom))
+                    {
+                        domains.Remove(custom);
+                        domains.Insert(0, custom);
+                        hasOverride = true;
+                    }
+                }
+                catch { }
+            }
 
+            // Priority 2: Last auto-discovered working domain
+            var cacheFile = GetCacheFile();
             if (File.Exists(cacheFile))
             {
                 try
@@ -76,7 +95,9 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                     if (!string.IsNullOrEmpty(cached))
                     {
                         domains.Remove(cached);
-                        domains.Insert(0, cached);
+                        int insertIdx = hasOverride ? 1 : 0;
+                        if (insertIdx < domains.Count) domains.Insert(insertIdx, cached);
+                        else domains.Add(cached);
                     }
                 }
                 catch { }

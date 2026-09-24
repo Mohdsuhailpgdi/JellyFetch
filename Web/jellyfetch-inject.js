@@ -14,7 +14,12 @@
         st.textContent = [
             '@keyframes jf-spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}',
             '.jf-spin{animation:jf-spin 1.2s linear infinite!important;display:inline-block!important;}',
-            'body.jf-download-mode .btnPlay, body.jf-download-mode .btnReplay, body.jf-download-mode [data-action="play"], body.jf-download-mode [data-action="resume"] { display: none !important; }'
+            'body.jf-download-mode .btnPlay, body.jf-download-mode .btnReplay, body.jf-download-mode [data-action="play"], body.jf-download-mode [data-action="resume"] { display: none !important; }',
+            '#jf-dl-btn:not([data-downloading="true"]) { transition: transform 0.2s ease, background-color 0.2s ease, color 0.2s ease !important; border-radius: 50% !important; background: transparent !important; }',
+            '#jf-dl-btn:not([data-downloading="true"]):hover { transform: scale(1.15) !important; background-color: rgba(255, 255, 255, 0.12) !important; color: #00a4dc !important; }',
+            '#jf-dl-btn:not([data-downloading="true"]):active { transform: scale(0.95) !important; }',
+            '#jf-dl-btn[data-downloading="true"] { transition: transform 0.2s ease, background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease !important; }',
+            '#jf-dl-btn[data-downloading="true"]:hover { transform: scale(1.04) !important; filter: brightness(1.15) !important; }'
         ].join('\n');
         document.head.appendChild(st);
     }
@@ -31,7 +36,8 @@
         description: '',
         language: 'English',
         pollTimer: null,
-        navTimer: null
+        navTimer: null,
+        lowPeerWarning: false   // Item #7: low-peer warning flag from backend
     };
 
     // ── Helpers ──────────────────────────────────────────────────────
@@ -148,31 +154,38 @@
             var sP       = (pct > 0) ? Math.round(pct) + '%' : '0%';
             var isErr    = /fail|stop/i.test(state.status);
             var isPaused = /pause/i.test(state.status) || state.isPaused;
+            var isLowPeer = !!state.lowPeerWarning;
             if (isErr) sP = 'Error';
             else if (isPaused) sP = Math.round(pct) + '%';
 
-            var icon        = isErr ? 'error' : (isPaused ? 'pause' : 'sync');
-            var spinCls     = (!isErr && !isPaused) ? ' jf-spin' : '';
-            var accentColor = isErr ? '#f44336' : (isPaused ? '#ff9800' : '#00a4dc');
-            var bgColor     = isErr ? 'rgba(244,67,54,0.18)' : (isPaused ? 'rgba(255,152,0,0.18)' : 'rgba(0,164,220,0.18)');
-            var borderColor = isErr ? 'rgba(244,67,54,0.45)' : (isPaused ? 'rgba(255,152,0,0.45)' : 'rgba(0,164,220,0.45)');
+            var icon        = isErr ? 'error' : (isPaused ? 'pause' : (isLowPeer ? 'warning_amber' : 'sync'));
+            var spinCls     = (!isErr && !isPaused && !isLowPeer) ? ' jf-spin' : '';
+            var accentColor = isErr ? '#f44336' : (isPaused ? '#ff9800' : (isLowPeer ? '#ff9800' : '#00a4dc'));
+            var bgColor     = isErr ? 'rgba(244,67,54,0.18)' : (isPaused ? 'rgba(255,152,0,0.18)' : (isLowPeer ? 'rgba(255,152,0,0.18)' : 'rgba(0,164,220,0.18)'));
+            var borderColor = isErr ? 'rgba(244,67,54,0.45)' : (isPaused ? 'rgba(255,152,0,0.45)' : (isLowPeer ? 'rgba(255,152,0,0.6)' : 'rgba(0,164,220,0.45)'));
+            var glowColor   = isErr ? 'none' : (isPaused ? 'none' : (isLowPeer ? '0 0 10px rgba(255,152,0,0.6)' : '0 0 8px rgba(0,164,220,0.5)'));
 
             btn.setAttribute('data-downloading', 'true');
-            btn.title = (state.status || 'Downloading') + ' (' + sP + ') — Click to view details';
+            btn.title = isLowPeer
+                ? 'This file size is currently not active on the internet — click to stop and try another size'
+                : ((state.status || 'Downloading') + ' (' + sP + ') — Click to view details');
             btn.style.cssText = 'background:' + bgColor + '!important;border:1px solid ' + borderColor + '!important;' +
                 'color:#fff!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;' +
                 'width:76px!important;min-width:76px!important;max-width:76px!important;height:38px!important;' +
-                'padding:0 8px!important;border-radius:19px!important;box-shadow:none!important;cursor:pointer!important;' +
-                'flex-direction:row!important;margin:0 0.5em 0 0!important;box-sizing:border-box!important;gap:5px!important;overflow:hidden!important;';
+                'padding:0 8px!important;border-radius:19px!important;cursor:pointer!important;' +
+                'flex-direction:row!important;margin:0 0.5em 0 0!important;box-sizing:border-box!important;gap:5px!important;overflow:hidden!important;' +
+                'transition:background 0.3s ease,border-color 0.3s ease,box-shadow 0.3s ease!important;' +
+                'box-shadow:' + glowColor + '!important;';
             btn.innerHTML = '<span class="material-icons' + spinCls + '" style="font-size:18px;color:' + accentColor + ';line-height:1;" aria-hidden="true">' +
-                icon + '</span><span style="font-size:13px;font-weight:600;color:#fff;line-height:1;white-space:nowrap;">' +
+                icon + '</span><span style="font-size:13px;font-weight:600;color:#fff;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:clip;">' +
                 escHtml(sP) + '</span>';
+
         } else {
             btn.removeAttribute('data-downloading');
             btn.title = 'Download';
             btn.className = 'button-flat detailButton emby-button';
-            btn.style.cssText = 'cursor:pointer!important;background:none!important;border:none!important;box-shadow:none!important;' +
-                'color:inherit!important;padding:.7em .7em!important;margin:0!important;';
+            btn.style.cssText = 'cursor:pointer!important;border:none!important;' +
+                'padding:.7em .7em!important;margin:0!important;';
             btn.innerHTML = '<div class="detailButton-content" style="display:flex;align-items:center;justify-content:center;">' +
                 '<span class="material-icons detailButton-icon" style="font-size:1.6em;" aria-hidden="true">download</span>' +
                 '</div>';
@@ -281,11 +294,22 @@
         var pct  = state.progress || 0;
         var isErr = /fail|stop/i.test(sTxt);
         var isPaused = /pause/i.test(sTxt) || state.isPaused;
+        var isLowPeer = !!state.lowPeerWarning; // Item #7
 
         var headerIcon = isErr ? 'error' : (isPaused ? 'pause' : 'sync');
         var headerSpin = (!isErr && !isPaused) ? ' jf-spin' : '';
-        var headerClr  = isErr ? '#f44336' : (isPaused ? '#ff9800' : '#2196f3');
-        var headerTxt  = isErr ? 'Download Failed' : (isPaused ? 'Download Paused' : 'Download in Progress');
+        var headerClr  = isErr ? '#f44336' : (isPaused ? '#ff9800' : (isLowPeer ? '#ff9800' : '#2196f3'));
+        var headerTxt  = isErr ? 'Download Failed' : (isPaused ? 'Download Paused' : (isLowPeer ? 'Download Inactive' : 'Download in Progress'));
+        var statusClr  = isLowPeer ? '#ff9800' : '#bbb';
+        var barGrad    = isLowPeer
+            ? 'linear-gradient(90deg,#ff9800,#ffc107)'
+            : 'linear-gradient(90deg,#2196f3,#00bcd4)';
+        var lowPeerBadge =
+            '<div id="jf-modal-warning" style="display:' + (isLowPeer ? 'flex' : 'none') + ';align-items:flex-start;gap:12px;background:rgba(255,152,0,0.15);border:1px solid rgba(255,152,0,0.5);border-radius:6px;padding:12px 14px;margin-bottom:14px;color:#ffb74d;">' +
+            '<span class="material-icons" style="font-size:22px;color:#ff9800;flex-shrink:0;margin-top:2px;">warning_amber</span>' +
+            '<div style="font-size:13px;line-height:1.45;color:#ffe0b2;">' +
+            '<div style="font-weight:700;color:#ffb74d;margin-bottom:3px;font-size:14px;">This file size is currently not active or available on the internet.</div>' +
+            'Please stop this download and try a different size or quality option.</div></div>';
 
         var pauseOrResumeBtn = isPaused
             ? '<button type="button" id="jf-btn-resume" style="background:#4caf50;color:#fff;padding:8px 18px;border-radius:4px;border:none;cursor:pointer;font-weight:bold;display:flex;align-items:center;gap:6px;">' +
@@ -297,14 +321,16 @@
             '<h2 id="jf-modal-header" style="margin-top:0;border-bottom:1px solid #333;padding-bottom:12px;display:flex;align-items:center;gap:10px;">' +
             '<span class="material-icons' + headerSpin + '" style="color:' + headerClr + ';">' + headerIcon + '</span>' + headerTxt + '</h2>' +
             '<div style="margin-bottom:16px;">' +
-            '<div id="jf-modal-status" style="font-size:0.9em;color:#bbb;margin-bottom:12px;">' + escHtml(sTxt) + '</div>' +
+            lowPeerBadge +
+            '<div id="jf-modal-status" style="font-size:0.9em;color:' + statusClr + ';margin-bottom:12px;">' + escHtml(sTxt) + '</div>' +
             '<div style="background:#333;border-radius:8px;height:14px;overflow:hidden;margin-bottom:8px;">' +
-            '<div id="jf-modal-bar" style="background:linear-gradient(90deg,#2196f3,#00bcd4);height:100%;width:' + pct + '%;transition:width 0.3s ease;"></div>' +
+            '<div id="jf-modal-bar" style="background:' + barGrad + ';height:100%;width:' + pct + '%;transition:width 0.3s ease;"></div>' +
             '</div>' +
             '<div style="display:flex;justify-content:space-between;font-size:0.85em;color:#888;">' +
             '<span id="jf-modal-pct">' + pct + '% completed</span>' +
             '<span>Seedr / Torbox Cloud</span></div></div>' +
             '<div style="display:flex;gap:12px;margin-top:20px;padding-top:16px;border-top:1px solid #333;">' +
+
             pauseOrResumeBtn +
             '<button type="button" id="jf-btn-stop" style="background:#f44336;color:#fff;padding:8px 18px;border-radius:4px;border:none;cursor:pointer;font-weight:bold;display:flex;align-items:center;gap:6px;">' +
             '<span class="material-icons" style="font-size:18px;">stop</span>Stop</button></div>' +
@@ -521,15 +547,24 @@
                 state.status   = info.Status   || state.status;
                 state.progress = info.Progress  || 0;
                 state.isPaused = !!info.IsPaused;
+                state.lowPeerWarning = !!info.LowPeerWarning; // Item #7
 
                 syncButton(view, itemId);
 
                 var bar = document.getElementById('jf-modal-bar');
-                if (bar) bar.style.width = state.progress + '%';
+                if (bar) {
+                    bar.style.width = state.progress + '%';
+                    bar.style.background = state.lowPeerWarning ? 'linear-gradient(90deg,#ff9800,#ffc107)' : 'linear-gradient(90deg,#2196f3,#00bcd4)';
+                }
                 var sl  = document.getElementById('jf-modal-status');
-                if (sl)  sl.textContent = state.status;
+                if (sl) {
+                    sl.textContent = state.status;
+                    sl.style.color = state.lowPeerWarning ? '#ff9800' : '#bbb';
+                }
                 var pl  = document.getElementById('jf-modal-pct');
                 if (pl)  pl.textContent = state.progress + '% completed';
+                var wb  = document.getElementById('jf-modal-warning');
+                if (wb)  wb.style.display = state.lowPeerWarning ? 'flex' : 'none';
             })
             .catch(function () {});
     }

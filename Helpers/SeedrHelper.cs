@@ -234,7 +234,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             return true; // nothing to delete
         }
 
-        public async Task<SeedrResult> GetDownloadUrlAsync(string username, string password, string magnetUri, double sizeGb, Action<int, string> onProgress, List<string> protectedFolderIds, string movieName, CancellationToken cancellationToken)
+        public async Task<SeedrResult> GetDownloadUrlAsync(string username, string password, string magnetUri, double sizeGb, Action<int, string> onProgress, List<string> protectedFolderIds, string movieName, CancellationToken cancellationToken, Action<bool> onLowPeerWarning = null)
         {
             var token = await LoginAsync(username, password, cancellationToken);
             if (token == null) return new SeedrResult { Error = "Failed to login to Seedr" };
@@ -396,6 +396,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             var pollStart = DateTime.UtcNow;
             JsonElement? targetFolder = null;
             JsonElement? targetVideo = null;
+            int zeroPeerCycles = 0; // consecutive poll cycles with 0 peers (Item #7 — Low-Peer Warning)
 
             while (DateTime.UtcNow - pollStart < TimeSpan.FromMinutes(30))
             {
@@ -457,11 +458,32 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                             int pct = t.TryGetProperty("progress", out var tpct) ? tpct.GetInt32() : 0;
                             double speed = t.TryGetProperty("download_speed", out var tspd) ? tspd.GetDouble() / 1024.0 / 1024.0 : 0.0;
                             int peers = t.TryGetProperty("connected_to", out var tconn) ? tconn.GetInt32() : 0;
-                            onProgress?.Invoke(pct, $"Caching ({pct}% - {speed:F1} MB/s - {peers} peers)");
+
+                            // Low-peer warning: track consecutive zero-peer cycles
+                            if (peers == 0)
+                            {
+                                zeroPeerCycles++;
+                            }
+                            else
+                            {
+                                zeroPeerCycles = 0;
+                                onLowPeerWarning?.Invoke(false); // clear warning
+                            }
+
+                            if (zeroPeerCycles >= 3)
+                            {
+                                onLowPeerWarning?.Invoke(true);
+                                onProgress?.Invoke(pct, $"Caching ({pct}% - {speed:F1} MB/s) — Inactive");
+                            }
+                            else
+                            {
+                                onProgress?.Invoke(pct, $"Caching ({pct}% - {speed:F1} MB/s - {peers} sources)");
+                            }
                             break;
                         }
                     }
                 }
+
 
                 if (cFolders.ValueKind == JsonValueKind.Array)
                 {

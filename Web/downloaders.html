@@ -49,10 +49,15 @@
             </div>
 
             <h3 class="checkboxListLabel" style="margin-top: 2em;">Scraper Configuration</h3>
+            <div id="domainStatusContainer" style="display:flex; align-items:center; gap:8px; margin-bottom: 1.2em; font-size: 0.9em; background: rgba(0, 164, 220, 0.08); padding: 8px 12px; border-radius: 6px; border: 1px solid rgba(0, 164, 220, 0.25);">
+                <span class="material-icons" style="font-size:18px; color:#00a4dc;">language</span>
+                <span style="color:#aaa;">Latest Auto-Discovered Domain:</span>
+                <span id="lblActiveDomain" style="color:#00a4dc; font-weight:700;">Checking...</span>
+            </div>
             <div class="inputContainer" style="margin-bottom: 1.5em;">
                 <label class="inputLabel inputLabelUnfocused" for="txtCustomDomain">1TamilMV Domain / Mirror (Backup Override)</label>
-                <input type="text" id="txtCustomDomain" name="txtCustomDomain" class="emby-input" placeholder="e.g. 1tamilmv.meme, 1tamilmv.tf" />
-                <div class="fieldDescription" style="font-size:0.9em; color:#888; margin-top:4px;">Custom backup domain if the scraper needs a specific mirror.</div>
+                <input type="text" id="txtCustomDomain" name="txtCustomDomain" class="emby-input" placeholder="Leave blank to use auto-discovered domain" />
+                <div class="fieldDescription" style="font-size:0.9em; color:#888; margin-top:4px;">Custom backup domain if the scraper needs a specific mirror. Leave blank to auto-detect.</div>
             </div>
             <div class="inputContainer" style="margin-bottom: 1.5em;">
                 <label class="inputLabel inputLabelUnfocused" for="txtDownloadsDirectory">Downloads Directory Path</label>
@@ -118,6 +123,7 @@
                             <span style="vertical-align: middle;">Refresh</span>
                         </button>
                     </div>
+                    <div id="cleanupResultBanner" style="display:none;align-items:center;gap:10px;padding:10px 14px;border-radius:6px;border:1px solid;margin-bottom:12px;font-size:0.9em;font-weight:500;"></div>
                     <div id="historyTableContainer" style="overflow-x: auto; margin-top: 1em; max-height: 600px; overflow-y: auto;">
                         <table class="tblHistory" style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.9em;">
                             <thead>
