@@ -46,8 +46,9 @@ public class ScraperScheduledTask : IScheduledTask
     public async Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Starting External Media Scraper Task...");
-        progress.Report(5);
-        DownloadersController.ReportScrapeProgress("Starting External Media Scraper...", 5);
+        progress.Report(1);
+        DownloadersController.ResetScrapeLogs();
+        DownloadersController.ReportScrapeProgress("Starting External Media Scraper...", 1);
         
         try
         {
@@ -92,8 +93,14 @@ public class ScraperScheduledTask : IScheduledTask
             _logger.LogError(ex, "Error executing scraper scheduled task");
             DownloadersController.ReportScrapeProgress("Error: " + ex.Message, 0);
         }
-        
-        progress.Report(100);
-        _logger.LogInformation("Finished External Media Scraper Task.");
+        finally
+        {
+            progress.Report(100);
+            _logger.LogInformation("Finished External Media Scraper Task.");
+            _ = Task.Delay(10000).ContinueWith(_ =>
+            {
+                DownloadersController.ReportScrapeProgress("Idle", 0);
+            });
+        }
     }
 }

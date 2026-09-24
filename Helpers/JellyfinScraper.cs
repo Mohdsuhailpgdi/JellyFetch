@@ -398,11 +398,13 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             string downDir = string.IsNullOrWhiteSpace(downloadsDir) ? "/media/Downloads" : downloadsDir;
             Directory.CreateDirectory(downDir);
 
+            logger?.Invoke("Testing mirror domains...", 2);
             string domain = await GetWorkingDomainAsync(ct);
             if (domain == null) return new ScrapeResult { Error = "All 1TamilMV mirror domains are down." };
+            logger?.Invoke($"Connected to {domain}", 4);
 
             var allowedLangs = LoadAllowedLanguages();
-            logger?.Invoke($"Active languages: {string.Join(", ", allowedLangs)}", 5);
+            logger?.Invoke($"Active languages: {string.Join(", ", allowedLangs)}", 6);
 
             var subforumsMap = new Dictionary<string, (int Id, string Name)[]> {
                 { "Tamil", new[] { (11, "Tamil WEB-HD"), (12, "Tamil HD-Rips"), (18, "Tamil Dubbed") } },
@@ -417,6 +419,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             var seenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             // Front page scan
+            logger?.Invoke("Scanning front page for latest releases...", 8);
             try
             {
                 var req = new HttpRequestMessage(HttpMethod.Get, $"https://www.{domain}/");
@@ -431,12 +434,17 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                 }
             }
             catch { }
-            logger?.Invoke("Scanning front page completed. Scanning subforums...", 15);
+            logger?.Invoke("Front page scan completed. Scanning subforums...", 10);
 
             // Subforums scan
+            int currentLangIndex = 0;
+            int totalAllowed = allowedLangs.Count;
             foreach (var lang in allowedLangs)
             {
+                currentLangIndex++;
                 if (!subforumsMap.ContainsKey(lang)) continue;
+                double forumPct = 10.0 + ((double)currentLangIndex / (totalAllowed == 0 ? 1 : totalAllowed) * 9.0);
+                logger?.Invoke($"Scanning {lang} releases...", Math.Round(forumPct, 1));
                 foreach (var sf in subforumsMap[lang])
                 {
                     if (ct.IsCancellationRequested) return new ScrapeResult { Error = "Cancelled" };
