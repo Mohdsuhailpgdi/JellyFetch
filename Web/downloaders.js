@@ -497,22 +497,34 @@ export default function(view, params) {
         }
 
         function checkInitialStatus() {
-            fetch('/System/Configuration/Downloaders/Scrape/Status', {
+            fetch('/System/Configuration/Downloaders/MetadataStatus', {
                 headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
-            }).then(r => r.json()).then(d => {
-                if (d && d.IsRunning) {
-                    startPolling();
+            }).then(r => r.json()).then(m => {
+                var isMetaErr = m.Status === 'Error' || (m.Status && m.Status.startsWith('Error')) || (m.Status && m.Status.startsWith('Failed'));
+                if (m && m.Status && m.Status !== 'Idle' && m.Status !== 'Completed' && !isMetaErr) {
+                    startMetadataPolling();
                 } else {
-                    fetch('/System/Configuration/Downloaders/CleanupStrm/Status', {
+                    fetch('/System/Configuration/Downloaders/Scrape/Status', {
                         headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
-                    }).then(r => r.json()).then(c => {
-                        if (c && c.IsRunning) {
-                            startCleanupPolling();
+                    }).then(r => r.json()).then(d => {
+                        if (d && d.IsRunning) {
+                            startPolling();
                         } else {
-                            progressContainer.style.display = 'none';
-                            btnRunScraper.style.display = 'block';
-                            if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
-                            btnStopScraper.style.display = 'none';
+                            fetch('/System/Configuration/Downloaders/CleanupStrm/Status', {
+                                headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
+                            }).then(r => r.json()).then(c => {
+                                if (c && c.IsRunning) {
+                                    startCleanupPolling();
+                                } else {
+                                    progressContainer.style.display = 'none';
+                                    btnRunScraper.style.display = 'block';
+                                    if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
+                                    if (btnCleanMetadata) btnCleanMetadata.style.display = 'block';
+                                    btnStopScraper.style.display = 'none';
+                                }
+                            }).catch(() => {
+                                progressContainer.style.display = 'none';
+                            });
                         }
                     }).catch(() => {
                         progressContainer.style.display = 'none';
@@ -612,10 +624,10 @@ export default function(view, params) {
                         if (r.ok) {
                             startMetadataPolling();
                         } else {
-                            r.json().then(j => alert(j.Message || 'Failed to start metadata cleanup.'));
+                            r.json().then(j => showCleanupBanner(j.Message || 'Failed to start metadata cleanup.', true));
                         }
                     }).catch(err => {
-                        alert('Error starting metadata cleanup: ' + err);
+                        showCleanupBanner('Error starting metadata cleanup: ' + err, true);
                     });
                 };
 

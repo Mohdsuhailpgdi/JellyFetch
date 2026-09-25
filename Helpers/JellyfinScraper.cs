@@ -250,55 +250,34 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                 logger?.Invoke($"Disk scan notice: {ex.Message}", -1);
             }
 
-            // 2. Query ILibraryManager via reflection for all real movies in the library
+            // 2. Query ILibraryManager for all real movies in the library
             if (_libraryManager != null)
             {
                 try
                 {
-                    var getItemListMethod = _libraryManager.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance)
-                        .FirstOrDefault(m => m.Name == "GetItemList" && m.GetParameters().Length == 1);
-
-                    if (getItemListMethod != null)
+                    var query = new InternalItemsQuery
                     {
-                        var queryParamType = getItemListMethod.GetParameters()[0].ParameterType;
-                        var queryObj = Activator.CreateInstance(queryParamType);
-                        queryParamType.GetProperty("Recursive")?.SetValue(queryObj, true);
+                        IncludeItemTypes = new[] { BaseItemKind.Movie },
+                        Recursive = true,
+                        IsVirtualItem = false
+                    };
 
-                        var itemTypesProp = queryParamType.GetProperty("IncludeItemTypes");
-                        if (itemTypesProp != null)
+                    var items = _libraryManager.GetItemList(query);
+                    foreach (var item in items)
+                    {
+                        bool isStrm = !string.IsNullOrEmpty(item.Path) && 
+                                      item.Path.EndsWith(".strm", StringComparison.OrdinalIgnoreCase);
+
+                        // If not a .strm dummy (e.g. .mkv/.mp4 on Google Drive or local storage), record it
+                        if (!isStrm)
                         {
-                            var elemType = itemTypesProp.PropertyType.GetElementType();
-                            if (elemType != null && Enum.TryParse(elemType, "Movie", out var movieVal))
+                            var k1 = NormalizeKey(item.Name);
+                            if (!string.IsNullOrEmpty(k1)) keys.Add(k1);
+
+                            if (!string.IsNullOrEmpty(item.OriginalTitle))
                             {
-                                var arr = Array.CreateInstance(elemType, 1);
-                                arr.SetValue(movieVal, 0);
-                                itemTypesProp.SetValue(queryObj, arr);
-                            }
-                        }
-
-                        var items = getItemListMethod.Invoke(_libraryManager, new object[] { queryObj }) as System.Collections.IEnumerable;
-                        if (items != null)
-                        {
-                            foreach (var obj in items)
-                            {
-                                if (obj is BaseItem item)
-                                {
-                                    bool isStrm = !string.IsNullOrEmpty(item.Path) && 
-                                                  item.Path.EndsWith(".strm", StringComparison.OrdinalIgnoreCase);
-
-                                    // If not a .strm dummy (e.g. .mkv/.mp4 on Google Drive or local storage), record it
-                                    if (!isStrm)
-                                    {
-                                        var k1 = NormalizeKey(item.Name);
-                                        if (!string.IsNullOrEmpty(k1)) keys.Add(k1);
-
-                                        if (!string.IsNullOrEmpty(item.OriginalTitle))
-                                        {
-                                            var k2 = NormalizeKey(item.OriginalTitle);
-                                            if (!string.IsNullOrEmpty(k2)) keys.Add(k2);
-                                        }
-                                    }
-                                }
+                                var k2 = NormalizeKey(item.OriginalTitle);
+                                if (!string.IsNullOrEmpty(k2)) keys.Add(k2);
                             }
                         }
                     }

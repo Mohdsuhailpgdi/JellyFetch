@@ -5,7 +5,7 @@
   
   **Automated media scraping, cloud downloading, and library injection for Jellyfin.**
   
-  [![Version](https://img.shields.io/badge/version-1.2.3-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
+  [![Version](https://img.shields.io/badge/version-1.3.2-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
   [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9.x--12.x-orange)](https://jellyfin.org)
   [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey)](https://github.com/Mohdsuhailpgdi/JellyFetch)
 </div>
@@ -17,14 +17,24 @@ This plugin is specifically optimized for Indian media consumers. The default sc
 
 ---
 
-## ✨ What's New in v1.2.3 — Task Execution Hardening & Progress Granularity
+## ✨ What's New in v1.3.2 — Phase 2 Metadata & UI Polish
 
-- 🛡️ **Reflection-Based Task Worker Execution** — Fixed edge cases where triggering Scraper or Cleanup tasks from the plugin dashboard could fail with `InvalidCastException`. Now uses reflection to reliably resolve and invoke the native `IScheduledTaskWorker` regardless of Jellyfin version internals.
+- 🧹 **Sanitize Scheduled Task & UI Fixes** — Integrated "Sanitize Library Metadata" directly into Jellyfin's official background Scheduled Tasks. Fixed UI polling so that progress persists across page reloads and displays as native Jellyfin banners instead of intrusive pop-ups.
+- ⚡ **Sanitize Speed Optimization** — Sped up the sanitize task dramatically by using `ffprobe` to check if metadata titles exist first, skipping already-scrubbed files instead of running a redundant `ffmpeg -c copy` on every single media file.
+- 🗑️ **File Artifact Cleanup** — Handled and cleaned up `.mkv.tmp.mkv` duplicate extensions caused by in-place metadata edits.
+- ☁️ **Prod Migration Exclusions** — Added support for intelligent `rclone` migration exclusion of `.strm` and `.part` dummy files during cloud offloads.
+
+---
+
+<details>
+<summary><b>📜 What's New in v1.2.3 — Task Execution Hardening & Progress Granularity</b></summary>
+
+- 🛡️ **Reflection-Based Task Worker Execution** — Fixed edge cases where triggering Scraper or Cleanup tasks from the plugin dashboard could fail with `InvalidCastException`.
 - 🧹 **Fresh Log Panel on Each Run** — Activity logs now auto-clear when a new task starts, preventing stale entries from previous runs from cluttering the live log view.
 - ⏳ **Graceful Idle Reset** — After a task completes, the progress indicator holds at `100%` for 10 seconds before quietly resetting to `Idle`, giving users time to read the final status.
 - 📊 **Richer Scraper Progress Milestones** — Scraper now reports granular per-stage milestones: domain testing, connection confirmation, front page scan, and per-language subforum scanning with individual progress points.
 
----
+</details>
 
 <details>
 <summary><b>📜 What's New in v1.2.2 — Native Scheduled Tasks & Two-Way Sync</b></summary>
