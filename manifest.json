@@ -13,7 +13,7 @@
         "changelog": "v1.2.3: Improved task execution robustness — reflection-based IScheduledTaskWorker execution, fresh log clearing on task start, delayed Idle reset after completion, and richer scraper progress granularity with per-stage domain discovery and per-language scanning milestones.",
         "targetAbi": "10.9.9.0",
         "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
-        "checksum": "PLACEHOLDER",
+        "checksum": "CC97015C0FA48E8586E463EAAE452E7F",
         "timestamp": "2026-09-25T00:00:00Z"
       },
       {

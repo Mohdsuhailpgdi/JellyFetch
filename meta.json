@@ -1,6 +1,6 @@
 {
     "category": "General",
-    "changelog": "v1.2.2: Native Scheduled Tasks integration (Scrape and Cleanup registered as IScheduledTask in Jellyfin TaskManager), dashboard tab navigation persistence, and seamless progress reporting.",
+    "changelog": "v1.2.3: Task execution hardening and scraper progress granularity — reflection-based IScheduledTaskWorker execution, fresh log clearing on task start, delayed Idle reset after completion, and richer scraper progress milestones.",
     "description": "Native Downloads ecosystem for Jellyfin. Scrapes external forums for new media and integrates with Seedr and Torbox for downloading.",
     "guid": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
     "imageUrl": "",
@@ -11,12 +11,12 @@
     "timestamp": "2026-09-25T00:00:00Z",
     "versions": [
         {
-            "checksum": "",
-            "changelog": "v1.2.2: Native Scheduled Tasks integration (Scrape and Cleanup registered as IScheduledTask in Jellyfin TaskManager), dashboard tab navigation persistence, and seamless progress reporting.",
+            "checksum": "CC97015C0FA48E8586E463EAAE452E7F",
+            "changelog": "v1.2.3: Task execution hardening and scraper progress granularity — reflection-based IScheduledTaskWorker execution, fresh log clearing on task start, delayed Idle reset after completion, and richer scraper progress milestones.",
             "targetAbi": "10.9.0.0",
-            "sourceUrl": "",
+            "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
             "timestamp": "2026-09-25T00:00:00Z",
-            "version": "1.2.2.0"
+            "version": "1.2.3.0"
         }
     ]
 }
