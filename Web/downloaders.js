@@ -9,6 +9,7 @@ export default function(view, params) {
             view.querySelector('#txtSeedrUsername').value = config.SeedrUsername || '';
             view.querySelector('#txtSeedrPassword').value = config.SeedrPassword || '';
             view.querySelector('#txtTorboxApiKey').value = config.TorboxApiKey || '';
+            view.querySelector('#txtOmdbApiKey').value = config.OmdbApiKey || '';
             view.querySelector('#txtDownloadsDirectory').value = config.DownloadsDirectory || '/media/Downloads';
             
             const chkSeedr = view.querySelector('#chkEnableSeedr');
@@ -693,6 +694,7 @@ export default function(view, params) {
             config.SeedrUsername = view.querySelector('#txtSeedrUsername').value;
             config.SeedrPassword = view.querySelector('#txtSeedrPassword').value;
             config.TorboxApiKey = view.querySelector('#txtTorboxApiKey').value;
+            config.OmdbApiKey = view.querySelector('#txtOmdbApiKey').value;
             config.DownloadsDirectory = view.querySelector('#txtDownloadsDirectory').value;
             
             config.EnableSeedr = view.querySelector('#chkEnableSeedr').checked;

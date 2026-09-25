@@ -19,6 +19,11 @@ public class PluginConfiguration : BasePluginConfiguration
     public string TorboxApiKey { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the OMDb API key for fallback language checks.
+    /// </summary>
+    public string OmdbApiKey { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets the Seedr username or API key.
     /// </summary>
     public string SeedrUsername { get; set; } = string.Empty;

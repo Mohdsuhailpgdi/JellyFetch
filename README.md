@@ -5,7 +5,7 @@
   
   **Automated media scraping, cloud downloading, and library injection for Jellyfin.**
   
-  [![Version](https://img.shields.io/badge/version-1.3.2-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
+  [![Version](https://img.shields.io/badge/version-1.3.3-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
   [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9.x--12.x-orange)](https://jellyfin.org)
   [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey)](https://github.com/Mohdsuhailpgdi/JellyFetch)
 </div>
@@ -17,12 +17,23 @@ This plugin is specifically optimized for Indian media consumers. The default sc
 
 ---
 
-## ✨ What's New in v1.3.2 — Phase 2 Metadata & UI Polish
+## ✨ What's New in v1.3.3 — Strict Language & Edge Case Fixes
+
+- 🛡️ **TMDB Rate Limiting Resilience** — Scraping a large number of movies previously triggered TMDB "429 Too Many Requests", falling back to OMDB, which occasionally bypassed strict language filters. Added resilient retry logic with delays to guarantee accurate TMDB/OMDB original language verification.
+- 🌍 **Unmapped Foreign Language Rejection** — Movies originating in languages completely outside the supported Indian languages (e.g. French, Spanish) are now correctly identified and stringently rejected by the scraper, preventing foreign theater releases from silently passing through as local dubs.
+- 🎬 **Cam Print UI Button Fix** — Fixed a bug where movies possessing *only* HDCAM or Pre-DVD prints would cause the "Download" button to disappear from the movie details page, leaving behind a confusing "Play" button. These lower-tier prints are now available for download but automatically sorted to the bottom of the list.
+
+---
+
+<details>
+<summary><b>📜 What's New in v1.3.2 — Phase 2 Metadata & UI Polish</b></summary>
 
 - 🧹 **Sanitize Scheduled Task & UI Fixes** — Integrated "Sanitize Library Metadata" directly into Jellyfin's official background Scheduled Tasks. Fixed UI polling so that progress persists across page reloads and displays as native Jellyfin banners instead of intrusive pop-ups.
 - ⚡ **Sanitize Speed Optimization** — Sped up the sanitize task dramatically by using `ffprobe` to check if metadata titles exist first, skipping already-scrubbed files instead of running a redundant `ffmpeg -c copy` on every single media file.
 - 🗑️ **File Artifact Cleanup** — Handled and cleaned up `.mkv.tmp.mkv` duplicate extensions caused by in-place metadata edits.
 - ☁️ **Prod Migration Exclusions** — Added support for intelligent `rclone` migration exclusion of `.strm` and `.part` dummy files during cloud offloads.
+
+</details>
 
 ---
 

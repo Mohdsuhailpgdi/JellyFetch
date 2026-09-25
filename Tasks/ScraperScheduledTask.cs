@@ -69,12 +69,9 @@ public class ScraperScheduledTask : IScheduledTask
             if (res.Success)
             {
                 _logger.LogInformation($"Scraper finished successfully. Found {res.NewMoviesCount} new movies.");
-                if (res.NewMoviesCount > 0)
-                {
-                    DownloadersController.ReportScrapeProgress("Scanning Jellyfin media library...", 95);
-                    progress.Report(95);
-                    await _libraryManager.ValidateMediaLibrary(new Progress<double>(), cancellationToken);
-                }
+                DownloadersController.ReportScrapeProgress("Scanning Jellyfin media library...", 95);
+                progress.Report(95);
+                await _libraryManager.ValidateMediaLibrary(new Progress<double>(), cancellationToken);
                 DownloadersController.ReportScrapeProgress($"Completed. Found {res.NewMoviesCount} new movies.", 100);
             }
             else
