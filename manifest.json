@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/icon.jpg",
     "versions": [
       {
+        "version": "1.3.1.0",
+        "changelog": "v1.3.1: Hotfix. Removed strict TMDB original language filtering that caused SSL/IPv6 Connection Reset exceptions on Ubuntu ARM64.",
+        "targetAbi": "10.9.9.0",
+        "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
+        "checksum": "F45101DE5F0B4C964DAAD36E078F01C7",
+        "timestamp": "2026-09-25T00:00:00Z"
+      },
+      {
         "version": "1.3.0.0",
         "changelog": "v1.3.0: Phase 2 completion. Implemented metadata sanitization (mkvpropedit), granular cleanups, provider API validation, history clearing, and UI polish.",
         "targetAbi": "10.9.9.0",
