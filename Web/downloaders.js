@@ -177,6 +177,7 @@ export default function(view, params) {
             progressBar.style.backgroundColor = '#00a4dc';
             btnRunScraper.style.display = 'none';
             if (btnCleanupScraper) btnCleanupScraper.style.display = 'none';
+            if (btnCleanMetadata) btnCleanMetadata.style.display = 'none';
             btnStopScraper.style.display = 'block';
             btnStopScraper.querySelector('span').innerText = 'Stop Scraper';
             if (logBox) logBox.textContent = '';
@@ -189,6 +190,7 @@ export default function(view, params) {
                         progressContainer.style.display = 'block';
                         btnRunScraper.style.display = 'none';
                         if (btnCleanupScraper) btnCleanupScraper.style.display = 'none';
+                        if (btnCleanMetadata) btnCleanMetadata.style.display = 'none';
                         btnStopScraper.style.display = d.IsRunning ? 'block' : 'none';
                         
                         let pct = d.Progress || 0;
@@ -202,6 +204,7 @@ export default function(view, params) {
                             setTimeout(() => {
                                 btnRunScraper.style.display = 'block';
                                 if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
+                                if (btnCleanMetadata) btnCleanMetadata.style.display = 'block';
                                 btnStopScraper.style.display = 'none';
                                 progressContainer.style.display = 'none';
                             }, 3000);
@@ -210,6 +213,7 @@ export default function(view, params) {
                         clearInterval(pollInterval);
                         btnRunScraper.style.display = 'block';
                         if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
+                        if (btnCleanMetadata) btnCleanMetadata.style.display = 'block';
                         btnStopScraper.style.display = 'none';
                         progressContainer.style.display = 'none';
                     }
@@ -217,6 +221,7 @@ export default function(view, params) {
                     clearInterval(pollInterval);
                     btnRunScraper.style.display = 'block';
                     if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
+                    if (btnCleanMetadata) btnCleanMetadata.style.display = 'block';
                     btnStopScraper.style.display = 'none';
                     progressContainer.style.display = 'none';
                 });
@@ -322,6 +327,7 @@ export default function(view, params) {
                         progressContainer.style.display = 'block';
                         btnRunScraper.style.display = 'none';
                         if (btnCleanupScraper) btnCleanupScraper.style.display = 'none';
+                        if (btnCleanMetadata) btnCleanMetadata.style.display = 'none';
                         btnStopScraper.style.display = d.IsRunning ? 'block' : 'none';
 
                         let pct = d.Progress || 0;
@@ -349,6 +355,7 @@ export default function(view, params) {
                             setTimeout(() => {
                                 btnRunScraper.style.display = 'block';
                                 if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
+                                if (btnCleanMetadata) btnCleanMetadata.style.display = 'block';
                                 btnStopScraper.style.display = 'none';
                                 progressContainer.style.display = 'none';
                             }, 3000);
@@ -357,6 +364,7 @@ export default function(view, params) {
                         clearInterval(pollInterval);
                         btnRunScraper.style.display = 'block';
                         if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
+                        if (btnCleanMetadata) btnCleanMetadata.style.display = 'block';
                         btnStopScraper.style.display = 'none';
                         progressContainer.style.display = 'none';
                     }
@@ -364,6 +372,7 @@ export default function(view, params) {
                     clearInterval(pollInterval);
                     btnRunScraper.style.display = 'block';
                     if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
+                    if (btnCleanMetadata) btnCleanMetadata.style.display = 'block';
                     btnStopScraper.style.display = 'none';
                     progressContainer.style.display = 'none';
                 });

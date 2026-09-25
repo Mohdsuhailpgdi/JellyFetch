@@ -13,7 +13,7 @@
         "changelog": "v1.3.2: Phase 2 completion. Implemented metadata sanitization background task (mkvpropedit/ffprobe), granular cleanups, provider API validation, history clearing, and UI polish. Fixed duplicate extension artifacts and optimized background migrations.",
         "targetAbi": "10.9.9.0",
         "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
-        "checksum": "D1B8421CD1534A90B09375580C6C226F",
+        "checksum": "EACD2CB4755F5B68C576E6424DFEEBAC",
         "timestamp": "2026-09-26T00:00:00Z"
       },
       {

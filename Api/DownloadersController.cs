@@ -1268,6 +1268,17 @@ public class DownloadersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult TriggerMetadataCleanup()
     {
+        var worker = GetTaskWorker(_taskManager, "SanitizeScheduledTask", "SanitizeJellyFetchMetadata");
+        if (worker != null)
+        {
+            if (TryExecuteScheduledTask(_taskManager, worker))
+            {
+                return Ok(new { Message = "Metadata sanitization task started via Jellyfin TaskManager." });
+            }
+            return StatusCode(500, new { Message = "Failed to start metadata sanitization task." });
+        }
+
+        // Fallback if TaskManager injection failed or task not registered
         if (_metadataStatus != "Idle" && _metadataStatus != "Completed" && _metadataStatus != "Error")
         {
             return BadRequest(new { Message = "Metadata sanitization is already running." });
