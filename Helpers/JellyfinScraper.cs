@@ -262,8 +262,11 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                         IsVirtualItem = false
                     };
 
-                    var items = _libraryManager.GetItemList(query);
-                    foreach (var item in items)
+                    var method = _libraryManager.GetType().GetMethod("GetItemList", new[] { typeof(InternalItemsQuery) }) 
+                                 ?? typeof(ILibraryManager).GetMethod("GetItemList", new[] { typeof(InternalItemsQuery) });
+                    
+                    var items = (System.Collections.IEnumerable)method.Invoke(_libraryManager, new object[] { query });
+                    foreach (MediaBrowser.Controller.Entities.BaseItem item in items)
                     {
                         bool isStrm = !string.IsNullOrEmpty(item.Path) && 
                                       item.Path.EndsWith(".strm", StringComparison.OrdinalIgnoreCase);
