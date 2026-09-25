@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Entities;
 using Jellyfin.Data.Enums;
+using TMDbLib.Client;
 
 namespace Jellyfin.Plugin.JellyFetch.Helpers
 {
@@ -493,8 +494,51 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                     var (langs, ok) = DetectLanguage(title, task.Lang, allowedLangs);
                     if (!ok) return;
 
-                    var (full, baseN, _) = CleanMovieTitle(title);
+                    var (full, baseN, yearStr) = CleanMovieTitle(title);
                     if (string.IsNullOrEmpty(baseN) || baseN.Length < 2) return;
+
+                    // STRICT ORIGINAL LANGUAGE CHECK VIA TMDB
+                    try
+                    {
+                        using var tmdbClient = new TMDbClient("f6bd687ffa63cd282b6ff2c6877f2669");
+                        int.TryParse(yearStr, out int year);
+                        var searchResult = await tmdbClient.SearchMovieAsync(baseN, year: year > 0 ? year : 0, cancellationToken: tct);
+                        
+                        if (searchResult.Results.Count == 0 && year > 0)
+                        {
+                            // Retry without year if the first attempt fails (common for dubbed re-releases)
+                            searchResult = await tmdbClient.SearchMovieAsync(baseN, cancellationToken: tct);
+                        }
+
+                        if (searchResult.Results.Count > 0)
+                        {
+                            var match = searchResult.Results.FirstOrDefault();
+                            if (match != null && !string.IsNullOrEmpty(match.OriginalLanguage))
+                            {
+                                var langMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
+                                    { "ta", "Tamil" }, { "ml", "Malayalam" }, { "te", "Telugu" }, 
+                                    { "kn", "Kannada" }, { "hi", "Hindi" }, { "en", "English" }
+                                };
+                                
+                                if (langMap.TryGetValue(match.OriginalLanguage, out string tmdbLangName))
+                                {
+                                    if (!allowedLangs.Contains(tmdbLangName))
+                                    {
+                                        logger?.Invoke($"Dropped {full} - Original language is {tmdbLangName} (Disabled)", -1);
+                                        return; // Skip this movie entirely!
+                                    }
+                                }
+                            }
+                        }
+                        else
+                        {
+                            logger?.Invoke($"TMDB Warning: '{baseN}' not found. Falling back to title-based language.", -1);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger?.Invoke($"TMDB check failed for {full}: {ex.Message}", -1);
+                    }
 
                     // Prevent duplicate entries: skip if already downloaded anywhere in the Jellyfin library
                     var normKey = NormalizeKey(baseN);

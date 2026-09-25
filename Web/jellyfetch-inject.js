@@ -1,5 +1,5 @@
 /**
- * JellyFetch UI Injection Script — v1.0.5
+ * JellyFetch UI Injection Script — v1.3.0
  *
  * Listens to Jellyfin's native viewshow / hashchange events.
  * Zero MutationObservers. Zero recursive DOM loops.
@@ -223,10 +223,15 @@
             .then(function (r) { return r.ok ? r.json() : null; })
             .catch(function () { return null; });
 
-        Promise.all([statusPromise, optionsPromise]).then(function (results) {
+        var userPromise = (window.ApiClient && window.ApiClient.getCurrentUser)
+            ? window.ApiClient.getCurrentUser()
+            : Promise.resolve(null);
+
+        Promise.all([statusPromise, optionsPromise, userPromise]).then(function (results) {
             if (isPlayerActive() || state.itemId !== targetId) return;
             var st = results[0];
             var optData = results[1];
+            var user = results[2];
 
             var isActivelyDownloading = st && !st.Completed && st.Status !== 'Idle' && st.Status !== 'Stopped' && st.Status !== 'Failed';
             var opts = Array.isArray(optData) ? optData : (optData && optData.Options ? optData.Options : []);

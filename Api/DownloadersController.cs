@@ -101,6 +101,11 @@ public class DownloadersController : ControllerBase
     private static readonly List<string> _cleanupLogs = new();
     private static readonly object _cleanupLogLock = new();
 
+    private static string _metadataStatus = "Idle";
+    private static double _metadataProgress = 0;
+    private static readonly List<string> _metadataLogs = new();
+    private static readonly object _metadataLogLock = new();
+
     public static void ReportScrapeProgress(string msg, double pct)
     {
         if (pct >= 0) _scrapeProgress = Math.Round(pct, 1);
@@ -128,6 +133,21 @@ public class DownloadersController : ControllerBase
         lock (_cleanupLogLock)
         {
             _cleanupLogs.Clear();
+        }
+    }
+
+    public static void ReportMetadataProgress(string msg, double pct)
+    {
+        if (pct >= 0) _metadataProgress = Math.Round(pct, 1);
+        _metadataStatus = msg;
+        AddMetadataLog(msg);
+    }
+
+    public static void ResetMetadataLogs()
+    {
+        lock (_metadataLogLock)
+        {
+            _metadataLogs.Clear();
         }
     }
 
@@ -222,6 +242,15 @@ public class DownloadersController : ControllerBase
         {
             _cleanupLogs.Add($"[{DateTime.Now:HH:mm:ss}] {msg}");
             if (_cleanupLogs.Count > 120) _cleanupLogs.RemoveAt(0);
+        }
+    }
+
+    private static void AddMetadataLog(string msg)
+    {
+        lock (_metadataLogLock)
+        {
+            _metadataLogs.Add($"[{DateTime.Now:HH:mm:ss}] {msg}");
+            if (_metadataLogs.Count > 120) _metadataLogs.RemoveAt(0);
         }
     }
 
@@ -393,6 +422,14 @@ public class DownloadersController : ControllerBase
         if (dir != null && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
         System.IO.File.WriteAllText(path, JsonSerializer.Serialize(langs));
         return Ok(new { Message = "Allowed languages updated.", Languages = langs });
+    }
+
+    [HttpDelete("Activity")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult> ClearActivityHistory()
+    {
+        await DownloadHistoryManager.ClearHistoryAsync();
+        return Ok(new { Message = "History cleared." });
     }
 
     [HttpGet("History")]
@@ -909,6 +946,8 @@ public class DownloadersController : ControllerBase
                             
                             await StreamWithProgressAsync(url, targetPath, progress, progress.Cts.Token);
                             
+                            progress.Status = "Sanitizing metadata...";
+                            await SanitizeVideoMetadataAsync(targetPath);
                             progress.Progress = 90;
                             
                             var nfoPath = Path.Combine(targetDir, Path.GetFileNameWithoutExtension(fileName) + ".nfo");
@@ -1062,6 +1101,8 @@ public class DownloadersController : ControllerBase
                             await StreamWithProgressAsync(finalUrl, targetPath, progress, progress.Cts.Token);
                             
                             _logger.LogInformation("Successfully saved media file: {Target}", targetPath);
+                            progress.Status = "Sanitizing metadata...";
+                            await SanitizeVideoMetadataAsync(targetPath);
                             progress.Progress = 90;
                             
                             var nfoPath = Path.Combine(targetDir, Path.GetFileNameWithoutExtension(fileName) + ".nfo");
@@ -1148,6 +1189,123 @@ public class DownloadersController : ControllerBase
                 }
     }
 
+
+    private async Task SanitizeVideoMetadataAsync(string filePath)
+    {
+        if (string.IsNullOrEmpty(filePath) || !System.IO.File.Exists(filePath)) return;
+        try
+        {
+            if (filePath.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase) || filePath.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogInformation("Sanitizing metadata for {File}", filePath);
+                string tmpFile = filePath + ".tmp" + Path.GetExtension(filePath);
+                using var proc = new System.Diagnostics.Process();
+                proc.StartInfo.FileName = "/usr/lib/jellyfin-ffmpeg/ffmpeg";
+                // Strip title from the container, video, audio, and subtitle streams.
+                proc.StartInfo.Arguments = $"-y -i \"{filePath}\" -map 0 -c copy -metadata title=\"\" -metadata:s:v title=\"\" -metadata:s:a title=\"\" -metadata:s:s title=\"\" \"{tmpFile}\"";
+                proc.StartInfo.UseShellExecute = false;
+                proc.StartInfo.RedirectStandardError = true;
+                proc.StartInfo.RedirectStandardOutput = true;
+                proc.Start();
+                await proc.WaitForExitAsync();
+                
+                if (proc.ExitCode == 0 && System.IO.File.Exists(tmpFile))
+                {
+                    System.IO.File.Delete(filePath);
+                    System.IO.File.Move(tmpFile, filePath);
+                    _logger.LogInformation("Successfully sanitized metadata for {File}", filePath);
+                }
+                else
+                {
+                    string err = await proc.StandardError.ReadToEndAsync();
+                    _logger.LogWarning("ffmpeg metadata sanitization failed for {File}. ExitCode: {Code}. Error: {Error}", filePath, proc.ExitCode, err);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to sanitize metadata for {File}", filePath);
+        }
+    }
+
+    [HttpGet("MetadataStatus")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult GetMetadataStatus()
+    {
+        List<string> logs;
+        lock (_metadataLogLock)
+        {
+            logs = _metadataLogs.ToList();
+        }
+        return Ok(new
+        {
+            Status = _metadataStatus,
+            Progress = _metadataProgress,
+            Logs = logs
+        });
+    }
+
+    [HttpPost("CleanMetadata")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult TriggerMetadataCleanup()
+    {
+        if (_metadataStatus != "Idle" && _metadataStatus != "Completed" && _metadataStatus != "Error")
+        {
+            return BadRequest(new { Message = "Metadata sanitization is already running." });
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                ResetMetadataLogs();
+                ReportMetadataProgress("Starting metadata sanitization...", 5);
+                var config = Plugin.Instance?.Configuration ?? new PluginConfiguration();
+                string dir = config.DownloadsDirectory;
+                if (string.IsNullOrEmpty(dir)) dir = "/media/Downloads";
+                
+                if (!Directory.Exists(dir))
+                {
+                    ReportMetadataProgress("Downloads directory does not exist.", 100);
+                    _metadataStatus = "Error";
+                    return;
+                }
+                
+                var files = Directory.GetFiles(dir, "*.*", SearchOption.AllDirectories)
+                    .Where(f => f.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                
+                if (files.Count == 0)
+                {
+                    ReportMetadataProgress("No MKV or MP4 files found to sanitize.", 100);
+                    _metadataStatus = "Completed";
+                    return;
+                }
+
+                int count = 0;
+                foreach (var file in files)
+                {
+                    double pct = 5 + ((double)count / files.Count * 85);
+                    ReportMetadataProgress($"Sanitizing {Path.GetFileName(file)}...", pct);
+                    await SanitizeVideoMetadataAsync(file);
+                    count++;
+                }
+
+                ReportMetadataProgress("Refreshing Jellyfin Library...", 95);
+                await _libraryManager.ValidateMediaLibrary(new Progress<double>(), System.Threading.CancellationToken.None);
+                
+                ReportMetadataProgress($"Successfully sanitized {count} files.", 100);
+                _metadataStatus = "Completed";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during library metadata sanitization.");
+                ReportMetadataProgress("Error: " + ex.Message, 100);
+                _metadataStatus = "Error";
+            }
+        });
+        return Ok(new { Message = "Metadata cleanup started in background." });
+    }
 
     public static async Task ExecuteCleanupAsync(
         ILibraryManager libraryManager,
@@ -1390,6 +1548,31 @@ public class DownloadersController : ControllerBase
         return Ok(new { Message = "Cleanup started." });
     }
 
+    [HttpPost("ResetPlugin")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult ResetPlugin()
+    {
+        if (Plugin.Instance != null)
+        {
+            Plugin.Instance.UpdateConfiguration(new PluginConfiguration());
+            
+            var pluginDataPath = Plugin.Instance.DataFolderPath;
+            var languagesPath = Path.Combine(pluginDataPath, "allowed_languages.json");
+            if (System.IO.File.Exists(languagesPath))
+            {
+                try
+                {
+                    System.IO.File.Delete(languagesPath);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error deleting allowed_languages.json during reset.");
+                }
+            }
+        }
+        return Ok(new { Message = "Plugin configuration has been reset to defaults." });
+    }
+
     [HttpGet("CleanupStrm/Status")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult GetCleanupStatus()
@@ -1443,6 +1626,42 @@ public class DownloadersController : ControllerBase
         _cleanupStatus = "Cleanup stopped by user.";
         AddCleanupLog("Cleanup stopped by user.");
         return Ok(new { Message = "Cleanup stopped." });
+    }
+
+    [HttpDelete("PurgeAllStrm")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult PurgeAllStrm()
+    {
+        var config = Plugin.Instance?.Configuration;
+        if (config == null || string.IsNullOrEmpty(config.DownloadsDirectory))
+        {
+            return BadRequest(new { Message = "Downloads directory not configured." });
+        }
+
+        if (!Directory.Exists(config.DownloadsDirectory))
+        {
+            return Ok(new { Message = "Directory does not exist, nothing to purge." });
+        }
+
+        try
+        {
+            var dirs = Directory.GetDirectories(config.DownloadsDirectory);
+            int count = 0;
+            foreach (var dir in dirs)
+            {
+                if (Directory.GetFiles(dir, "*.strm", SearchOption.AllDirectories).Any())
+                {
+                    Directory.Delete(dir, true);
+                    count++;
+                }
+            }
+            return Ok(new { Message = $"Purged {count} movie folders containing .strm files." });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error purging all scraped movies");
+            return StatusCode(500, new { Message = "Error purging files: " + ex.Message });
+        }
     }
 
     [HttpPost("Scrape")]

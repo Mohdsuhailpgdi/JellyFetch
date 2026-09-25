@@ -19,9 +19,9 @@
                         <span>Enable Seedr for files &le; 4GB</span>
                     </label>
                 </div>
-                <div id="seedrActiveStatus" style="font-size: 0.85em; color: #4caf50; display: none; margin-bottom: 1.5em; padding-left: 28px;">
-                    <span class="material-icons" style="font-size:16px; vertical-align:middle; margin-right:4px;">check_circle</span>
-                    <span style="vertical-align:middle;">Seedr cloud downloader active</span>
+                <div id="seedrActiveStatus" style="font-size: 0.85em; display: none; margin-bottom: 1.5em; padding-left: 28px;">
+                    <span id="seedrActiveIcon" class="material-icons" style="font-size:16px; vertical-align:middle; margin-right:4px;">check_circle</span>
+                    <span id="seedrActiveText" style="vertical-align:middle;">Checking...</span>
                 </div>
                 <div class="inputContainer">
                     <label class="inputLabel inputLabelUnfocused" for="txtSeedrUsername">Seedr Username / Email</label>
@@ -39,9 +39,9 @@
                         <span>Enable Torbox for files &gt; 4GB</span>
                     </label>
                 </div>
-                <div id="torboxActiveStatus" style="font-size: 0.85em; color: #4caf50; display: none; margin-bottom: 1.5em; padding-left: 28px;">
-                    <span class="material-icons" style="font-size:16px; vertical-align:middle; margin-right:4px;">check_circle</span>
-                    <span style="vertical-align:middle;">Torbox cloud downloader active</span>
+                <div id="torboxActiveStatus" style="font-size: 0.85em; display: none; margin-bottom: 1.5em; padding-left: 28px;">
+                    <span id="torboxActiveIcon" class="material-icons" style="font-size:16px; vertical-align:middle; margin-right:4px;">check_circle</span>
+                    <span id="torboxActiveText" style="vertical-align:middle;">Checking...</span>
                 </div>
                 <div class="inputContainer">
                     <label class="inputLabel inputLabelUnfocused" for="txtTorboxApiKey">Torbox API Key</label>
@@ -79,6 +79,10 @@
                 <div>
                     <button is="emby-button" type="submit" class="raised button-submit block formDialogFooterItem">
                         <span>Save Settings</span>
+                    </button>
+                    <button is="emby-button" type="button" id="btnResetPlugin" class="raised block formDialogFooterItem" style="margin-top: 10px; background-color: rgba(220, 0, 0, 0.1); color: #ff5252; border: 1px solid rgba(220, 0, 0, 0.3);">
+                        <span class="material-icons" style="font-size: 1.2em; vertical-align: middle; margin-right: 5px;">restart_alt</span>
+                        <span style="vertical-align: middle;">Reset Plugin & Clear Credentials</span>
                     </button>
                 </div>
             </form>
@@ -122,10 +126,10 @@
                 </div>
                 <p style="color: #aaa; margin-bottom: 1em;">Manually trigger the 1TamilMV scraper to fetch the latest movie topics and magnet links.</p>
                 <div style="display:flex; align-items:center; gap:10px;">
-                    <button is="emby-button" type="button" id="btnRunScraper" class="raised" style="background-color:#00a4dc; color:white; padding:0.5em 1em; border-radius:4px; font-weight:bold;">
+                    <button is="emby-button" type="button" id="btnRunScraper" class="raised" style="background-color:#00a4dc; color:white; padding:0.5em 1em; border-radius:4px; font-weight:bold; min-width: 380px; text-align: center; justify-content: center;">
                         <span>Run Scraper Now</span>
                     </button>
-                    <button is="emby-button" type="button" id="btnStopScraper" class="raised" style="background-color:#dc0000; color:white; padding:0.5em 1em; border-radius:4px; font-weight:bold; display:none;">
+                    <button is="emby-button" type="button" id="btnStopScraper" class="raised" style="background-color:#dc0000; color:white; padding:0.5em 1em; border-radius:4px; font-weight:bold; display:none; min-width: 380px; text-align: center; justify-content: center;">
                         <span>Stop Scraper</span>
                     </button>
                 </div>
@@ -133,12 +137,32 @@
 
             <div class="verticalSection" style="margin-bottom: 3em;">
                 <div class="sectionTitleContainer flex align-items-center">
-                    <h2 class="sectionTitle">Database Cleanup</h2>
+                    <h2 class="sectionTitle">Library Maintenance</h2>
                 </div>
-                <p style="color: #aaa; margin-bottom: 1em;">Remove duplicate .strm files for movies already downloaded, movies in unchecked languages, or orphaned dummy files. Real video files (.mp4, .mkv) are never touched.</p>
+                <p style="color: #aaa; margin-bottom: 1em;">Manage your scraped dummy files.</p>
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom: 1.5em;">
+                    <button is="emby-button" type="button" id="btnCleanupScraper" class="raised" style="background-color:#e05206; color:white; padding:0.5em 1em; border-radius:4px; font-weight:bold; min-width: 380px; text-align: center; justify-content: center;">
+                        <span>Smart Cleanup (Deselected Languages & Duplicates)</span>
+                    </button>
+                    <p style="color: #888; font-size: 0.85em; margin: 0; max-width: 400px;">Removes duplicates for downloaded movies, purges languages you've unchecked, and removes orphaned dummy files.</p>
+                </div>
                 <div style="display:flex; align-items:center; gap:10px;">
-                    <button is="emby-button" type="button" id="btnCleanupScraper" class="raised" style="background-color:#e05206; color:white; padding:0.5em 1em; border-radius:4px; font-weight:bold;">
-                        <span>Cleanup .strm Files</span>
+                    <button is="emby-button" type="button" id="btnPurgeAllScraped" class="raised" style="background-color:#dc0000; color:white; padding:0.5em 1em; border-radius:4px; font-weight:bold; min-width: 380px; text-align: center; justify-content: center;">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 5px;">delete_forever</span>
+                        <span style="vertical-align: middle;">Purge All Scraped Movies</span>
+                    </button>
+                    <p style="color: #888; font-size: 0.85em; margin: 0; max-width: 400px;">Completely wipe all scraped .strm folders and start fresh. (Does NOT touch actual video files).</p>
+                </div>
+            </div>
+
+            <div class="verticalSection" style="margin-bottom: 3em;">
+                <div class="sectionTitleContainer flex align-items-center">
+                    <h2 class="sectionTitle">Library Metadata</h2>
+                </div>
+                <p style="color: #aaa; margin-bottom: 1em;">Retroactively sanitize existing downloaded movies in your library. Strips out '1TamilMV' and other unwanted metadata tags from MKV and MP4 headers.</p>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <button is="emby-button" type="button" id="btnCleanMetadata" class="raised" style="background-color:#4caf50; color:white; padding:0.5em 1em; border-radius:4px; font-weight:bold; min-width: 380px; text-align: center; justify-content: center;">
+                        <span>Sanitize Library Metadata</span>
                     </button>
                 </div>
             </div>
@@ -168,10 +192,16 @@
             <div class="verticalSection">
                 <div class="sectionTitleContainer flex align-items-center">
                     <h2 class="sectionTitle">Download History & Queue</h2>
-                    <button is="emby-button" type="button" id="btnRefreshHistory" class="raised" style="margin-left: auto; padding: 0.3em 0.8em; border-radius: 4px;">
-                        <span class="material-icons" style="font-size: 1.2em; vertical-align: middle;">refresh</span>
-                        <span style="vertical-align: middle;">Refresh</span>
-                    </button>
+                    <div style="margin-left: auto; display: flex; gap: 10px;">
+                        <button is="emby-button" type="button" id="btnClearHistory" class="raised" style="padding: 0.3em 0.8em; border-radius: 4px; background-color: rgba(220, 0, 0, 0.1); color: #ff5252; border: 1px solid rgba(220, 0, 0, 0.3);">
+                            <span class="material-icons" style="font-size: 1.2em; vertical-align: middle;">delete_sweep</span>
+                            <span style="vertical-align: middle;">Clear History</span>
+                        </button>
+                        <button is="emby-button" type="button" id="btnRefreshHistory" class="raised" style="padding: 0.3em 0.8em; border-radius: 4px;">
+                            <span class="material-icons" style="font-size: 1.2em; vertical-align: middle;">refresh</span>
+                            <span style="vertical-align: middle;">Refresh</span>
+                        </button>
+                    </div>
                 </div>
                 
                 <div id="historyTableContainer" style="overflow-x: auto; margin-top: 1em; max-height: 600px; overflow-y: auto;">

@@ -20,10 +20,51 @@ export default function(view, params) {
             const torboxActive = view.querySelector('#torboxActiveStatus');
             
             const updateStatusDisplays = () => {
-                if (seedrActive) seedrActive.style.display = 'none';
-                if (torboxActive) torboxActive.style.display = 'none';
+                const sUser = view.querySelector('#txtSeedrUsername').value.trim();
+                const sPass = view.querySelector('#txtSeedrPassword').value.trim();
+                const tKey = view.querySelector('#txtTorboxApiKey').value.trim();
+
+                if (seedrActive) {
+                    if (chkSeedr.checked) {
+                        seedrActive.style.display = 'block';
+                        seedrActive.style.color = '#ff9800';
+                        view.querySelector('#seedrActiveIcon').innerText = 'hourglass_empty';
+                        view.querySelector('#seedrActiveText').innerText = 'Checking credentials...';
+                    } else {
+                        seedrActive.style.display = 'none';
+                    }
+                }
+                
+                if (torboxActive) {
+                    if (chkTorbox.checked) {
+                        torboxActive.style.display = 'block';
+                        torboxActive.style.color = '#ff9800';
+                        view.querySelector('#torboxActiveIcon').innerText = 'hourglass_empty';
+                        view.querySelector('#torboxActiveText').innerText = 'Checking credentials...';
+                    } else {
+                        torboxActive.style.display = 'none';
+                    }
+                }
 
                 if (!chkSeedr.checked && !chkTorbox.checked) return;
+
+                if (chkSeedr.checked && (!sUser || !sPass)) {
+                    seedrActive.style.color = '#ff9800';
+                    view.querySelector('#seedrActiveIcon').innerText = 'warning';
+                    view.querySelector('#seedrActiveText').innerText = 'Missing Seedr credentials';
+                }
+                if (chkTorbox.checked && !tKey) {
+                    torboxActive.style.color = '#ff9800';
+                    view.querySelector('#torboxActiveIcon').innerText = 'warning';
+                    view.querySelector('#torboxActiveText').innerText = 'Missing Torbox API Key';
+                }
+
+                // If everything that is checked is missing creds, abort network call
+                if ((chkSeedr.checked && (!sUser || !sPass)) && (chkTorbox.checked && !tKey) || 
+                    (chkSeedr.checked && (!sUser || !sPass) && !chkTorbox.checked) || 
+                    (chkTorbox.checked && !tKey && !chkSeedr.checked)) {
+                    return;
+                }
 
                 fetch('/System/Configuration/Downloaders/TestCredentials', {
                     method: 'POST',
@@ -32,21 +73,57 @@ export default function(view, params) {
                         'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"'
                     },
                     body: JSON.stringify({
-                        SeedrUsername: view.querySelector('#txtSeedrUsername').value,
-                        SeedrPassword: view.querySelector('#txtSeedrPassword').value,
-                        TorboxApiKey: view.querySelector('#txtTorboxApiKey').value
+                        SeedrUsername: sUser,
+                        SeedrPassword: sPass,
+                        TorboxApiKey: tKey
                     })
                 }).then(res => {
-                    if (res.ok) {
-                        if (seedrActive && chkSeedr.checked) seedrActive.style.display = 'block';
-                        if (torboxActive && chkTorbox.checked) torboxActive.style.display = 'block';
+                    return res.json().then(data => ({ status: res.status, ok: res.ok, body: data }));
+                }).then(res => {
+                    if (chkSeedr.checked && sUser && sPass) {
+                        if (res.ok || (res.body.Message && !res.body.Message.includes("Seedr login failed"))) {
+                            seedrActive.style.color = '#4caf50';
+                            view.querySelector('#seedrActiveIcon').innerText = 'check_circle';
+                            view.querySelector('#seedrActiveText').innerText = 'Seedr cloud downloader active';
+                        } else {
+                            seedrActive.style.color = '#f44336';
+                            view.querySelector('#seedrActiveIcon').innerText = 'error';
+                            view.querySelector('#seedrActiveText').innerText = 'Seedr login failed. Invalid credentials.';
+                        }
                     }
-                }).catch(() => {});
+
+                    if (chkTorbox.checked && tKey) {
+                        if (res.ok || (res.body.Message && !res.body.Message.includes("Torbox API"))) {
+                            torboxActive.style.color = '#4caf50';
+                            view.querySelector('#torboxActiveIcon').innerText = 'check_circle';
+                            view.querySelector('#torboxActiveText').innerText = 'Torbox cloud downloader active';
+                        } else {
+                            torboxActive.style.color = '#f44336';
+                            view.querySelector('#torboxActiveIcon').innerText = 'error';
+                            view.querySelector('#torboxActiveText').innerText = 'Torbox API Key invalid or expired.';
+                        }
+                    }
+                }).catch(() => {
+                    if (chkSeedr.checked) {
+                        seedrActive.style.color = '#f44336';
+                        view.querySelector('#seedrActiveIcon').innerText = 'error';
+                        view.querySelector('#seedrActiveText').innerText = 'Network error checking Seedr';
+                    }
+                    if (chkTorbox.checked) {
+                        torboxActive.style.color = '#f44336';
+                        view.querySelector('#torboxActiveIcon').innerText = 'error';
+                        view.querySelector('#torboxActiveText').innerText = 'Network error checking Torbox';
+                    }
+                });
             };
             
             updateStatusDisplays();
             chkSeedr.addEventListener('change', updateStatusDisplays);
             chkTorbox.addEventListener('change', updateStatusDisplays);
+            
+            view.querySelector('#txtSeedrUsername').addEventListener('blur', updateStatusDisplays);
+            view.querySelector('#txtSeedrPassword').addEventListener('blur', updateStatusDisplays);
+            view.querySelector('#txtTorboxApiKey').addEventListener('blur', updateStatusDisplays);
 
             fetch('/System/Configuration/Downloaders/Domain', {
                 headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
@@ -146,19 +223,83 @@ export default function(view, params) {
             }, 1200);
         }
 
-        // Item #2 — helper to show/clear the persistent cleanup result banner
+        let bannerTimeout = null;
         function showCleanupBanner(msg, isError) {
             var banner = view.querySelector('#cleanupResultBanner');
             if (!banner) return;
-            banner.innerText = msg;
+            banner.innerText = (isError ? '❌ ' : '✓ ') + msg;
             banner.style.display = 'flex';
             banner.style.background = isError ? 'rgba(244,67,54,0.12)' : 'rgba(76,175,80,0.12)';
             banner.style.borderColor  = isError ? 'rgba(244,67,54,0.4)' : 'rgba(76,175,80,0.4)';
             banner.style.color = isError ? '#f44336' : '#4caf50';
+            
+            if (bannerTimeout) clearTimeout(bannerTimeout);
+            bannerTimeout = setTimeout(hideCleanupBanner, 5000); // auto-hide after 5 seconds
         }
         function hideCleanupBanner() {
             var banner = view.querySelector('#cleanupResultBanner');
             if (banner) banner.style.display = 'none';
+        }
+
+        function startMetadataPolling() {
+            if (pollInterval) clearInterval(pollInterval);
+            hideCleanupBanner();
+            progressContainer.style.display = 'block';
+            progressBar.style.backgroundColor = '#4caf50';
+            btnRunScraper.style.display = 'none';
+            if (btnCleanupScraper) btnCleanupScraper.style.display = 'none';
+            if (btnCleanMetadata) btnCleanMetadata.style.display = 'none';
+            btnStopScraper.style.display = 'none';
+            if (logBox) logBox.textContent = '';
+
+            pollInterval = setInterval(() => {
+                fetch('/System/Configuration/Downloaders/MetadataStatus', {
+                    headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
+                }).then(r => r.json()).then(d => {
+                    let pct = d.Progress || 0;
+                    let stat = d.Status || 'Idle';
+                    
+                    if (stat !== 'Idle') {
+                        progressContainer.style.display = 'block';
+                        btnRunScraper.style.display = 'none';
+                        if (btnCleanupScraper) btnCleanupScraper.style.display = 'none';
+                        if (btnCleanMetadata) btnCleanMetadata.style.display = 'none';
+                        btnStopScraper.style.display = 'none';
+
+                        progressBar.style.width = pct + '%';
+                        pctText.innerText = Math.round(pct) + '%';
+                        statusText.innerText = stat;
+                        updateLogDisplay(d.Logs);
+
+                        var isErr = stat === 'Error' || stat.startsWith('Error') || stat.startsWith('Failed');
+                        var isComplete = (stat === 'Completed' || pct === 100 || isErr);
+
+                        if (isComplete) {
+                            clearInterval(pollInterval);
+                            showCleanupBanner(stat === 'Completed' ? 'Metadata sanitization completed successfully.' : 'Metadata sanitization stopped or failed.', isErr);
+                            
+                            setTimeout(() => {
+                                btnRunScraper.style.display = 'block';
+                                if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
+                                if (btnCleanMetadata) btnCleanMetadata.style.display = 'block';
+                                progressContainer.style.display = 'none';
+                            }, 5000);
+                        }
+                    } else {
+                        clearInterval(pollInterval);
+                        btnRunScraper.style.display = 'block';
+                        if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
+                        if (btnCleanMetadata) btnCleanMetadata.style.display = 'block';
+                        progressContainer.style.display = 'none';
+                    }
+                }).catch(() => {
+                    clearInterval(pollInterval);
+                    btnRunScraper.style.display = 'block';
+                    if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
+                    if (btnCleanMetadata) btnCleanMetadata.style.display = 'block';
+                    progressContainer.style.display = 'none';
+                });
+            }, 1500);
         }
 
         function startCleanupPolling() {
@@ -168,6 +309,7 @@ export default function(view, params) {
             progressBar.style.backgroundColor = '#e05206';
             btnRunScraper.style.display = 'none';
             if (btnCleanupScraper) btnCleanupScraper.style.display = 'none';
+            if (btnCleanMetadata) btnCleanMetadata.style.display = 'none';
             btnStopScraper.style.display = 'block';
             btnStopScraper.querySelector('span').innerText = 'Stop Cleanup';
             if (logBox) logBox.textContent = '';
@@ -303,6 +445,57 @@ export default function(view, params) {
             btnRefreshHistory.addEventListener('click', loadHistory);
         }
 
+        const btnClearHistory = view.querySelector('#btnClearHistory');
+        if (btnClearHistory) {
+            btnClearHistory.addEventListener('click', function(e) {
+                e.preventDefault();
+                var msg = 'Are you sure you want to clear your download history? Active downloads will not be removed.';
+                var executeClear = function() {
+                    fetch('/System/Configuration/Downloaders/Activity', {
+                        method: 'DELETE',
+                        headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
+                    }).then(r => {
+                        if (r.ok) {
+                            loadHistory();
+                        } else {
+                            alert('Failed to clear history.');
+                        }
+                    }).catch(err => alert('Error clearing history: ' + err));
+                };
+                if (window.Dashboard && typeof window.Dashboard.confirm === 'function') {
+                    window.Dashboard.confirm(msg, 'Clear History', executeClear);
+                } else if (window.confirm(msg)) {
+                    executeClear();
+                }
+            });
+        }
+
+        const btnResetPlugin = view.querySelector('#btnResetPlugin');
+        if (btnResetPlugin) {
+            btnResetPlugin.addEventListener('click', function(e) {
+                e.preventDefault();
+                var msg = 'WARNING: This will completely reset the JellyFetch plugin settings and wipe all saved credentials. You will need to re-configure the plugin. Are you absolutely sure?';
+                var executeReset = function() {
+                    fetch('/System/Configuration/Downloaders/ResetPlugin', {
+                        method: 'POST',
+                        headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
+                    }).then(r => {
+                        if (r.ok) {
+                            alert('Plugin configuration has been reset. The page will now reload.');
+                            window.location.reload();
+                        } else {
+                            alert('Failed to reset plugin.');
+                        }
+                    }).catch(err => alert('Error resetting plugin: ' + err));
+                };
+                if (window.Dashboard && typeof window.Dashboard.confirm === 'function') {
+                    window.Dashboard.confirm(msg, 'Factory Reset JellyFetch', executeReset);
+                } else if (window.confirm(msg)) {
+                    executeReset();
+                }
+            });
+        }
+
         function checkInitialStatus() {
             fetch('/System/Configuration/Downloaders/Scrape/Status', {
                 headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
@@ -366,9 +559,70 @@ export default function(view, params) {
                 };
 
                 if (window.Dashboard && typeof window.Dashboard.confirm === 'function') {
-                    window.Dashboard.confirm(msg, 'Cleanup .strm Files', executeCleanup);
+                    window.Dashboard.confirm(msg, 'Smart Cleanup .strm Files', executeCleanup);
                 } else if (window.confirm(msg)) {
                     executeCleanup();
+                }
+            });
+        }
+
+        const btnPurgeAllScraped = view.querySelector('#btnPurgeAllScraped');
+        if (btnPurgeAllScraped) {
+            btnPurgeAllScraped.addEventListener('click', function (e) {
+                e.preventDefault();
+                var msg = 'WARNING: This will completely WIPE ALL .strm dummy folders that were generated by the scraper. Any actual video files (.mkv, .mp4) you have downloaded will be safe and untouched. Are you absolutely sure you want to purge all scraped movies?';
+                
+                var executePurge = function() {
+                    Dashboard.showLoadingMsg();
+                    fetch('/System/Configuration/Downloaders/PurgeAllStrm', {
+                        method: 'DELETE',
+                        headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
+                    }).then(r => r.json().then(j => ({ ok: r.ok, json: j }))).then(res => {
+                        Dashboard.hideLoadingMsg();
+                        if (res.ok) {
+                            showCleanupBanner(res.json.Message || 'Purge completed.', false);
+                        } else {
+                            showCleanupBanner(res.json.Message || 'Failed to purge.', true);
+                        }
+                    }).catch(err => {
+                        Dashboard.hideLoadingMsg();
+                        showCleanupBanner('Error purging: ' + err, true);
+                    });
+                };
+
+                if (window.Dashboard && typeof window.Dashboard.confirm === 'function') {
+                    window.Dashboard.confirm(msg, 'Purge All Scraped Movies', executePurge);
+                } else if (window.confirm(msg)) {
+                    executePurge();
+                }
+            });
+        }
+
+        const btnCleanMetadata = view.querySelector('#btnCleanMetadata');
+        if (btnCleanMetadata) {
+            btnCleanMetadata.addEventListener('click', function (e) {
+                e.preventDefault();
+                var msg = 'This will scan your downloads directory in the background and use ffmpeg to instantly strip "1TamilMV" tags and other spam metadata from all existing .mkv and .mp4 files. A library rescan will trigger automatically when finished. Are you sure you want to proceed?';
+                
+                var executeCleanMetadata = function() {
+                    fetch('/System/Configuration/Downloaders/CleanMetadata', {
+                        method: 'POST',
+                        headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
+                    }).then(r => {
+                        if (r.ok) {
+                            startMetadataPolling();
+                        } else {
+                            r.json().then(j => alert(j.Message || 'Failed to start metadata cleanup.'));
+                        }
+                    }).catch(err => {
+                        alert('Error starting metadata cleanup: ' + err);
+                    });
+                };
+
+                if (window.Dashboard && typeof window.Dashboard.confirm === 'function') {
+                    window.Dashboard.confirm(msg, 'Sanitize Library Metadata', executeCleanMetadata);
+                } else if (window.confirm(msg)) {
+                    executeCleanMetadata();
                 }
             });
         }

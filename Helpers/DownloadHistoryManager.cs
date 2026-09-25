@@ -104,5 +104,21 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                 _lock.Release();
             }
         }
+
+        public static async Task ClearHistoryAsync()
+        {
+            await _lock.WaitAsync();
+            try
+            {
+                if (File.Exists(HistoryPath))
+                {
+                    await File.WriteAllTextAsync(HistoryPath, "[]");
+                }
+            }
+            finally
+            {
+                _lock.Release();
+            }
+        }
     }
 }
