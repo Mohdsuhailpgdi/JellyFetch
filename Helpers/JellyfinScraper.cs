@@ -401,23 +401,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             var tasksList = new List<(string Url, string Lang)>();
             var seenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            // Front page scan
-            logger?.Invoke("Scanning front page for latest releases...", 8);
-            try
-            {
-                var req = new HttpRequestMessage(HttpMethod.Get, $"https://www.{domain}/");
-                req.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
-                var res = await _httpClient.SendAsync(req, ct);
-                string html = await res.Content.ReadAsStringAsync(ct);
-                var matches = Regex.Matches(html, $@"href=[""'](https://(?:www\.)?1tamilmv\.[a-z]+/index\.php\?/forums/topic/\d+-[^""'\#\s]+/)[""']");
-                var fpUrls = matches.Select(m => m.Groups[1].Value).Distinct().Take(30).ToList();
-                foreach (var u in fpUrls)
-                {
-                    if (seenUrls.Add(u)) tasksList.Add((u, "Tamil"));
-                }
-            }
-            catch { }
-            logger?.Invoke("Front page scan completed. Scanning subforums...", 10);
+            logger?.Invoke("Starting subforum scans...", 10);
 
             // Subforums scan
             int currentLangIndex = 0;
