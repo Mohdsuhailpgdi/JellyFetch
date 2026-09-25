@@ -223,10 +223,23 @@
             .then(function (r) { return r.ok ? r.json() : null; })
             .catch(function () { return null; });
 
-        Promise.all([statusPromise, optionsPromise]).then(function (results) {
+        var userPromise = (window.ApiClient && window.ApiClient.getCurrentUser)
+            ? window.ApiClient.getCurrentUser()
+            : Promise.resolve(null);
+
+        Promise.all([statusPromise, optionsPromise, userPromise]).then(function (results) {
             if (isPlayerActive() || state.itemId !== targetId) return;
             var st = results[0];
             var optData = results[1];
+            var user = results[2];
+
+            // Item #11: Enforce Policy - hide UI if downloading is disabled for user
+            if (user && user.Policy && user.Policy.EnableContentDownloading === false) {
+                state.isDownloadable = false;
+                state.isDownloading = false;
+                syncButton(view, targetId);
+                return;
+            }
 
             var isActivelyDownloading = st && !st.Completed && st.Status !== 'Idle' && st.Status !== 'Stopped' && st.Status !== 'Failed';
             var opts = Array.isArray(optData) ? optData : (optData && optData.Options ? optData.Options : []);

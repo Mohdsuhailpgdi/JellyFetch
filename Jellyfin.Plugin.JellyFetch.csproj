@@ -17,6 +17,7 @@
       <Private>false</Private>
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
+    <PackageReference Include="TMDbLib" Version="3.0.0" />
   </ItemGroup>
 
   <ItemGroup>
