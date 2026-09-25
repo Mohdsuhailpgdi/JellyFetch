@@ -1198,11 +1198,13 @@ public class DownloadersController : ControllerBase
             if (filePath.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase) || filePath.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
             {
                 _logger.LogInformation("Sanitizing metadata for {File}", filePath);
-                string tmpFile = filePath + ".tmp" + Path.GetExtension(filePath);
+                string tmpFile = filePath + ".tmp";
+                string format = filePath.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase) ? "matroska" : "mp4";
+                
                 using var proc = new System.Diagnostics.Process();
                 proc.StartInfo.FileName = "/usr/lib/jellyfin-ffmpeg/ffmpeg";
-                // Strip title from the container, video, audio, and subtitle streams.
-                proc.StartInfo.Arguments = $"-y -i \"{filePath}\" -map 0 -c copy -metadata title=\"\" -metadata:s:v title=\"\" -metadata:s:a title=\"\" -metadata:s:s title=\"\" \"{tmpFile}\"";
+                // Strip title from the container, video, audio, and subtitle streams. Specify format explicitly.
+                proc.StartInfo.Arguments = $"-y -i \"{filePath}\" -map 0 -c copy -f {format} -metadata title=\"\" -metadata:s:v title=\"\" -metadata:s:a title=\"\" -metadata:s:s title=\"\" \"{tmpFile}\"";
                 proc.StartInfo.UseShellExecute = false;
                 proc.StartInfo.RedirectStandardError = true;
                 proc.StartInfo.RedirectStandardOutput = true;
