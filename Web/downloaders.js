@@ -173,16 +173,54 @@ export default function(view, params) {
             }
         }
 
+        function setTaskUIState(isRunning, taskType) {
+            if (isRunning) {
+                progressContainer.style.display = 'block';
+                btnRunScraper.style.display = 'none';
+                btnStopScraper.style.display = (taskType === 'metadata') ? 'none' : 'block';
+                if (taskType === 'cleanup') {
+                    btnStopScraper.querySelector('span').innerText = 'Stop Cleanup';
+                    progressBar.style.backgroundColor = '#e05206';
+                } else if (taskType === 'metadata') {
+                    progressBar.style.backgroundColor = '#4caf50';
+                } else {
+                    btnStopScraper.querySelector('span').innerText = 'Stop Scraper';
+                    progressBar.style.backgroundColor = '#00a4dc';
+                }
+
+                // Keep maintenance buttons in the layout but disable them
+                if (btnCleanupScraper) { btnCleanupScraper.disabled = true; btnCleanupScraper.style.opacity = '0.5'; }
+                if (btnPurgeAllScraped) { btnPurgeAllScraped.disabled = true; btnPurgeAllScraped.style.opacity = '0.5'; }
+                if (btnCleanMetadata) { btnCleanMetadata.disabled = true; btnCleanMetadata.style.opacity = '0.5'; }
+            } else {
+                progressContainer.style.display = 'none';
+                btnRunScraper.style.display = 'block';
+                btnStopScraper.style.display = 'none';
+                btnStopScraper.disabled = false;
+                
+                // Re-enable and restore all maintenance buttons
+                if (btnCleanupScraper) { 
+                    btnCleanupScraper.disabled = false; 
+                    btnCleanupScraper.style.opacity = '1'; 
+                    btnCleanupScraper.style.display = 'block'; 
+                }
+                if (btnPurgeAllScraped) { 
+                    btnPurgeAllScraped.disabled = false; 
+                    btnPurgeAllScraped.style.opacity = '1'; 
+                    btnPurgeAllScraped.style.display = 'block'; 
+                }
+                if (btnCleanMetadata) { 
+                    btnCleanMetadata.disabled = false; 
+                    btnCleanMetadata.style.opacity = '1'; 
+                    btnCleanMetadata.style.display = 'block'; 
+                }
+            }
+        }
+
         function startPolling() {
             if (pollInterval) clearInterval(pollInterval);
             hideCleanupBanner(); // clear any stale cleanup banner when scraper starts
-            progressContainer.style.display = 'block';
-            progressBar.style.backgroundColor = '#00a4dc';
-            btnRunScraper.style.display = 'none';
-            if (btnCleanupScraper) btnCleanupScraper.style.display = 'none';
-            if (btnCleanMetadata) btnCleanMetadata.style.display = 'none';
-            btnStopScraper.style.display = 'block';
-            btnStopScraper.querySelector('span').innerText = 'Stop Scraper';
+            setTaskUIState(true, 'scraper');
             if (logBox) logBox.textContent = '';
             
             pollInterval = setInterval(() => {
@@ -190,10 +228,7 @@ export default function(view, params) {
                     headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
                 }).then(r => r.json()).then(d => {
                     if (d.IsRunning || d.Progress > 0) {
-                        progressContainer.style.display = 'block';
-                        btnRunScraper.style.display = 'none';
-                        if (btnCleanupScraper) btnCleanupScraper.style.display = 'none';
-                        if (btnCleanMetadata) btnCleanMetadata.style.display = 'none';
+                        setTaskUIState(true, 'scraper');
                         btnStopScraper.style.display = d.IsRunning ? 'block' : 'none';
                         
                         let pct = d.Progress || 0;
@@ -205,28 +240,16 @@ export default function(view, params) {
                         if (!d.IsRunning && (pct === 100 || d.Status === 'Idle' || d.Status.startsWith('Error') || d.Status.startsWith('Failed'))) {
                             clearInterval(pollInterval);
                             setTimeout(() => {
-                                btnRunScraper.style.display = 'block';
-                                if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
-                                if (btnCleanMetadata) btnCleanMetadata.style.display = 'block';
-                                btnStopScraper.style.display = 'none';
-                                progressContainer.style.display = 'none';
+                                setTaskUIState(false);
                             }, 3000);
                         }
                     } else {
                         clearInterval(pollInterval);
-                        btnRunScraper.style.display = 'block';
-                        if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
-                        if (btnCleanMetadata) btnCleanMetadata.style.display = 'block';
-                        btnStopScraper.style.display = 'none';
-                        progressContainer.style.display = 'none';
+                        setTaskUIState(false);
                     }
                 }).catch(() => {
                     clearInterval(pollInterval);
-                    btnRunScraper.style.display = 'block';
-                    if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
-                    if (btnCleanMetadata) btnCleanMetadata.style.display = 'block';
-                    btnStopScraper.style.display = 'none';
-                    progressContainer.style.display = 'none';
+                    setTaskUIState(false);
                 });
             }, 1200);
         }
@@ -252,12 +275,7 @@ export default function(view, params) {
         function startMetadataPolling() {
             if (pollInterval) clearInterval(pollInterval);
             hideCleanupBanner();
-            progressContainer.style.display = 'block';
-            progressBar.style.backgroundColor = '#4caf50';
-            btnRunScraper.style.display = 'none';
-            if (btnCleanupScraper) btnCleanupScraper.style.display = 'none';
-            if (btnCleanMetadata) btnCleanMetadata.style.display = 'none';
-            btnStopScraper.style.display = 'none';
+            setTaskUIState(true, 'metadata');
             if (logBox) logBox.textContent = '';
 
             pollInterval = setInterval(() => {
@@ -268,11 +286,7 @@ export default function(view, params) {
                     let stat = d.Status || 'Idle';
                     
                     if (stat !== 'Idle') {
-                        progressContainer.style.display = 'block';
-                        btnRunScraper.style.display = 'none';
-                        if (btnCleanupScraper) btnCleanupScraper.style.display = 'none';
-                        if (btnCleanMetadata) btnCleanMetadata.style.display = 'none';
-                        btnStopScraper.style.display = 'none';
+                        setTaskUIState(true, 'metadata');
 
                         progressBar.style.width = pct + '%';
                         pctText.innerText = Math.round(pct) + '%';
@@ -287,25 +301,16 @@ export default function(view, params) {
                             showCleanupBanner(stat === 'Completed' ? 'Metadata sanitization completed successfully.' : 'Metadata sanitization stopped or failed.', isErr);
                             
                             setTimeout(() => {
-                                btnRunScraper.style.display = 'block';
-                                if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
-                                if (btnCleanMetadata) btnCleanMetadata.style.display = 'block';
-                                progressContainer.style.display = 'none';
+                                setTaskUIState(false);
                             }, 5000);
                         }
                     } else {
                         clearInterval(pollInterval);
-                        btnRunScraper.style.display = 'block';
-                        if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
-                        if (btnCleanMetadata) btnCleanMetadata.style.display = 'block';
-                        progressContainer.style.display = 'none';
+                        setTaskUIState(false);
                     }
                 }).catch(() => {
                     clearInterval(pollInterval);
-                    btnRunScraper.style.display = 'block';
-                    if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
-                    if (btnCleanMetadata) btnCleanMetadata.style.display = 'block';
-                    progressContainer.style.display = 'none';
+                    setTaskUIState(false);
                 });
             }, 1500);
         }
@@ -313,14 +318,7 @@ export default function(view, params) {
         function startCleanupPolling() {
             if (pollInterval) clearInterval(pollInterval);
             hideCleanupBanner(); // clear any previous result banner when a new cleanup starts
-            progressContainer.style.display = 'block';
-            progressBar.style.backgroundColor = '#e05206';
-            btnRunScraper.style.display = 'none';
-            if (btnCleanupScraper) btnCleanupScraper.style.display = 'none';
-            if (btnPurgeAllScraped) btnPurgeAllScraped.style.display = 'none';
-            if (btnCleanMetadata) btnCleanMetadata.style.display = 'none';
-            btnStopScraper.style.display = 'block';
-            btnStopScraper.querySelector('span').innerText = 'Stop Cleanup';
+            setTaskUIState(true, 'cleanup');
             if (logBox) logBox.textContent = '';
 
             pollInterval = setInterval(() => {
@@ -328,11 +326,7 @@ export default function(view, params) {
                     headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
                 }).then(r => r.json()).then(d => {
                     if (d.IsRunning || d.Progress > 0) {
-                        progressContainer.style.display = 'block';
-                        btnRunScraper.style.display = 'none';
-                        if (btnCleanupScraper) btnCleanupScraper.style.display = 'none';
-                        if (btnPurgeAllScraped) btnPurgeAllScraped.style.display = 'none';
-                        if (btnCleanMetadata) btnCleanMetadata.style.display = 'none';
+                        setTaskUIState(true, 'cleanup');
                         btnStopScraper.style.display = d.IsRunning ? 'block' : 'none';
 
                         let pct = d.Progress || 0;
@@ -358,31 +352,16 @@ export default function(view, params) {
                             }
 
                             setTimeout(() => {
-                                btnRunScraper.style.display = 'block';
-                                if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
-                                if (btnPurgeAllScraped) btnPurgeAllScraped.style.display = 'block';
-                                if (btnCleanMetadata) btnCleanMetadata.style.display = 'block';
-                                btnStopScraper.style.display = 'none';
-                                progressContainer.style.display = 'none';
+                                setTaskUIState(false);
                             }, 3000);
                         }
                     } else {
                         clearInterval(pollInterval);
-                        btnRunScraper.style.display = 'block';
-                        if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
-                        if (btnPurgeAllScraped) btnPurgeAllScraped.style.display = 'block';
-                        if (btnCleanMetadata) btnCleanMetadata.style.display = 'block';
-                        btnStopScraper.style.display = 'none';
-                        progressContainer.style.display = 'none';
+                        setTaskUIState(false);
                     }
                 }).catch(() => {
                     clearInterval(pollInterval);
-                    btnRunScraper.style.display = 'block';
-                    if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
-                    if (btnPurgeAllScraped) btnPurgeAllScraped.style.display = 'block';
-                    if (btnCleanMetadata) btnCleanMetadata.style.display = 'block';
-                    btnStopScraper.style.display = 'none';
-                    progressContainer.style.display = 'none';
+                    setTaskUIState(false);
                 });
             }, 1000);
         }
@@ -533,22 +512,18 @@ export default function(view, params) {
                                 if (c && c.IsRunning) {
                                     startCleanupPolling();
                                 } else {
-                                    progressContainer.style.display = 'none';
-                                    btnRunScraper.style.display = 'block';
-                                    if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
-                                    if (btnCleanMetadata) btnCleanMetadata.style.display = 'block';
-                                    btnStopScraper.style.display = 'none';
+                                    setTaskUIState(false);
                                 }
                             }).catch(() => {
-                                progressContainer.style.display = 'none';
+                                setTaskUIState(false);
                             });
                         }
                     }).catch(() => {
-                        progressContainer.style.display = 'none';
+                        setTaskUIState(false);
                     });
                 }
             }).catch(() => {
-                progressContainer.style.display = 'none';
+                setTaskUIState(false);
             });
         }
 

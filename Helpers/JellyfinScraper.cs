@@ -129,7 +129,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
         private bool IsExcluded(string title)
         {
             string t = title.ToLowerInvariant();
-            string[] patterns = { @"s\d{2}e\d{2}", @"\bseason\s?\d+\b", @"\bep\s?\d+\b", "bigg boss", "web series", "daily tv", "complete season", @"s\d{2}\b", "hq predvd", @"\bhq\b", "predvd", @"\btc\b" };
+            string[] patterns = { @"s\d{2}e\d{2}", @"\bseason\s?\d+\b", @"\bep\s?\d+\b", "bigg boss", "web series", "daily tv", "complete season", @"s\d{2}\b" };
             return patterns.Any(p => Regex.IsMatch(t, p));
         }
 

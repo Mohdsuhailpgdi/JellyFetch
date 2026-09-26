@@ -350,11 +350,22 @@ public class DownloadersController : ControllerBase
         string description = "";
         if (!config.EnableSeedr && !config.EnableTorbox)
         {
-            description = "All downloaders are currently disabled.";
+            description = "All downloaders are currently disabled in JellyFetch settings.";
+        }
+        else if (filteredOptions.Count == 0 && options.Count > 0)
+        {
+            if (!config.EnableTorbox)
+            {
+                description = "All available releases for this movie exceed the 4GB Seedr limit. Enable Torbox in JellyFetch settings to download files larger than 4GB.";
+            }
+            else
+            {
+                description = "No download options match the current provider filters.";
+            }
         }
 
-        _logger.LogInformation("GetOptions for {ItemId} returning {Count} options", itemId, filteredOptions.Count);
-        return Ok(new { Options = filteredOptions, Description = description });
+        _logger.LogInformation("GetOptions for {ItemId} returning {Count} options (IsStrm: true)", itemId, filteredOptions.Count);
+        return Ok(new { IsStrm = true, Options = filteredOptions, Description = description });
     }
 
     [HttpGet("Status/{itemId}")]
@@ -1697,6 +1708,22 @@ public class DownloadersController : ControllerBase
             int count = 0;
             foreach (var dir in dirs)
             {
+                // Safety guard: NEVER delete a folder if it contains real downloaded video files (.mkv, .mp4, .avi)
+                bool hasRealVideo = Directory.GetFiles(dir, "*.*", SearchOption.AllDirectories).Any(f => 
+                    f.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase) || 
+                    f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) || 
+                    f.EndsWith(".avi", StringComparison.OrdinalIgnoreCase));
+
+                if (hasRealVideo)
+                {
+                    // Clean only leftover .strm files inside the folder, preserving actual video media
+                    foreach (var strm in Directory.GetFiles(dir, "*.strm", SearchOption.AllDirectories))
+                    {
+                        try { System.IO.File.Delete(strm); } catch { }
+                    }
+                    continue;
+                }
+
                 if (Directory.GetFiles(dir, "*.strm", SearchOption.AllDirectories).Any())
                 {
                     try

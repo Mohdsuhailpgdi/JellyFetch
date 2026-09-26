@@ -235,7 +235,8 @@
 
             var isActivelyDownloading = st && !st.Completed && st.Status !== 'Idle' && st.Status !== 'Stopped' && st.Status !== 'Failed';
             var opts = Array.isArray(optData) ? optData : (optData && optData.Options ? optData.Options : []);
-            var isItemDownloadable = opts && opts.length > 0;
+            var isStrm = optData && optData.IsStrm;
+            var isItemDownloadable = (opts && opts.length > 0) || isStrm;
 
             if (isActivelyDownloading) {
                 state.isDownloading = true;
@@ -423,9 +424,9 @@
 
         inner.innerHTML =
             '<h2 style="margin-top:0;border-bottom:1px solid #333;padding-bottom:10px;">Available Downloads</h2>' +
-            (state.description ? '<p style="margin:0 0 12px;font-size:0.9em;opacity:0.8;">' + escHtml(state.description) + '</p>' : '') +
-            '<div id="jf-lang-tabs" style="display:flex;gap:10px;margin-bottom:15px;border-bottom:1px solid #333;padding-bottom:10px;overflow-x:auto;">' + tabsHtml + '</div>' +
-            '<div id="jf-opt-list" style="display:flex;flex-direction:column;gap:12px;">' + listHtml + '</div>' +
+            (state.description ? '<p style="margin:0 0 14px;font-size:0.95em;color:#ffb74d;background:rgba(255,152,0,0.12);padding:10px 14px;border-radius:6px;border:1px solid rgba(255,152,0,0.35);line-height:1.4;">' + escHtml(state.description) + '</p>' : '') +
+            (opts.length > 0 ? ('<div id="jf-lang-tabs" style="display:flex;gap:10px;margin-bottom:15px;border-bottom:1px solid #333;padding-bottom:10px;overflow-x:auto;">' + tabsHtml + '</div>' +
+            '<div id="jf-opt-list" style="display:flex;flex-direction:column;gap:12px;">' + listHtml + '</div>') : '') +
             '<div style="margin-top:20px;text-align:right;">' +
             '<button type="button" id="jf-btn-close" style="background:#444;color:#fff;padding:8px 20px;border-radius:4px;border:none;cursor:pointer;font-weight:600;">Close</button></div>';
 
