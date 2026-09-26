@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/icon.jpg",
     "versions": [
       {
+        "version": "1.3.4.0",
+        "changelog": "v1.3.4: Hotfix — Fixed an issue where the Sanitize and Purge action buttons would disappear from the UI during long-running tasks due to improper javascript variable scoping.",
+        "targetAbi": "10.9.9.0",
+        "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
+        "checksum": "252E00FA2ECC016A4F456BD2B51138FF",
+        "timestamp": "2026-09-26T06:15:00Z"
+      },
+      {
         "version": "1.3.3.0",
         "changelog": "v1.3.3: Strict language filtering fixes — TMDB/OMDB HTTP 429 retry logic, unmapped foreign language codes (e.g. 'fr') now correctly rejected, OMDB fallback uses only the first listed language to prevent multi-audio releases bypassing filter, CAM/HDCAM/PreDVD magnets filtered at scraper level so all-CAM topics never create .strm files, removed TMDbLib dependency in favour of raw HttpClient calls.",
         "targetAbi": "10.9.9.0",
