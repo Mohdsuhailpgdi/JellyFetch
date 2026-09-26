@@ -322,8 +322,7 @@ public class DownloadersController : ControllerBase
                     if (sizeGb <= 4.0 && !config.EnableSeedr && !config.EnableTorbox) continue;
                     if (sizeGb > 4.0 && !config.EnableTorbox) continue;
                     
-                    if (!dn.Contains("1080p") && !dn.Contains("720p")) continue;
-                    if (dn.Contains("480p") || dn.Contains("360p")) continue;
+                    if (dn.Contains("480p") || dn.Contains("360p")) { } // Allow lower resolutions so button appears
                     
                     // We no longer completely exclude theater captured and poor quality files here.
                     // This ensures the Download button appears. We sort them lower anyway.

@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/icon.jpg",
     "versions": [
       {
+        "version": "1.3.4.1",
+        "changelog": "v1.3.4.1: Fixed overly aggressive CAM print filtering that blocked HQ prints and strict API resolution filters that hid the Download button for non-1080p/720p files.",
+        "targetAbi": "10.9.9.0",
+        "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
+        "checksum": "EC0AAE6EE422AC788AD82945B45F0B50",
+        "timestamp": "2026-09-26T12:45:00Z"
+      },
+      {
         "version": "1.3.4.0",
         "changelog": "v1.3.4: Hotfix — Fixed an issue where the Sanitize and Purge action buttons would disappear from the UI during long-running tasks due to improper javascript variable scoping.",
         "targetAbi": "10.9.9.0",

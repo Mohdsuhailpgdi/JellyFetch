@@ -468,7 +468,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             {
                 string d = dn.ToLowerInvariant();
                 return d.Contains("hdcam") || d.Contains("predvd") || d.Contains("hq predvd") ||
-                       Regex.IsMatch(d, @"\bcam\b") || Regex.IsMatch(d, @"\bhq\b") || Regex.IsMatch(d, @"\btc\b");
+                       Regex.IsMatch(d, @"\bcam\b") || Regex.IsMatch(d, @"\btc\b");
             }
 
             var goodMagnets = filtered.Where(m => !IsCamPrint(m.dn)).ToList();
