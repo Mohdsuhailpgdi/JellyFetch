@@ -12,7 +12,6 @@ using System.Threading.Tasks;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Entities;
 using Jellyfin.Data.Enums;
-using TMDbLib.Client;
 
 namespace Jellyfin.Plugin.JellyFetch.Helpers
 {

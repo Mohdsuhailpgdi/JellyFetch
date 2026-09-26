@@ -24,4 +24,10 @@
     <EmbeddedResource Include="Web\downloaders.js" />
     <EmbeddedResource Include="Web\jellyfetch-inject.js" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Include="meta.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>

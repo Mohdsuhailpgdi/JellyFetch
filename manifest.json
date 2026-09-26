@@ -13,7 +13,7 @@
         "changelog": "v1.3.4: Hotfix — Fixed an issue where the Sanitize and Purge action buttons would disappear from the UI during long-running tasks due to improper javascript variable scoping.",
         "targetAbi": "10.9.9.0",
         "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
-        "checksum": "252E00FA2ECC016A4F456BD2B51138FF",
+        "checksum": "FCFBE717098C7AB14C9DA1DF9F6943D9",
         "timestamp": "2026-09-26T06:15:00Z"
       },
       {
