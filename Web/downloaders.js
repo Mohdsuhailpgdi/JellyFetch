@@ -152,6 +152,8 @@ export default function(view, params) {
         const btnRunScraper = view.querySelector('#btnRunScraper');
         const btnStopScraper = view.querySelector('#btnStopScraper');
         const btnCleanupScraper = view.querySelector('#btnCleanupScraper');
+        const btnPurgeAllScraped = view.querySelector('#btnPurgeAllScraped');
+        const btnCleanMetadata = view.querySelector('#btnCleanMetadata');
         const progressContainer = view.querySelector('#scraperProgressContainer');
         const progressBar = view.querySelector('#scraperProgressBar');
         const statusText = view.querySelector('#scraperStatusText');
@@ -315,6 +317,7 @@ export default function(view, params) {
             progressBar.style.backgroundColor = '#e05206';
             btnRunScraper.style.display = 'none';
             if (btnCleanupScraper) btnCleanupScraper.style.display = 'none';
+            if (btnPurgeAllScraped) btnPurgeAllScraped.style.display = 'none';
             if (btnCleanMetadata) btnCleanMetadata.style.display = 'none';
             btnStopScraper.style.display = 'block';
             btnStopScraper.querySelector('span').innerText = 'Stop Cleanup';
@@ -328,6 +331,7 @@ export default function(view, params) {
                         progressContainer.style.display = 'block';
                         btnRunScraper.style.display = 'none';
                         if (btnCleanupScraper) btnCleanupScraper.style.display = 'none';
+                        if (btnPurgeAllScraped) btnPurgeAllScraped.style.display = 'none';
                         if (btnCleanMetadata) btnCleanMetadata.style.display = 'none';
                         btnStopScraper.style.display = d.IsRunning ? 'block' : 'none';
 
@@ -356,6 +360,7 @@ export default function(view, params) {
                             setTimeout(() => {
                                 btnRunScraper.style.display = 'block';
                                 if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
+                                if (btnPurgeAllScraped) btnPurgeAllScraped.style.display = 'block';
                                 if (btnCleanMetadata) btnCleanMetadata.style.display = 'block';
                                 btnStopScraper.style.display = 'none';
                                 progressContainer.style.display = 'none';
@@ -365,6 +370,7 @@ export default function(view, params) {
                         clearInterval(pollInterval);
                         btnRunScraper.style.display = 'block';
                         if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
+                        if (btnPurgeAllScraped) btnPurgeAllScraped.style.display = 'block';
                         if (btnCleanMetadata) btnCleanMetadata.style.display = 'block';
                         btnStopScraper.style.display = 'none';
                         progressContainer.style.display = 'none';
@@ -373,6 +379,7 @@ export default function(view, params) {
                     clearInterval(pollInterval);
                     btnRunScraper.style.display = 'block';
                     if (btnCleanupScraper) btnCleanupScraper.style.display = 'block';
+                    if (btnPurgeAllScraped) btnPurgeAllScraped.style.display = 'block';
                     if (btnCleanMetadata) btnCleanMetadata.style.display = 'block';
                     btnStopScraper.style.display = 'none';
                     progressContainer.style.display = 'none';
@@ -588,7 +595,6 @@ export default function(view, params) {
             });
         }
 
-        const btnPurgeAllScraped = view.querySelector('#btnPurgeAllScraped');
         if (btnPurgeAllScraped) {
             btnPurgeAllScraped.addEventListener('click', function (e) {
                 e.preventDefault();
@@ -620,7 +626,6 @@ export default function(view, params) {
             });
         }
 
-        const btnCleanMetadata = view.querySelector('#btnCleanMetadata');
         if (btnCleanMetadata) {
             btnCleanMetadata.addEventListener('click', function (e) {
                 e.preventDefault();
