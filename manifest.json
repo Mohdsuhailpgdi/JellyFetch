@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/icon.jpg",
     "versions": [
       {
+        "version": "1.3.3.0",
+        "changelog": "v1.3.3: Strict language filtering fixes — TMDB/OMDB HTTP 429 retry logic, unmapped foreign language codes (e.g. 'fr') now correctly rejected, OMDB fallback uses only the first listed language to prevent multi-audio releases bypassing filter, CAM/HDCAM/PreDVD magnets filtered at scraper level so all-CAM topics never create .strm files, removed TMDbLib dependency in favour of raw HttpClient calls.",
+        "targetAbi": "10.9.9.0",
+        "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
+        "checksum": "E2211F272690D509175F06593CB5EF82",
+        "timestamp": "2026-09-26T00:00:00Z"
+      },
+      {
         "version": "1.3.2.0",
         "changelog": "v1.3.2: Phase 2 completion. Implemented metadata sanitization background task (mkvpropedit/ffprobe), granular cleanups, provider API validation, history clearing, and UI polish. Fixed duplicate extension artifacts and optimized background migrations.",
         "targetAbi": "10.9.9.0",

@@ -1,6 +1,6 @@
 {
     "category": "General",
-    "changelog": "v1.2.3: Task execution hardening and scraper progress granularity — reflection-based IScheduledTaskWorker execution, fresh log clearing on task start, delayed Idle reset after completion, and richer scraper progress milestones.",
+    "changelog": "v1.3.3: Strict language filtering fixes — TMDB/OMDB rate limit retry, foreign language rejection, CAM magnet filter at scraper level.",
     "description": "Native Downloads ecosystem for Jellyfin. Scrapes external forums for new media and integrates with Seedr and Torbox for downloading.",
     "guid": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
     "imageUrl": "",
@@ -8,15 +8,15 @@
     "overview": "External media scraper and download manager. Integrates Seedr and Torbox.",
     "owner": "LAB Hermes",
     "targetAbi": "10.9.0.0",
-    "timestamp": "2026-09-25T00:00:00Z",
+    "timestamp": "2026-09-26T00:00:00Z",
     "versions": [
         {
-            "checksum": "CC97015C0FA48E8586E463EAAE452E7F",
-            "changelog": "v1.2.3: Task execution hardening and scraper progress granularity — reflection-based IScheduledTaskWorker execution, fresh log clearing on task start, delayed Idle reset after completion, and richer scraper progress milestones.",
+            "checksum": "",
+            "changelog": "v1.3.3: Strict language filtering fixes — TMDB/OMDB rate limit retry, foreign language rejection, CAM magnet filter at scraper level.",
             "targetAbi": "10.9.0.0",
             "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
-            "timestamp": "2026-09-25T00:00:00Z",
-            "version": "1.2.3.0"
+            "timestamp": "2026-09-26T00:00:00Z",
+            "version": "1.3.3.0"
         }
     ]
 }

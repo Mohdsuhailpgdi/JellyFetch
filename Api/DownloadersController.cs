@@ -325,8 +325,8 @@ public class DownloadersController : ControllerBase
                     if (!dn.Contains("1080p") && !dn.Contains("720p")) continue;
                     if (dn.Contains("480p") || dn.Contains("360p")) continue;
                     
-                    // Exclude theater captured and poor quality files
-                    if (dn.Contains("predvd") || dn.Contains("tc") || dn.Contains("cam") || dn.Contains("hq predvd")) continue;
+                    // We no longer completely exclude theater captured and poor quality files here.
+                    // This ensures the Download button appears. We sort them lower anyway.
                 }
             }
             filteredOptions.Add(opt);
@@ -1700,9 +1700,25 @@ public class DownloadersController : ControllerBase
             {
                 if (Directory.GetFiles(dir, "*.strm", SearchOption.AllDirectories).Any())
                 {
-                    Directory.Delete(dir, true);
-                    count++;
+                    try
+                    {
+                        Directory.Delete(dir, true);
+                        count++;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, $"Failed to delete directory: {dir}");
+                    }
                 }
+            }
+            if (count > 0)
+            {
+                // Trigger a library scan to remove phantom items from the UI
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(1000);
+                    await _libraryManager.ValidateMediaLibrary(new Progress<double>(), System.Threading.CancellationToken.None);
+                });
             }
             return Ok(new { Message = $"Purged {count} movie folders containing .strm files." });
         }
@@ -1736,16 +1752,18 @@ public class DownloadersController : ControllerBase
             }
         }
 
-        if (_scrapeCts != null && !_scrapeCts.IsCancellationRequested)
+        lock (_scrapeLogLock)
         {
-            return BadRequest(new { Message = "Scraping is already running." });
+            if (_scrapeCts != null && !_scrapeCts.IsCancellationRequested)
+            {
+                return BadRequest(new { Message = "Scraping is already running." });
+            }
+            _scrapeCts = new System.Threading.CancellationTokenSource();
+            _scrapeStatus = "Starting scraper...";
+            _scrapeProgress = 0;
+            _scrapeLogs.Clear();
+            _scrapeLogs.Add($"[{DateTime.Now:HH:mm:ss}] Scraper started directly.");
         }
-
-        _scrapeCts = new System.Threading.CancellationTokenSource();
-        _scrapeStatus = "Starting scraper...";
-        _scrapeProgress = 0;
-        ResetScrapeLogs();
-        AddScrapeLog("Scraper started directly.");
         
         _ = Task.Run(async () =>
         {
@@ -1763,11 +1781,8 @@ public class DownloadersController : ControllerBase
                 
                 if (res.Success)
                 {
-                    if (res.NewMoviesCount > 0)
-                    {
-                        ReportScrapeProgress("Scanning Jellyfin media library...", 95);
-                        await _libraryManager.ValidateMediaLibrary(new Progress<double>(), System.Threading.CancellationToken.None);
-                    }
+                    ReportScrapeProgress("Scanning Jellyfin media library...", 95);
+                    await _libraryManager.ValidateMediaLibrary(new Progress<double>(), System.Threading.CancellationToken.None);
                     ReportScrapeProgress($"Completed. Found {res.NewMoviesCount} new movies.", 100);
                 }
                 else
