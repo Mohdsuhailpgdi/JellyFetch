@@ -5,7 +5,7 @@
   
   **Automated media scraping, cloud downloading, and library injection for Jellyfin.**
   
-  [![Version](https://img.shields.io/badge/version-1.3.4.1-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
+  [![Version](https://img.shields.io/badge/version-1.3.5.0-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
   [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9.x--12.x-orange)](https://jellyfin.org)
   [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey)](https://github.com/Mohdsuhailpgdi/JellyFetch)
 </div>
@@ -17,13 +17,12 @@ This plugin is specifically optimized for Indian media consumers. The default sc
 
 ---
 
-## ✨ What's New in v1.3.4.1 — Filter Hardening & Packaging Hotfix
-
-- 🔍 **Scraper CAM Regex Hardening**: Refined the scraper exclusion pattern to preserve high-definition "HQ PreDVD" / "HQ" torrents that were erroneously discarded due to loose word boundaries.
-- 🎯 **All-Resolution Magnet Ingestion**: Removed the restrictive 1080p/720p filter in `/Options/{itemId}` so that valid media files in other resolutions are visible in download options and trigger the green Download button.
-- 🎬 **Smart .strm Download Button Fallback**: For `.strm` placeholders, the injected UI reliably shows the Download button (or an informative dialog if files exceed provider limits), completely eliminating the broken `dummy.mp4` play button behavior.
-- 🛡️ **Purge Guard**: `PurgeAllStrm` explicitly skips any movie folder that contains a real media file (`.mp4`, `.mkv`, etc.), protecting user downloads from accidental removal.
-- 📦 **Synced meta.json Packaging**: Ensured `meta.json` is packaged within the release zip to ensure seamless plugin catalog updates and installations.
+## ✨ What's New in v1.3.5.0 — Deduplication & UI Fixes
+- 🔍 **Increased Scrape Depth**: Searches further back into forums (8 pages instead of 4) to prevent missing older releases.
+- 🎯 **Deduplication via movie.nfo**: Added `movie.nfo` sidecar file generation beside `.strm` dummy files to embed `<tmdbid>`, locking Jellyfin metadata and grouping multi-language dubs into the same movie object.
+- 🎬 **Hardened Language Extraction**: Audio tags (e.g. `[Tam + Mal]`) in filenames now strictly take precedence over the movie's TMDB default language, preventing "language bleeding".
+- 🛡️ **Clean UI for Free Tier**: Completely removed the "Torbox Required" warning banner for users running a free-only setup.
+- 📦 **Sanitize Background Task**: Improved sanitize scheduled task metadata handling against domain spam.
 
 ---
 
