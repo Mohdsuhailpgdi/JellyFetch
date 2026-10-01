@@ -5,7 +5,7 @@
   
   **Automated media scraping, cloud downloading, and library injection for Jellyfin.**
   
-  [![Version](https://img.shields.io/badge/version-1.3.3-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
+  [![Version](https://img.shields.io/badge/version-1.3.4.1-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
   [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9.x--12.x-orange)](https://jellyfin.org)
   [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey)](https://github.com/Mohdsuhailpgdi/JellyFetch)
 </div>
@@ -17,11 +17,24 @@ This plugin is specifically optimized for Indian media consumers. The default sc
 
 ---
 
-## ✨ What's New in v1.3.3 — Strict Language & Edge Case Fixes
+## ✨ What's New in v1.3.4.1 — Filter Hardening & Packaging Hotfix
+
+- 🔍 **Scraper CAM Regex Hardening**: Refined the scraper exclusion pattern to preserve high-definition "HQ PreDVD" / "HQ" torrents that were erroneously discarded due to loose word boundaries.
+- 🎯 **All-Resolution Magnet Ingestion**: Removed the restrictive 1080p/720p filter in `/Options/{itemId}` so that valid media files in other resolutions are visible in download options and trigger the green Download button.
+- 🎬 **Smart .strm Download Button Fallback**: For `.strm` placeholders, the injected UI reliably shows the Download button (or an informative dialog if files exceed provider limits), completely eliminating the broken `dummy.mp4` play button behavior.
+- 🛡️ **Purge Guard**: `PurgeAllStrm` explicitly skips any movie folder that contains a real media file (`.mp4`, `.mkv`, etc.), protecting user downloads from accidental removal.
+- 📦 **Synced meta.json Packaging**: Ensured `meta.json` is packaged within the release zip to ensure seamless plugin catalog updates and installations.
+
+---
+
+<details>
+<summary><b>📜 What's New in v1.3.3 — Strict Language & Edge Case Fixes</b></summary>
 
 - 🛡️ **TMDB Rate Limiting Resilience** — Scraping a large number of movies previously triggered TMDB "429 Too Many Requests", falling back to OMDB, which occasionally bypassed strict language filters. Added resilient retry logic with delays to guarantee accurate TMDB/OMDB original language verification.
 - 🌍 **Unmapped Foreign Language Rejection** — Movies originating in languages completely outside the supported Indian languages (e.g. French, Spanish) are now correctly identified and stringently rejected by the scraper, preventing foreign theater releases from silently passing through as local dubs.
 - 🎬 **Cam Print UI Button Fix** — Fixed a bug where movies possessing *only* HDCAM or Pre-DVD prints would cause the "Download" button to disappear from the movie details page, leaving behind a confusing "Play" button. These lower-tier prints are now available for download but automatically sorted to the bottom of the list.
+
+</details>
 
 ---
 
