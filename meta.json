@@ -1,6 +1,6 @@
 {
     "category": "General",
-    "changelog": "v1.3.4.1: Filter hardening & packaging fix. Fixed scraper regex dropping HQ prints, API resolution filter dropping non-1080p magnets, and synced meta.json packaging.",
+    "changelog": "v1.3.5.0: Enhanced language caching (language_cache.json) to respect OMDB rate limits, injected original audio language tags for multi-audio/dub releases, added movie.nfo sidecar generation for deduplication, and hardened metadata sanitization against domain spam.",
     "description": "Native Downloads ecosystem for Jellyfin. Scrapes external forums for new media and integrates with Seedr and Torbox for downloading.",
     "guid": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
     "imageUrl": "",
@@ -8,15 +8,15 @@
     "overview": "External media scraper and download manager. Integrates Seedr and Torbox.",
     "owner": "LAB Hermes",
     "targetAbi": "10.9.0.0",
-    "timestamp": "2026-09-26T12:45:00Z",
+    "timestamp": "2026-10-02T01:15:00Z",
     "versions": [
         {
             "checksum": "",
-            "changelog": "v1.3.4.1: Filter hardening & packaging fix. Fixed scraper regex dropping HQ prints, API resolution filter dropping non-1080p magnets, and synced meta.json packaging.",
+            "changelog": "v1.3.5.0: Enhanced language caching (language_cache.json) to respect OMDB rate limits, injected original audio language tags for multi-audio/dub releases, added movie.nfo sidecar generation for deduplication, and hardened metadata sanitization against domain spam.",
             "targetAbi": "10.9.0.0",
             "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
-            "timestamp": "2026-09-26T12:45:00Z",
-            "version": "1.3.4.1"
+            "timestamp": "2026-10-02T01:15:00Z",
+            "version": "1.3.5.0"
         }
     ]
 }

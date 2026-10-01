@@ -30,16 +30,65 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
         public List<string> languages { get; set; } = new List<string>();
     }
 
+    public class LanguageCacheEntry
+    {
+        public List<string> OriginalLanguages { get; set; } = new();
+        public string TmdbId { get; set; } = string.Empty;
+        public string ImdbId { get; set; } = string.Empty;
+    }
+
     public class JellyfinScraper
     {
         private readonly HttpClient _httpClient;
         private readonly ILibraryManager _libraryManager;
         private static readonly ConcurrentDictionary<string, SemaphoreSlim> _movieLocks = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly ConcurrentDictionary<string, LanguageCacheEntry> _languageCache = new(StringComparer.OrdinalIgnoreCase);
+        private static bool _cacheLoaded = false;
+        private static bool _omdbRateLimited = false;
+        private static readonly object _cacheLock = new();
 
         public JellyfinScraper(HttpClient httpClient, ILibraryManager libraryManager = null)
         {
             _httpClient = httpClient;
             _libraryManager = libraryManager;
+        }
+
+        private void LoadLanguageCache()
+        {
+            if (_cacheLoaded) return;
+            lock (_cacheLock)
+            {
+                if (_cacheLoaded) return;
+                var cachePath = Path.Combine(Plugin.Instance.DataFolderPath, "language_cache.json");
+                if (File.Exists(cachePath))
+                {
+                    try
+                    {
+                        var json = File.ReadAllText(cachePath);
+                        var cache = JsonSerializer.Deserialize<Dictionary<string, LanguageCacheEntry>>(json);
+                        if (cache != null)
+                        {
+                            foreach (var kvp in cache) _languageCache[kvp.Key] = kvp.Value;
+                        }
+                    }
+                    catch { }
+                }
+                _cacheLoaded = true;
+            }
+        }
+
+        private void SaveLanguageCache()
+        {
+            lock (_cacheLock)
+            {
+                var cachePath = Path.Combine(Plugin.Instance.DataFolderPath, "language_cache.json");
+                try
+                {
+                    var dict = new Dictionary<string, LanguageCacheEntry>(_languageCache);
+                    File.WriteAllText(cachePath, JsonSerializer.Serialize(dict));
+                }
+                catch { }
+            }
         }
 
         private string GetCacheFile()
@@ -133,11 +182,25 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             return patterns.Any(p => Regex.IsMatch(t, p));
         }
 
-        private async Task<(List<string> Langs, bool IsAllowed)> DetectLanguageAsync(string rawTitle, string defaultLang, HashSet<string> allowedLangs, string baseName)
+        private async Task<(List<string> Langs, bool IsAllowed, string TmdbId, string ImdbId, List<string> OrigLangs)> DetectLanguageAsync(string rawTitle, string defaultLang, HashSet<string> allowedLangs, string baseName)
         {
             var foundOrig = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            string tmdbId = "";
+            string imdbId = "";
 
-            if (!string.IsNullOrEmpty(baseName))
+            LoadLanguageCache();
+            string cacheKey = NormalizeKey(baseName);
+            bool usedCache = false;
+
+            if (!string.IsNullOrEmpty(cacheKey) && _languageCache.TryGetValue(cacheKey, out var cached))
+            {
+                foreach (var l in cached.OriginalLanguages) foundOrig.Add(l);
+                tmdbId = cached.TmdbId;
+                imdbId = cached.ImdbId;
+                usedCache = true;
+            }
+
+            if (!usedCache && !string.IsNullOrEmpty(baseName))
             {
                 try
                 {
@@ -159,6 +222,10 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                         if (doc.RootElement.TryGetProperty("results", out var results) && results.GetArrayLength() > 0)
                         {
                             var firstResult = results[0];
+                            if (firstResult.TryGetProperty("id", out var idEl))
+                            {
+                                tmdbId = idEl.GetInt32().ToString();
+                            }
                             if (firstResult.TryGetProperty("original_language", out var origLangEl))
                             {
                                 var origLang = origLangEl.GetString()?.ToLowerInvariant();
@@ -179,10 +246,10 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                 }
                 catch { }
 
-                if (foundOrig.Count == 0)
+                if (!usedCache && foundOrig.Count == 0)
                 {
                     var config = Jellyfin.Plugin.JellyFetch.Plugin.Instance?.Configuration;
-                    if (config != null && !string.IsNullOrWhiteSpace(config.OmdbApiKey))
+                    if (config != null && !string.IsNullOrWhiteSpace(config.OmdbApiKey) && !_omdbRateLimited)
                     {
                         try
                         {
@@ -190,17 +257,25 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                             using var req = new HttpRequestMessage(HttpMethod.Get, reqUrl);
                             var res = await _httpClient.SendAsync(req);
 
-                            if (res.StatusCode == System.Net.HttpStatusCode.TooManyRequests || res.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                            if (res.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
                             {
                                 await Task.Delay(1500);
                                 using var retryReq = new HttpRequestMessage(HttpMethod.Get, reqUrl);
                                 res = await _httpClient.SendAsync(retryReq);
+                            }
+                            else if (res.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                            {
+                                _omdbRateLimited = true;
                             }
 
                             if (res.IsSuccessStatusCode)
                             {
                                 var jsonStr = await res.Content.ReadAsStringAsync();
                                 using var doc = JsonDocument.Parse(jsonStr);
+                                if (doc.RootElement.TryGetProperty("imdbID", out var imdbIdEl))
+                                {
+                                    imdbId = imdbIdEl.GetString() ?? "";
+                                }
                                 if (doc.RootElement.TryGetProperty("Language", out var langEl))
                                 {
                                     string omdbLangs = langEl.GetString() ?? "";
@@ -222,13 +297,24 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                 }
             }
 
+            if (!usedCache && !string.IsNullOrEmpty(cacheKey))
+            {
+                _languageCache[cacheKey] = new LanguageCacheEntry 
+                { 
+                    OriginalLanguages = foundOrig.ToList(), 
+                    TmdbId = tmdbId, 
+                    ImdbId = imdbId 
+                };
+                SaveLanguageCache();
+            }
+
             // STRICT ORIGINAL LANGUAGE CHECK
             if (foundOrig.Count > 0)
             {
                 bool hasAllowedOrig = foundOrig.Any(ol => allowedLangs.Contains(ol));
                 if (!hasAllowedOrig)
                 {
-                    return (new List<string>(), false); // Reject immediately if original language is excluded
+                    return (new List<string>(), false, "", "", new List<string>()); // Reject immediately if original language is excluded
                 }
             }
 
@@ -270,7 +356,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             }
 
             var allowedFound = foundRelease.Where(allowedLangs.Contains).ToList();
-            return (allowedFound, allowedFound.Count > 0);
+            return (allowedFound, allowedFound.Count > 0, tmdbId, imdbId, foundOrig.ToList());
         }
 
         private (string Full, string Base, string Year) CleanMovieTitle(string rawTitle)
@@ -515,7 +601,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                 if (Directory.GetFiles(dir, "*.strm", SearchOption.AllDirectories).Any())
                 {
                     // Check if this movie matches any of the active languages
-                    var (langs, ok) = await DetectLanguageAsync(dName, "", allowedLangs, CleanMovieTitle(dName).Base);
+                    var (langs, ok, _, _, _) = await DetectLanguageAsync(dName, "", allowedLangs, CleanMovieTitle(dName).Base);
                     if (!ok)
                     {
                         try { Directory.Delete(dir, true); } catch { }
@@ -566,7 +652,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                 {
                     if (ct.IsCancellationRequested) return new ScrapeResult { Error = "Cancelled" };
                     var sfUrls = new List<string>();
-                    for (int p = 1; p <= 4; p++)
+                    for (int p = 1; p <= 8; p++)
                     {
                         string u = p == 1 ? $"https://www.{domain}/index.php?/forums/forum/{sf.Id}-movies/" : $"https://www.{domain}/index.php?/forums/forum/{sf.Id}-movies/page/{p}/";
                         try
@@ -583,9 +669,9 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                             }
                         }
                         catch { continue; }
-                        if (sfUrls.Count >= 100) break;
+                        if (sfUrls.Count >= 200) break;
                     }
-                    foreach (var u in sfUrls.Take(100)) tasksList.Add((u, lang));
+                    foreach (var u in sfUrls.Take(200)) tasksList.Add((u, lang));
                 }
             }
             
@@ -610,11 +696,52 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                     var (full, baseN, yearStr) = CleanMovieTitle(title);
                     if (string.IsNullOrEmpty(baseN) || baseN.Length < 2) return;
 
-                    var (langs, ok) = await DetectLanguageAsync(title, task.Lang, allowedLangs, baseN);
+                    var (langs, ok, tmdbId, imdbId, origLangs) = await DetectLanguageAsync(title, task.Lang, allowedLangs, baseN);
                     if (!ok) return;
 
                     // STRICT ORIGINAL LANGUAGE CHECK VIA TMDB
                     // (Implemented above in DetectLanguageAsync as a fallback)
+
+                    // Filter magnets explicitly to drop ones that don't match allowed languages
+                    var goodMagnets = new List<ScrapedMagnetOption>();
+                    foreach (var m in magnets)
+                    {
+                        var magLangs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        var checks = new[] { ("telugu", "Telugu"), ("kannada", "Kannada"), ("hindi", "Hindi"), ("malayalam", "Malayalam"), ("tamil", "Tamil"), ("english", "English") };
+                        foreach (var c in checks)
+                        {
+                            if (Regex.IsMatch(m.dn.ToLowerInvariant(), $@"\b{c.Item1}\b")) magLangs.Add(c.Item2);
+                        }
+                        var bMatch = Regex.Match(m.dn, @"\[([^\]]+)\]");
+                        if (bMatch.Success)
+                        {
+                            var parts = bMatch.Groups[1].Value.Split('+').Select(p => p.Trim().ToLowerInvariant());
+                            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
+                                { "tam", "Tamil" }, { "mal", "Malayalam" }, { "eng", "English" },
+                                { "tel", "Telugu" }, { "kan", "Kannada" }, { "hin", "Hindi" }, { "hind", "Hindi" }
+                            };
+                            foreach (var p in parts)
+                            {
+                                if (map.TryGetValue(p, out var l)) magLangs.Add(l);
+                            }
+                        }
+                        
+                        if (magLangs.Count == 0)
+                        {
+                            // Magnet has no explicit language tags, fallback to topic's allowed languages
+                            foreach (var l in langs) magLangs.Add(l);
+                        }
+
+                        var allowedMagLangs = magLangs.Where(allowedLangs.Contains).ToList();
+                        if (allowedMagLangs.Count > 0)
+                        {
+                            m.languages = allowedMagLangs;
+                            goodMagnets.Add(m);
+                        }
+                    }
+
+                    if (goodMagnets.Count == 0) return;
+                    magnets = goodMagnets;
 
                     // Prevent duplicate entries: skip if already downloaded anywhere in the Jellyfin library
                     var normKey = NormalizeKey(baseN);
@@ -625,9 +752,28 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                     }
 
                     string mDir = Path.Combine(downDir, full);
+                    if (!Directory.Exists(mDir))
+                    {
+                        var matchDir = Directory.GetDirectories(downDir).FirstOrDefault(d => {
+                            var nfoPath = Path.Combine(d, "movie.nfo");
+                            if (File.Exists(nfoPath))
+                            {
+                                try
+                                {
+                                    var txt = File.ReadAllText(nfoPath);
+                                    if (!string.IsNullOrEmpty(tmdbId) && txt.Contains($"<tmdbid>{tmdbId}</tmdbid>")) return true;
+                                    if (!string.IsNullOrEmpty(imdbId) && txt.Contains($"<imdbid>{imdbId}</imdbid>")) return true;
+                                }
+                                catch { }
+                            }
+                            return false;
+                        });
+                        if (matchDir != null) mDir = matchDir;
+                    }
                     
                     // Synchronize per-movie directory to safely merge multi-language releases without race conditions
-                    var sem = _movieLocks.GetOrAdd(full, _ => new SemaphoreSlim(1, 1));
+                    var lockKey = Path.GetFileName(mDir);
+                    var sem = _movieLocks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
                     await sem.WaitAsync(tct);
                     try
                     {
@@ -639,11 +785,21 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                         }
 
                         Directory.CreateDirectory(mDir);
-                        string strm = Path.Combine(mDir, $"{full}.strm");
+                        string strm = Directory.GetFiles(mDir, "*.strm").FirstOrDefault() ?? Path.Combine(mDir, $"{full}.strm");
                         bool isBrandNew = !File.Exists(strm);
                         if (isBrandNew)
                         {
                             await File.WriteAllTextAsync(strm, "http://localhost:8096/dummy.mp4", tct);
+                            if (!string.IsNullOrEmpty(tmdbId))
+                            {
+                                string nfo = $"<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>\n<movie>\n  <tmdbid>{tmdbId}</tmdbid>\n</movie>";
+                                await File.WriteAllTextAsync(Path.Combine(mDir, "movie.nfo"), nfo, tct);
+                            }
+                            else if (!string.IsNullOrEmpty(imdbId))
+                            {
+                                string nfo = $"<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>\n<movie>\n  <imdbid>{imdbId}</imdbid>\n</movie>";
+                                await File.WriteAllTextAsync(Path.Combine(mDir, "movie.nfo"), nfo, tct);
+                            }
                         }
 
                         if (!string.IsNullOrEmpty(poster))
@@ -693,7 +849,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                             {
                                 // Merge language tags
                                 existingMatch.languages ??= new List<string>();
-                                foreach (var l in langs)
+                                foreach (var l in m.languages)
                                 {
                                     if (!existingMatch.languages.Contains(l, StringComparer.OrdinalIgnoreCase))
                                     {
@@ -703,7 +859,6 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                             }
                             else
                             {
-                                m.languages = new List<string>(langs);
                                 existingOptions.Add(m);
                             }
                         }

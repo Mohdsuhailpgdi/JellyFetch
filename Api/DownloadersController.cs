@@ -354,14 +354,7 @@ public class DownloadersController : ControllerBase
         }
         else if (filteredOptions.Count == 0 && options.Count > 0)
         {
-            if (!config.EnableTorbox)
-            {
-                description = "All available releases for this movie exceed the 4GB Seedr limit. Enable Torbox in JellyFetch settings to download files larger than 4GB.";
-            }
-            else
-            {
-                description = "No download options match the current provider filters.";
-            }
+            description = "No download options match the current provider filters.";
         }
 
         _logger.LogInformation("GetOptions for {ItemId} returning {Count} options (IsStrm: true)", itemId, filteredOptions.Count);
@@ -1230,8 +1223,8 @@ public class DownloadersController : ControllerBase
                 
                 using var proc = new System.Diagnostics.Process();
                 proc.StartInfo.FileName = "/usr/lib/jellyfin-ffmpeg/ffmpeg";
-                // Strip title from the container, video, audio, and subtitle streams. Specify format explicitly.
-                proc.StartInfo.Arguments = $"-y -i \"{filePath}\" -map 0 -c copy -f {format} -metadata title=\"\" -metadata:s:v title=\"\" -metadata:s:a title=\"\" -metadata:s:s title=\"\" \"{tmpFile}\"";
+                // Strip all global metadata and stream-specific handlers/titles to completely purge embedded domains
+                proc.StartInfo.Arguments = $"-y -i \"{filePath}\" -map 0 -c copy -map_metadata -1 -f {format} -metadata title=\"\" -metadata:s handler_name=\"\" -metadata:s title=\"\" \"{tmpFile}\"";
                 proc.StartInfo.UseShellExecute = false;
                 proc.StartInfo.RedirectStandardError = true;
                 proc.StartInfo.RedirectStandardOutput = true;
@@ -1419,11 +1412,30 @@ public class DownloadersController : ControllerBase
             taskProgress?.Report(15);
 
             // 3. Scan subdirectories in targetDir
-            var subDirs = Directory.GetDirectories(targetDir);
-            int total = subDirs.Length;
+            var subDirs = new List<string>(Directory.GetDirectories(targetDir));
+            
+            // Add all other root directories that contain .strm files (for global deduplication)
+            var configDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { targetDir };
+            string[] fallbackDirs = { "/media", "/media/Downloads", "/mnt/msp/Movies", "/mnt/gdrive/Jellyfin/Movies" };
+            foreach (var fb in fallbackDirs)
+            {
+                if (Directory.Exists(fb) && !configDirs.Contains(fb))
+                {
+                    configDirs.Add(fb);
+                    try { subDirs.AddRange(Directory.GetDirectories(fb)); } catch { }
+                }
+            }
+            
+            // Deduplicate subDirs
+            subDirs = subDirs.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+            int total = subDirs.Count;
             int deletedCount = 0;
             int keptCount = 0;
             ReportCleanupProgress($"Found {total} folders in downloads directory to inspect.", 15);
+            
+            // Track seen .strm movies for cross-directory duplicate deletion
+            var seenStrmMovies = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             for (int i = 0; i < total; i++)
             {
@@ -1452,6 +1464,19 @@ public class DownloadersController : ControllerBase
                     // Check if this is a duplicate of a movie already in the library
                     var normKey = JellyfinScraper.NormalizeKey(dirName);
                     bool isDuplicateOfLibrary = !string.IsNullOrEmpty(normKey) && realLibraryMovies.Contains(normKey);
+
+                    // Cross-directory duplicate check
+                    if (!isDuplicateOfLibrary && !string.IsNullOrEmpty(normKey))
+                    {
+                        if (seenStrmMovies.Contains(normKey))
+                        {
+                            isDuplicateOfLibrary = true;
+                        }
+                        else
+                        {
+                            seenStrmMovies.Add(normKey);
+                        }
+                    }
 
                     // Check language filter against downloads.json
                     bool isDeselectedLanguage = false;
