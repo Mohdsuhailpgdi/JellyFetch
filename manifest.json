@@ -13,7 +13,7 @@
         "changelog": "v1.3.5.1: Hotfix for metadata sanitize deadlock and stream connection hang on Oracle Cloud.",
         "targetAbi": "10.9.9.0",
         "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
-        "checksum": "",
+        "checksum": "1DB57D37D559BAA5BFA84F153474CEE2",
         "timestamp": "2026-10-02T16:00:00Z"
       },
       {
