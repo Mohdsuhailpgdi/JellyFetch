@@ -11,12 +11,12 @@
     "timestamp": "2026-10-02T01:15:00Z",
     "versions": [
         {
-            "checksum": "37EE11A3594EBCE34EC2A97BC7791CD0",
-            "changelog": "v1.3.5.1: Hotfix for metadata sanitize deadlock and stream connection hang on Oracle Cloud.",
+            "checksum": "EC4A0CE35DB36B633D4CE237FC898D2A",
+            "changelog": "v1.3.5.2: Sanitize UI task mapping fixed, added direct HTTP link ingestion, optimized metadata cleaning speed.",
             "targetAbi": "10.9.0.0",
             "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
             "timestamp": "2026-10-02T16:00:00Z",
-            "version": "1.3.5.1"
+            "version": "1.3.5.2"
         }
     ]
 }

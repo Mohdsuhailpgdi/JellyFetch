@@ -1206,7 +1206,7 @@ public class DownloadersController : ControllerBase
 
                 using var probe = new System.Diagnostics.Process();
                 probe.StartInfo.FileName = "/usr/lib/jellyfin-ffmpeg/ffprobe";
-                probe.StartInfo.Arguments = $"-v quiet -show_entries format_tags=title:stream_tags=title -of default=noprint_wrappers=1:nokey=1 \"{filePath}\"";
+                probe.StartInfo.Arguments = $"-v quiet -show_entries format_tags=title:stream_tags=title,handler_name -of default=noprint_wrappers=1:nokey=1 \"{filePath}\"";
                 probe.StartInfo.UseShellExecute = false;
                 probe.StartInfo.RedirectStandardOutput = true;
                 probe.Start();
@@ -1216,6 +1216,26 @@ public class DownloadersController : ControllerBase
                 if (string.IsNullOrWhiteSpace(titles))
                 {
                     logger.LogInformation("File already sanitized or has no titles: {File}", filePath);
+                    return;
+                }
+
+                bool needsSanitize = false;
+                foreach (var line in titles.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var t = line.Trim();
+                    if (t.Equals("VideoHandler", StringComparison.OrdinalIgnoreCase) || 
+                        t.Equals("SoundHandler", StringComparison.OrdinalIgnoreCase) ||
+                        t.Equals("SubtitleHandler", StringComparison.OrdinalIgnoreCase)) 
+                    {
+                        continue;
+                    }
+                    needsSanitize = true;
+                    break;
+                }
+
+                if (!needsSanitize)
+                {
+                    logger.LogInformation("File already sanitized (no spam handlers): {File}", filePath);
                     return;
                 }
 
@@ -1277,7 +1297,7 @@ public class DownloadersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult TriggerMetadataCleanup()
     {
-        var worker = GetTaskWorker(_taskManager, "SanitizeScheduledTask", "SanitizeJellyFetchMetadata");
+        var worker = GetTaskWorker(_taskManager, "SanitizeScheduledTask", "Sanitize JellyFetch Video Metadata");
         if (worker != null)
         {
             if (TryExecuteScheduledTask(_taskManager, worker))
@@ -2165,8 +2185,10 @@ public class DownloadersController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(request?.MagnetUri))
         {
-            return BadRequest("Magnet URI is required.");
+            return BadRequest("Magnet URI or Direct Link is required.");
         }
+        bool isHttp = request.MagnetUri.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
+                      request.MagnetUri.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
 
         var config = Plugin.Instance.Configuration;
         string fakeItemId = "manual-" + Guid.NewGuid().ToString("N").Substring(0, 8);
@@ -2209,7 +2231,13 @@ public class DownloadersController : ControllerBase
         };
         _activeDownloads[fakeItemId] = info;
 
-        if (providerChoice == "seedr" || (providerChoice == "auto" && config.EnableSeedr && !config.EnableTorbox))
+        if (isHttp)
+        {
+            info.Provider = "DirectLink";
+            _ = ProcessDirectDownload(info, config, request.MagnetUri);
+            return Ok(new { Success = true, Provider = "DirectLink" });
+        }
+        else if (providerChoice == "seedr" || (providerChoice == "auto" && config.EnableSeedr && !config.EnableTorbox))
         {
             info.Provider = "Seedr";
             _ = ProcessSeedrDownload(info, config, "", request.MagnetUri, fakeSize, null, null);
@@ -2227,6 +2255,82 @@ public class DownloadersController : ControllerBase
             info.Error = "No eligible download provider enabled or selected.";
             info.Completed = true;
             return BadRequest(new { Success = false, ErrorMessage = info.Error });
+        }
+    }
+
+    private async Task ProcessDirectDownload(DownloadProgressInfo progress, PluginConfiguration config, string fileUrl)
+    {
+        try
+        {
+            progress.Status = "Starting direct download...";
+            progress.Progress = 10;
+            
+            string targetDir = config.DownloadsDirectory;
+            if (string.IsNullOrEmpty(targetDir)) targetDir = "/media/Downloads";
+            if (!Directory.Exists(targetDir)) {
+                try { Directory.CreateDirectory(targetDir); } catch { }
+            }
+            
+            string fileName = "ManualDownload_" + Guid.NewGuid().ToString("N").Substring(0, 8) + ".mp4";
+            try 
+            {
+                var uri = new Uri(fileUrl);
+                var fn = Path.GetFileName(uri.AbsolutePath);
+                if (!string.IsNullOrEmpty(fn) && fn.Contains(".")) fileName = Uri.UnescapeDataString(fn);
+            } catch { }
+
+            fileName = CleanMediaFileName(fileName);
+            string targetPath = Path.Combine(targetDir, fileName);
+            progress.TargetPath = targetPath;
+            progress.MovieName = Path.GetFileNameWithoutExtension(fileName);
+            
+            using var httpClient = new HttpClient();
+            using var response = await httpClient.GetAsync(fileUrl, HttpCompletionOption.ResponseHeadersRead, progress.Cts.Token);
+            response.EnsureSuccessStatusCode();
+            
+            long? totalBytes = response.Content.Headers.ContentLength;
+            if (totalBytes.HasValue)
+            {
+                progress.SizeGb = Math.Round((double)totalBytes.Value / (1024.0 * 1024.0 * 1024.0), 2);
+            }
+            
+            using var contentStream = await response.Content.ReadAsStreamAsync(progress.Cts.Token);
+            using var fileStream = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true);
+            
+            var buffer = new byte[81920];
+            long totalRead = 0;
+            int bytesRead;
+            var lastUpdate = DateTime.UtcNow;
+            
+            while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length, progress.Cts.Token)) > 0)
+            {
+                await fileStream.WriteAsync(buffer, 0, bytesRead, progress.Cts.Token);
+                totalRead += bytesRead;
+                
+                if (totalBytes.HasValue && (DateTime.UtcNow - lastUpdate).TotalSeconds > 1)
+                {
+                    double pct = (double)totalRead / totalBytes.Value * 100;
+                    progress.Progress = Math.Round(pct, 1);
+                    progress.Status = $"Downloading direct link ({progress.Progress}%)...";
+                    lastUpdate = DateTime.UtcNow;
+                }
+            }
+            
+            progress.Progress = 100;
+            progress.Status = "Completed";
+            progress.Completed = true;
+            
+            await SanitizeVideoMetadataAsync(targetPath, _logger);
+            
+            _ = Task.Run(async () => {
+                try { await _libraryManager.ValidateMediaLibrary(new Progress<double>(), System.Threading.CancellationToken.None); } catch { }
+            });
+        }
+        catch (Exception ex)
+        {
+            progress.Status = "Failed";
+            progress.Error = ex.Message;
+            progress.Completed = true;
         }
     }
 
