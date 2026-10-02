@@ -891,6 +891,7 @@ public class DownloadersController : ControllerBase
                     progress.Progress = 20;
 
                     using var httpClient = new HttpClient();
+                    httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36");
                     var seedrHelper = new SeedrHelper(httpClient);
                     
                     
@@ -1059,6 +1060,7 @@ public class DownloadersController : ControllerBase
                     progress.Progress = 20;
 
                     using var httpClient = new HttpClient();
+                    httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36");
                     var torboxHelper = new TorboxHelper(httpClient);
                     
                     var res = await torboxHelper.GetDownloadUrlAsync(
@@ -1229,6 +1231,10 @@ public class DownloadersController : ControllerBase
                 proc.StartInfo.RedirectStandardError = true;
                 proc.StartInfo.RedirectStandardOutput = true;
                 proc.Start();
+                
+                var outTask = proc.StandardOutput.ReadToEndAsync();
+                var errTask = proc.StandardError.ReadToEndAsync();
+                await Task.WhenAll(outTask, errTask);
                 await proc.WaitForExitAsync();
                 
                 if (proc.ExitCode == 0 && System.IO.File.Exists(tmpFile))
@@ -1239,7 +1245,7 @@ public class DownloadersController : ControllerBase
                 }
                 else
                 {
-                    string err = await proc.StandardError.ReadToEndAsync();
+                    string err = await errTask;
                     logger.LogWarning("ffmpeg metadata sanitization failed for {File}. ExitCode: {Code}. Error: {Error}", filePath, proc.ExitCode, err);
                 }
             }
@@ -2017,6 +2023,7 @@ public class DownloadersController : ControllerBase
         long totalRead = 0;
         
         using var streamClient = new HttpClient { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
+        streamClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36");
 
         if (System.IO.File.Exists(tempPath))
         {
@@ -2028,6 +2035,7 @@ public class DownloadersController : ControllerBase
         long lastBytes = totalRead;
 
         bool done = false;
+        int retries = 0;
         while (!done && !cancellationToken.IsCancellationRequested)
         {
             try
@@ -2038,7 +2046,10 @@ public class DownloadersController : ControllerBase
                     req.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(totalRead, null);
                 }
 
-                using var response = await streamClient.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                using var connCts = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                connCts.CancelAfter(TimeSpan.FromSeconds(30));
+                
+                using var response = await streamClient.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, connCts.Token);
                 response.EnsureSuccessStatusCode();
 
                 if (totalBytes == -1L)
@@ -2100,9 +2111,16 @@ public class DownloadersController : ControllerBase
             {
                 throw;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 if (cancellationToken.IsCancellationRequested) throw;
+
+                retries++;
+                if (retries > 5) 
+                {
+                    progress.Error = ex.Message;
+                    throw;
+                }
 
                 if (progress.IsPaused)
                 {

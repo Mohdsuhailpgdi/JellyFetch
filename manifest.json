@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/icon.jpg",
     "versions": [
       {
+        "version": "1.3.5.1",
+        "changelog": "v1.3.5.1: Hotfix for metadata sanitize deadlock and stream connection hang on Oracle Cloud.",
+        "targetAbi": "10.9.9.0",
+        "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
+        "checksum": "",
+        "timestamp": "2026-10-02T16:00:00Z"
+      },
+      {
         "version": "1.3.5.0",
         "changelog": "v1.3.5.0: Enhanced language caching (language_cache.json) to respect OMDB rate limits, injected original audio language tags for multi-audio/dub releases, added movie.nfo sidecar generation for deduplication, and hardened metadata sanitization against domain spam. Increased forum scrape depth to 8 pages for older releases. Removed Torbox warning banner from UI.",
         "targetAbi": "10.9.9.0",

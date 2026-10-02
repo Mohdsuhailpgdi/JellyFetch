@@ -5,7 +5,7 @@
   
   **Automated media scraping, cloud downloading, and library injection for Jellyfin.**
   
-  [![Version](https://img.shields.io/badge/version-1.3.5.0-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
+  [![Version](https://img.shields.io/badge/version-1.3.5.1-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
   [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9.x--12.x-orange)](https://jellyfin.org)
   [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey)](https://github.com/Mohdsuhailpgdi/JellyFetch)
 </div>
@@ -17,7 +17,8 @@ This plugin is specifically optimized for Indian media consumers. The default sc
 
 ---
 
-## ✨ What's New in v1.3.5.0 — Deduplication & UI Fixes
+## ✨ What's New in v1.3.5.1 — Deduplication & UI Fixes
+- 🚑 **Stream & Metadata Hotfixes (v1.3.5.1)**: Fixed an issue where the Sanitize background task could deadlock indefinitely when parsing large files, and fixed a bug where Cloudflare/CDN blocks caused the downloader to get stuck at 20% in an infinite loop instead of failing gracefully.
 - 🔍 **Increased Scrape Depth**: Searches further back into forums (8 pages instead of 4) to prevent missing older releases.
 - 🎯 **Deduplication via movie.nfo**: Added `movie.nfo` sidecar file generation beside `.strm` dummy files to embed `<tmdbid>`, locking Jellyfin metadata and grouping multi-language dubs into the same movie object.
 - 🎬 **Hardened Language Extraction**: Audio tags (e.g. `[Tam + Mal]`) in filenames now strictly take precedence over the movie's TMDB default language, preventing "language bleeding".
