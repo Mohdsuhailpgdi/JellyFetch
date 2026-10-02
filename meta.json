@@ -11,12 +11,12 @@
     "timestamp": "2026-10-02T01:15:00Z",
     "versions": [
         {
-            "checksum": "EC4A0CE35DB36B633D4CE237FC898D2A",
-            "changelog": "v1.3.5.2: Sanitize UI task mapping fixed, added direct HTTP link ingestion, optimized metadata cleaning speed.",
+            "checksum": "ada32e47504dd82950d988e953942226",
+            "changelog": "v1.3.5.3: Hotfix to ensure Sanitize task scans entire Jellyfin library (including GDrive mounts) instead of just the Downloads directory.",
             "targetAbi": "10.9.0.0",
             "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
-            "timestamp": "2026-10-02T16:00:00Z",
-            "version": "1.3.5.2"
+            "timestamp": "2026-10-02T18:00:00Z",
+            "version": "1.3.5.3"
         }
     ]
 }

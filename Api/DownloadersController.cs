@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyFetch.Configuration;
 using Jellyfin.Plugin.JellyFetch.Helpers;
 using Jellyfin.Plugin.JellyFetch.Tasks;
+using Jellyfin.Data.Enums;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Tasks;
@@ -1332,21 +1333,50 @@ public class DownloadersController : ControllerBase
             ReportMetadataProgress("Starting metadata sanitization...", 5);
             if (taskProgress != null) taskProgress.Report(5);
             
+            var allFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // 1. Scan configured Downloads directory
             var config = Plugin.Instance?.Configuration ?? new PluginConfiguration();
             string dir = config.DownloadsDirectory;
             if (string.IsNullOrEmpty(dir)) dir = "/media/Downloads";
-            
-            if (!Directory.Exists(dir))
+            if (Directory.Exists(dir))
             {
-                ReportMetadataProgress("Downloads directory does not exist.", 100);
-                if (taskProgress != null) taskProgress.Report(100);
-                _metadataStatus = "Error";
-                return;
+                var localFiles = Directory.GetFiles(dir, "*.*", SearchOption.AllDirectories)
+                    .Where(f => f.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase));
+                foreach (var f in localFiles) allFiles.Add(f);
             }
-            
-            var files = Directory.GetFiles(dir, "*.*", SearchOption.AllDirectories)
-                .Where(f => f.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
-                .ToList();
+
+            // 2. Scan entire Jellyfin library for Movies (in case they were moved by rclone/cron to other mounts)
+            try
+            {
+                var query = new InternalItemsQuery
+                {
+                    IncludeItemTypes = new[] { BaseItemKind.Movie },
+                    Recursive = true,
+                    IsVirtualItem = false
+                };
+                var method = libraryManager.GetType().GetMethod("GetItemList", new[] { typeof(InternalItemsQuery) }) 
+                             ?? typeof(ILibraryManager).GetMethod("GetItemList", new[] { typeof(InternalItemsQuery) });
+                if (method != null)
+                {
+                    var items = (System.Collections.IEnumerable)method.Invoke(libraryManager, new object[] { query });
+                    foreach (MediaBrowser.Controller.Entities.BaseItem item in items)
+                    {
+                        if (!string.IsNullOrEmpty(item.Path) && 
+                            (item.Path.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase) || 
+                             item.Path.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            allFiles.Add(item.Path);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to query Jellyfin library for metadata cleanup.");
+            }
+
+            var files = allFiles.ToList();
             
             if (files.Count == 0)
             {
