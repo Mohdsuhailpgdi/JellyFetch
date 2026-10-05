@@ -431,7 +431,7 @@
             (opts.length > 0 ? ('<div id="jf-lang-tabs" style="display:flex;gap:10px;margin-bottom:15px;border-bottom:1px solid #333;padding-bottom:10px;overflow-x:auto;">' + tabsHtml + '</div>' +
             '<div id="jf-opt-list" style="display:flex;flex-direction:column;gap:12px;">' + listHtml + '</div>') : '') +
             '<div style="margin-top:20px;padding-top:16px;border-top:1px solid #333;text-align:right;">' +
-            '<button type="button" id="jf-btn-exclude" style="background:transparent;color:#f44336;padding:8px 16px;border-radius:4px;border:1px solid rgba(244,67,54,0.5);cursor:pointer;font-weight:600;transition:background 0.2s;">Exclude from Scraper</button></div>';
+            '<button type="button" id="jf-btn-exclude" style="background:transparent;color:#f44336;padding:8px 16px;border-radius:4px;border:1px solid rgba(244,67,54,0.5);cursor:pointer;font-weight:600;transition:background 0.2s;">Exclude &amp; Remove</button></div>';
 
         var closeBtn = inner.querySelector('#jf-btn-close');
         if (closeBtn) closeBtn.addEventListener('click', function () { modal.classList.add('hide'); });
@@ -439,27 +439,35 @@
         var excludeBtn = inner.querySelector('#jf-btn-exclude');
         if (excludeBtn) {
             excludeBtn.addEventListener('click', function () {
-                if (!confirm("Are you sure you want to block this movie from being scraped again? This will also remove the item from your Jellyfin library.")) return;
-                excludeBtn.disabled = true;
-                excludeBtn.textContent = 'Excluding...';
-                
-                jfFetch('/System/Configuration/Downloaders/Exclude/' + itemId, { method: 'POST' })
-                    .then(function () { 
-                        return window.ApiClient ? window.ApiClient.deleteItem(itemId) : Promise.resolve();
-                    })
-                    .then(function () {
-                        modal.classList.add('hide');
-                        if (window.Dashboard && window.Dashboard.navigate) {
-                            window.Dashboard.navigate('movies.html');
-                        } else {
-                            window.history.back();
-                        }
-                    })
-                    .catch(function () {
-                        excludeBtn.disabled = false;
-                        excludeBtn.textContent = 'Failed';
-                        setTimeout(function() { excludeBtn.textContent = 'Exclude from Scraper'; }, 2000);
+                require(['confirm'], function (confirm) {
+                    confirm({
+                        title: 'Exclude & Remove Movie',
+                        text: 'Are you sure you want to block this movie from being scraped again? This will also remove the item from your Jellyfin library.',
+                        confirmText: 'Exclude & Remove',
+                        cancelText: 'Cancel'
+                    }).then(function () {
+                        excludeBtn.disabled = true;
+                        excludeBtn.textContent = 'Excluding...';
+                        
+                        jfFetch('/System/Configuration/Downloaders/Exclude/' + itemId, { method: 'POST' })
+                            .then(function () { 
+                                return window.ApiClient ? window.ApiClient.deleteItem(itemId) : Promise.resolve();
+                            })
+                            .then(function () {
+                                modal.classList.add('hide');
+                                if (window.Dashboard && window.Dashboard.navigate) {
+                                    window.Dashboard.navigate('movies.html');
+                                } else {
+                                    window.history.back();
+                                }
+                            })
+                            .catch(function () {
+                                excludeBtn.disabled = false;
+                                excludeBtn.textContent = 'Failed';
+                                setTimeout(function() { excludeBtn.textContent = 'Exclude & Remove'; }, 2000);
+                            });
                     });
+                });
             });
         }
 
