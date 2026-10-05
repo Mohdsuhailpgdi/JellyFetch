@@ -11,12 +11,12 @@
     "timestamp": "2026-10-02T01:15:00Z",
     "versions": [
         {
-            "checksum": "ada32e47504dd82950d988e953942226",
-            "changelog": "v1.3.5.3: Hotfix to ensure Sanitize task scans entire Jellyfin library (including GDrive mounts) instead of just the Downloads directory.",
+            "checksum": "946d8a8a85bbb00187bdd5f771438653",
+            "changelog": "v1.3.6.0: Implemented Blocklist feature to exclude movies from scraping with UI integration. Fixed mobile app navigation bug. Updated Manual Download UI.",
             "targetAbi": "10.9.0.0",
             "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
-            "timestamp": "2026-10-02T18:00:00Z",
-            "version": "1.3.5.3"
+            "timestamp": "2026-10-05T10:30:00Z",
+            "version": "1.3.6.0"
         }
     ]
 }

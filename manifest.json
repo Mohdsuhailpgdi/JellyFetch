@@ -13,7 +13,7 @@
         "changelog": "v1.3.6.0: Implemented Blocklist feature to exclude movies from scraping with UI integration. Fixed mobile app navigation bug. Updated Manual Download UI.",
         "targetAbi": "10.9.9.0",
         "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
-        "checksum": "813436d632443a114fa76b65cad8ab51",
+        "checksum": "946d8a8a85bbb00187bdd5f771438653",
         "timestamp": "2026-10-05T10:30:00Z"
       },
       {
