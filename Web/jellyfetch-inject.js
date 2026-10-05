@@ -675,4 +675,90 @@
         setTimeout(onPageChange, 300);
     }
 
+    // ── Context Menu Injection ──────────────────────────────────────────────────
+    var contextMenuObserver = new MutationObserver(function (mutations) {
+        if (!isDetailsPage() || isPlayerActive() || !state.isStrm) return;
+        var itemId = getCurrentItemId();
+        if (!itemId) return;
+
+        mutations.forEach(function (mutation) {
+            mutation.addedNodes.forEach(function (node) {
+                if (node.nodeType === 1 && (node.classList.contains('actionSheet') || node.classList.contains('actionsheet'))) {
+                    // Check if there is a scroller or list
+                    var scroller = node.querySelector('.actionSheetScroller') || node;
+                    
+                    // Prevent duplicates
+                    if (scroller.querySelector('#jf-ctx-exclude')) return;
+                    
+                    var btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.id = 'jf-ctx-exclude';
+                    btn.className = 'actionSheetMenuItem emby-button';
+                    btn.innerHTML = '<span class="material-icons actionSheetMenuItemIcon" style="color:#f44336;">block</span><span class="actionSheetMenuItemText" style="color:#f44336;">Exclude &amp; Remove</span>';
+                    
+                    scroller.appendChild(btn);
+
+                    btn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        // Close action sheet by clicking background or removing node
+                        var backdrop = document.querySelector('.actionSheetBackdrop') || document.querySelector('.dialogBackdrop');
+                        if (backdrop) backdrop.click();
+                        else if (node.parentNode) node.parentNode.removeChild(node);
+                        
+                        // Open our modal and render confirm view
+                        var view = document.querySelector('.view:not(.hide)') || document.body;
+                        var modal = document.getElementById('jf-dl-modal');
+                        if (!modal) {
+                            ensureModal(view);
+                            modal = document.getElementById('jf-dl-modal');
+                        }
+                        modal.classList.remove('hide');
+                        var inner = modal.querySelector('#jf-modal-inner');
+                        
+                        inner.innerHTML =
+                            '<div style="display:flex;flex-direction:column;align-items:center;padding:20px;text-align:center;">' +
+                            '<span class="material-icons" style="font-size:48px;color:#f44336;margin-bottom:15px;">warning</span>' +
+                            '<h2 style="margin:0 0 10px;font-size:1.4em;">Exclude & Remove Movie</h2>' +
+                            '<p style="margin:0 0 25px;color:#bbb;line-height:1.5;max-width:400px;">Are you sure you want to block this movie from being scraped again? This will also remove the item from your Jellyfin library.</p>' +
+                            '<div style="display:flex;gap:15px;justify-content:center;">' +
+                            '<button type="button" id="jf-confirm-cancel-ctx" style="background:#444;color:#fff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;font-weight:bold;transition:background 0.2s;">Cancel</button>' +
+                            '<button type="button" id="jf-confirm-exclude-ctx" style="background:#f44336;color:#fff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;font-weight:bold;transition:background 0.2s;">Exclude & Remove</button>' +
+                            '</div></div>';
+
+                        var cancelBtn = inner.querySelector('#jf-confirm-cancel-ctx');
+                        if (cancelBtn) cancelBtn.addEventListener('click', function () {
+                            modal.classList.add('hide');
+                        });
+
+                        var confBtn = inner.querySelector('#jf-confirm-exclude-ctx');
+                        if (confBtn) confBtn.addEventListener('click', function () {
+                            confBtn.disabled = true;
+                            confBtn.textContent = 'Excluding...';
+                            
+                            jfFetch('/System/Configuration/Downloaders/Exclude/' + itemId, { method: 'POST' })
+                                .then(function () { 
+                                    return window.ApiClient ? window.ApiClient.deleteItem(itemId) : Promise.resolve();
+                                })
+                                .then(function () {
+                                    modal.classList.add('hide');
+                                    if (window.Dashboard && window.Dashboard.navigate) {
+                                        window.Dashboard.navigate('movies.html');
+                                    } else {
+                                        window.history.back();
+                                    }
+                                })
+                                .catch(function () {
+                                    confBtn.disabled = false;
+                                    confBtn.textContent = 'Failed';
+                                    setTimeout(function() { confBtn.textContent = 'Exclude & Remove'; }, 2000);
+                                });
+                        });
+                    });
+                }
+            });
+        });
+    });
+    contextMenuObserver.observe(document.body, { childList: true, subtree: true });
+
 }());
