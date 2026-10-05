@@ -361,6 +361,48 @@ public class DownloadersController : ControllerBase
         _logger.LogInformation("GetOptions for {ItemId} returning {Count} options (IsStrm: true)", itemId, filteredOptions.Count);
         return Ok(new { IsStrm = true, Options = filteredOptions, Description = description });
     }
+    [HttpPost("Exclude/{itemId}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public ActionResult Exclude(string itemId)
+    {
+        if (!Guid.TryParse(itemId, out Guid id)) return BadRequest("Invalid ID");
+        var item = _libraryManager.GetItemById(id);
+        if (item == null) return NotFound("Media not found.");
+
+        string? tmdbId = null;
+        if (item.ProviderIds != null && item.ProviderIds.TryGetValue("Tmdb", out var tId))
+        {
+            tmdbId = tId;
+        }
+        
+        var title = item.Name ?? "";
+        var baseN = title;
+
+        var config = Plugin.Instance.Configuration;
+        var blocklist = config.Blocklist?.ToList() ?? new List<string>();
+        bool added = false;
+
+        if (!string.IsNullOrEmpty(tmdbId) && !blocklist.Contains(tmdbId))
+        {
+            blocklist.Add(tmdbId);
+            added = true;
+        }
+        else if (!string.IsNullOrEmpty(baseN) && !blocklist.Contains(baseN))
+        {
+            blocklist.Add(baseN);
+            added = true;
+        }
+
+        if (added)
+        {
+            config.Blocklist = blocklist.ToArray();
+            Plugin.Instance.SaveConfiguration();
+            _logger.LogInformation("Added {ItemId} ({Title}) to blocklist. TMDB: {TmdbId}", itemId, title, tmdbId);
+        }
+
+        return Ok(new { Success = true, Excluded = true });
+    }
 
     [HttpGet("Status/{itemId}")]
     [AllowAnonymous]
@@ -426,6 +468,25 @@ public class DownloadersController : ControllerBase
         if (dir != null && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
         System.IO.File.WriteAllText(path, JsonSerializer.Serialize(langs));
         return Ok(new { Message = "Allowed languages updated.", Languages = langs });
+    }
+
+    [HttpDelete("Blocklist/{id}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult RemoveFromBlocklist(string id)
+    {
+        var config = Plugin.Instance.Configuration;
+        var blocklist = config.Blocklist?.ToList() ?? new List<string>();
+        
+        string decodedId = System.Net.WebUtility.UrlDecode(id);
+        
+        if (blocklist.RemoveAll(b => b.Equals(decodedId, StringComparison.OrdinalIgnoreCase)) > 0)
+        {
+            config.Blocklist = blocklist.ToArray();
+            Plugin.Instance.SaveConfiguration();
+            _logger.LogInformation("Removed '{Id}' from blocklist.", decodedId);
+        }
+        
+        return Ok(new { Success = true });
     }
 
     [HttpDelete("Activity")]

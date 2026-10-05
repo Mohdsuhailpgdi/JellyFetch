@@ -324,8 +324,11 @@
               '<span class="material-icons" style="font-size:18px;">pause</span>Pause</button>';
 
         inner.innerHTML =
-            '<h2 id="jf-modal-header" style="margin-top:0;border-bottom:1px solid #333;padding-bottom:12px;display:flex;align-items:center;gap:10px;">' +
+            '<div style="display:flex;align-items:flex-start;justify-content:space-between;border-bottom:1px solid #333;padding-bottom:12px;margin-bottom:12px;">' +
+            '<h2 id="jf-modal-header" style="margin:0;display:flex;align-items:center;gap:10px;">' +
             '<span class="material-icons' + headerSpin + '" style="color:' + headerClr + ';">' + headerIcon + '</span>' + headerTxt + '</h2>' +
+            '<button type="button" id="jf-btn-close" title="Close" style="background:transparent;color:#bbb;border:none;cursor:pointer;padding:4px;display:flex;align-items:center;justify-content:center;border-radius:50%;">' +
+            '<span class="material-icons" style="font-size:24px;">close</span></button></div>' +
             '<div style="margin-bottom:16px;">' +
             lowPeerBadge +
             '<div id="jf-modal-status" style="font-size:0.9em;color:' + statusClr + ';margin-bottom:12px;">' + escHtml(sTxt) + '</div>' +
@@ -336,12 +339,9 @@
             '<span id="jf-modal-pct">' + pct + '% completed</span>' +
             '<span>Seedr / Torbox Cloud</span></div></div>' +
             '<div style="display:flex;gap:12px;margin-top:20px;padding-top:16px;border-top:1px solid #333;">' +
-
             pauseOrResumeBtn +
             '<button type="button" id="jf-btn-stop" style="background:#f44336;color:#fff;padding:8px 18px;border-radius:4px;border:none;cursor:pointer;font-weight:bold;display:flex;align-items:center;gap:6px;">' +
-            '<span class="material-icons" style="font-size:18px;">stop</span>Stop</button></div>' +
-            '<div style="margin-top:20px;text-align:right;">' +
-            '<button type="button" id="jf-btn-close" style="background:#444;color:#fff;padding:8px 20px;border-radius:4px;border:none;cursor:pointer;font-weight:600;">Close</button></div>';
+            '<span class="material-icons" style="font-size:18px;">stop</span>Stop</button></div>';
 
         var closeBtn = inner.querySelector('#jf-btn-close');
         if (closeBtn) closeBtn.addEventListener('click', function () { modal.classList.add('hide'); });
@@ -423,15 +423,45 @@
             }).join('');
 
         inner.innerHTML =
-            '<h2 style="margin-top:0;border-bottom:1px solid #333;padding-bottom:10px;">Available Downloads</h2>' +
+            '<div style="display:flex;align-items:flex-start;justify-content:space-between;border-bottom:1px solid #333;padding-bottom:10px;margin-bottom:12px;">' +
+            '<h2 style="margin:0;">Available Downloads</h2>' +
+            '<button type="button" id="jf-btn-close" title="Close" style="background:transparent;color:#bbb;border:none;cursor:pointer;padding:4px;display:flex;align-items:center;justify-content:center;border-radius:50%;">' +
+            '<span class="material-icons" style="font-size:24px;">close</span></button></div>' +
             (state.description ? '<p style="margin:0 0 14px;font-size:0.95em;color:#ffb74d;background:rgba(255,152,0,0.12);padding:10px 14px;border-radius:6px;border:1px solid rgba(255,152,0,0.35);line-height:1.4;">' + escHtml(state.description) + '</p>' : '') +
             (opts.length > 0 ? ('<div id="jf-lang-tabs" style="display:flex;gap:10px;margin-bottom:15px;border-bottom:1px solid #333;padding-bottom:10px;overflow-x:auto;">' + tabsHtml + '</div>' +
             '<div id="jf-opt-list" style="display:flex;flex-direction:column;gap:12px;">' + listHtml + '</div>') : '') +
-            '<div style="margin-top:20px;text-align:right;">' +
-            '<button type="button" id="jf-btn-close" style="background:#444;color:#fff;padding:8px 20px;border-radius:4px;border:none;cursor:pointer;font-weight:600;">Close</button></div>';
+            '<div style="margin-top:20px;padding-top:16px;border-top:1px solid #333;text-align:right;">' +
+            '<button type="button" id="jf-btn-exclude" style="background:transparent;color:#f44336;padding:8px 16px;border-radius:4px;border:1px solid rgba(244,67,54,0.5);cursor:pointer;font-weight:600;transition:background 0.2s;">Exclude from Scraper</button></div>';
 
         var closeBtn = inner.querySelector('#jf-btn-close');
         if (closeBtn) closeBtn.addEventListener('click', function () { modal.classList.add('hide'); });
+
+        var excludeBtn = inner.querySelector('#jf-btn-exclude');
+        if (excludeBtn) {
+            excludeBtn.addEventListener('click', function () {
+                if (!confirm("Are you sure you want to block this movie from being scraped again? This will also remove the item from your Jellyfin library.")) return;
+                excludeBtn.disabled = true;
+                excludeBtn.textContent = 'Excluding...';
+                
+                jfFetch('/System/Configuration/Downloaders/Exclude/' + itemId, { method: 'POST' })
+                    .then(function () { 
+                        return window.ApiClient ? window.ApiClient.deleteItem(itemId) : Promise.resolve();
+                    })
+                    .then(function () {
+                        modal.classList.add('hide');
+                        if (window.Dashboard && window.Dashboard.navigate) {
+                            window.Dashboard.navigate('movies.html');
+                        } else {
+                            window.history.back();
+                        }
+                    })
+                    .catch(function () {
+                        excludeBtn.disabled = false;
+                        excludeBtn.textContent = 'Failed';
+                        setTimeout(function() { excludeBtn.textContent = 'Exclude from Scraper'; }, 2000);
+                    });
+            });
+        }
 
         inner.querySelectorAll('.jf-lang-tab').forEach(function (tb) {
             tb.addEventListener('click', function () {
@@ -577,6 +607,9 @@
 
     // ── Event Listeners (Native Jellyfin Event-Driven) ────────────────
     function onPageChange() {
+        var m = document.getElementById('jf-dl-modal');
+        if (m) m.classList.add('hide');
+
         if (isPlayerActive() || !isDetailsPage()) {
             document.body.classList.remove('jf-download-mode');
             stopAll();
@@ -608,6 +641,8 @@
 
     // Cleanup on view hide
     document.addEventListener('viewhide', function () {
+        var m = document.getElementById('jf-dl-modal');
+        if (m) m.classList.add('hide');
         if (isPlayerActive() || !isDetailsPage()) {
             stopAll();
             document.body.classList.remove('jf-download-mode');

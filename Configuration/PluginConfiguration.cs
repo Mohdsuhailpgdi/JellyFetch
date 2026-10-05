@@ -47,4 +47,9 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets the custom downloads directory path.
     /// </summary>
     public string DownloadsDirectory { get; set; } = "/media/Downloads";
+
+    /// <summary>
+    /// Gets or sets the list of blocked movie identifiers (TMDB ID or Title).
+    /// </summary>
+    public string[] Blocklist { get; set; } = Array.Empty<string>();
 }

@@ -6,6 +6,7 @@
             <button type="button" class="plugin-tab-btn" data-tab="tabManual" style="background:none; border:none; color:#888; padding:10px 5px; font-size:1.1em; font-weight:bold; cursor:pointer; border-bottom: 2px solid transparent;">Manual Download</button>
             <button type="button" class="plugin-tab-btn" data-tab="tabTasks" style="background:none; border:none; color:#888; padding:10px 5px; font-size:1.1em; font-weight:bold; cursor:pointer; border-bottom: 2px solid transparent;">Scraper & Tasks</button>
             <button type="button" class="plugin-tab-btn" data-tab="tabActivity" style="background:none; border:none; color:#888; padding:10px 5px; font-size:1.1em; font-weight:bold; cursor:pointer; border-bottom: 2px solid transparent;">Activity</button>
+            <button type="button" class="plugin-tab-btn" data-tab="tabBlocklist" style="background:none; border:none; color:#888; padding:10px 5px; font-size:1.1em; font-weight:bold; cursor:pointer; border-bottom: 2px solid transparent;">Blocklist</button>
         </div>
 
         <!-- Tab 0: Providers & Settings -->
@@ -96,13 +97,13 @@
         <div id="tabManual" class="tabContent" style="display: none; padding-top: 2em; max-width: 800px; margin: 0;">
             <div class="verticalSection">
                 <div class="sectionTitleContainer flex align-items-center">
-                    <h2 class="sectionTitle">Add Magnet Manually</h2>
+                    <h2 class="sectionTitle">Manual Download Link</h2>
                 </div>
-                <p style="margin-bottom: 1.5em; color: #aaa;">Paste a magnet URI directly to send it to Torbox or Seedr without using the scraper.</p>
+                <p style="margin-bottom: 1.5em; color: #aaa;">Paste a magnet URI or a direct HTTPS download link to send it to the backend for processing.</p>
                 <form id="formManualDownload">
                     <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="txtMagnetUri">Magnet URI</label>
-                        <input type="text" id="txtMagnetUri" name="txtMagnetUri" class="emby-input" required placeholder="magnet:?xt=urn:btih:..." />
+                        <label class="inputLabel inputLabelUnfocused" for="txtMagnetUri">Magnet / Direct URL</label>
+                        <input type="text" id="txtMagnetUri" name="txtMagnetUri" class="emby-input" required placeholder="magnet:?xt=urn... OR https://..." />
                     </div>
                     <div class="selectContainer">
                         <label class="selectLabel" for="selManualProvider">Download Provider</label>
@@ -220,6 +221,38 @@
                         </thead>
                         <tbody id="historyTableBody">
                             <tr><td colspan="4" style="padding: 10px; text-align: center; color: #888;">Loading history...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- Tab 4: Blocklist -->
+        <div id="tabBlocklist" class="tabContent" style="display: none; padding-top: 2em; max-width: 1000px; margin: 0;">
+            <div class="verticalSection">
+                <div class="sectionTitleContainer flex align-items-center">
+                    <h2 class="sectionTitle">Ignored Movies (Blocklist)</h2>
+                    <div style="margin-left: auto; display: flex; gap: 10px;">
+                        <button is="emby-button" type="button" id="btnRefreshBlocklist" class="raised" style="padding: 0.3em 0.8em; border-radius: 4px;">
+                            <span class="material-icons" style="font-size: 1.2em; vertical-align: middle;">refresh</span>
+                            <span style="vertical-align: middle;">Refresh</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <p style="color: #aaa; margin-bottom: 1em;">Movies listed here will be skipped by the scraper. You can exclude a movie from the download options menu when viewing the dummy item.</p>
+
+                <div id="blocklistTableContainer" style="overflow-x: auto; margin-top: 1em; max-height: 600px; overflow-y: auto;">
+                    <table class="tblHistory" style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.95em;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid #333;">
+                                <th style="padding: 10px;">Identifier (TMDB ID or Title)</th>
+                                <th style="padding: 10px; width: 100px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="blocklistTableBody">
+                            <tr><td colspan="2" style="padding: 10px; text-align: center; color: #888;">Loading blocklist...</td></tr>
                         </tbody>
                     </table>
                 </div>

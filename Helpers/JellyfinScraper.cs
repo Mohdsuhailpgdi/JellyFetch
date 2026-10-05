@@ -699,6 +699,10 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                     var (langs, ok, tmdbId, imdbId, origLangs) = await DetectLanguageAsync(title, task.Lang, allowedLangs, baseN);
                     if (!ok) return;
 
+                    var blocklist = Plugin.Instance?.Configuration?.Blocklist ?? Array.Empty<string>();
+                    if (blocklist.Any(b => (!string.IsNullOrEmpty(tmdbId) && b.Equals(tmdbId, StringComparison.OrdinalIgnoreCase)) || baseN.Equals(b, StringComparison.OrdinalIgnoreCase)))
+                        return;
+
                     // STRICT ORIGINAL LANGUAGE CHECK VIA TMDB
                     // (Implemented above in DetectLanguageAsync as a fallback)
 

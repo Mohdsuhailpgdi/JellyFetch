@@ -441,6 +441,49 @@ export default function(view, params) {
             btnRefreshHistory.addEventListener('click', loadHistory);
         }
 
+        function loadBlocklist() {
+            const tbody = view.querySelector('#blocklistTableBody');
+            if (tbody) {
+                tbody.innerHTML = '<tr><td colspan="2" style="padding: 10px; text-align: center; color: #888;">Loading blocklist...</td></tr>';
+                ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                    const bl = config.Blocklist || [];
+                    tbody.innerHTML = '';
+                    if (bl.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="2" style="padding: 10px; text-align: center; color: #888;">Blocklist is empty.</td></tr>';
+                        return;
+                    }
+                    bl.forEach(item => {
+                        let row = document.createElement('tr');
+                        row.style.borderBottom = '1px solid #333';
+                        row.innerHTML = `
+                            <td style="padding: 10px; vertical-align:middle;">${item}</td>
+                            <td style="padding: 10px; vertical-align:middle;">
+                                <button class="btnRemoveBlocklist raised" data-id="${item}" style="font-size: 0.8em; padding: 4px 8px; border-radius: 3px; cursor: pointer; color: #f44336; border: 1px solid rgba(244,67,54,0.5); background: transparent;">Remove</button>
+                            </td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                    tbody.querySelectorAll('.btnRemoveBlocklist').forEach(btn => {
+                        btn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            const id = this.getAttribute('data-id');
+                            fetch('/System/Configuration/Downloaders/Blocklist/' + encodeURIComponent(id), {
+                                method: 'DELETE',
+                                headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
+                            }).then(() => loadBlocklist());
+                        });
+                    });
+                }).catch(e => {
+                    tbody.innerHTML = '<tr><td colspan="2" style="padding: 10px; text-align: center; color: #f44336;">Failed to load blocklist.</td></tr>';
+                });
+            }
+        }
+
+        const btnRefreshBlocklist = view.querySelector('#btnRefreshBlocklist');
+        if (btnRefreshBlocklist) {
+            btnRefreshBlocklist.addEventListener('click', loadBlocklist);
+        }
+
         const btnClearHistory = view.querySelector('#btnClearHistory');
         if (btnClearHistory) {
             btnClearHistory.addEventListener('click', function(e) {
@@ -529,6 +572,7 @@ export default function(view, params) {
 
         checkInitialStatus();
         loadHistory();
+        loadBlocklist();
 
         if (btnCleanupScraper) {
             btnCleanupScraper.addEventListener('click', function (e) {
