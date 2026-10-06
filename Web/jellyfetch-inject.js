@@ -656,15 +656,14 @@
         btn.removeAttribute('data-action');
         
         // Find and completely replace the icon element to purge any ghost ::before classes
+        var is109 = !!btn.querySelector('.listItemBody');
         var iconEl = btn.querySelector('.listItemIcon, .actionSheetMenuItemIcon, .md-icon, .material-symbols-outlined, .material-icons');
         if (iconEl) {
             var newIcon = document.createElement('span');
-            newIcon.className = 'listItemIcon actionSheetMenuItemIcon material-icons md-icon';
-            newIcon.style.color = '#f44336';
-            newIcon.textContent = 'remove_circle_outline'; // Thinner icon, matches theme better than block
-            
-            // Keep any original margins/padding from the theme
-            if (iconEl.style.cssText) newIcon.style.cssText += iconEl.style.cssText;
+            newIcon.className = is109 ? 'listItemIcon material-icons md-icon' : 'actionSheetMenuItemIcon material-icons md-icon';
+            newIcon.style.color = '#ff5252'; // Light red icon
+            newIcon.style.backgroundColor = 'transparent'; // Remove any inherited background bubble
+            newIcon.textContent = 'remove_circle_outline'; // Thinner icon
             
             iconEl.parentNode.replaceChild(newIcon, iconEl);
         }
@@ -673,12 +672,12 @@
         var textEl = btn.querySelector('.listItemBodyText, .actionSheetMenuItemText');
         if (textEl) {
             textEl.textContent = 'Exclude & Remove';
-            textEl.style.color = '#f44336'; // Make text red to match the destructive action
+            textEl.style.color = 'inherit'; // Make text white/inherit to match others
         } else if (btn.querySelector('.listItemBody')) {
             // Fallback for weird custom themes if text node isn't directly matching class
             var bodyText = btn.querySelector('.listItemBody');
             bodyText.textContent = 'Exclude & Remove';
-            bodyText.style.color = '#f44336';
+            bodyText.style.color = 'inherit';
         }
         
         scroller.appendChild(btn);
@@ -733,9 +732,19 @@
                                 })
                                 .then(function () {
                                     modal.classList.add('hide');
-                                    if (window.Dashboard && window.Dashboard.navigate) {
-                                        window.Dashboard.navigate('movies.html');
-                                    } else {
+                                    
+                                    // Remove the card visually from the DOM
+                                    var card = document.querySelector('.card[data-id="' + itemId + '"]');
+                                    if (card) {
+                                        if (card.parentNode && card.parentNode.classList.contains('cardWrapper')) {
+                                            card.parentNode.remove();
+                                        } else {
+                                            card.remove();
+                                        }
+                                    }
+                                    
+                                    // If we are currently on the details page of this item, navigate away
+                                    if (isDetailsPage() && getCurrentItemId() === itemId) {
                                         window.history.back();
                                     }
                                 })
