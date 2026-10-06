@@ -9,12 +9,12 @@
     "imageUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/icon.jpg",
     "versions": [
       {
-        "version": "1.3.6.5",
-        "changelog": "v1.3.6.5: Context Menu Injection refactored to be robust against Jellyfin's DOM rendering cycle.",
+        "version": "1.3.6.6",
+        "changelog": "v1.3.6.6: UI Fix - Clone existing context menu button to inherit native Jellyfin styling completely.",
         "targetAbi": "10.9.9.0",
         "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
-        "checksum": "0b13276993561b2ea2dba31151835e79",
-        "timestamp": "2026-10-06T09:15:00Z"
+        "checksum": "5afc78bc29e87e5318fdf1d3e7c600e2",
+        "timestamp": "2026-10-06T09:30:00Z"
       },
       {
         "version": "1.3.5.3",

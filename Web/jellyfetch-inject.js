@@ -644,14 +644,35 @@
         
         // Prevent duplicates
         if (scroller.querySelector('#jf-ctx-exclude')) return;
+        
         // Wait until Jellyfin has actually populated the scroller with buttons
-        if (!scroller.querySelector('.actionSheetMenuItem')) return;
+        var firstBtn = scroller.querySelector('.actionSheetMenuItem');
+        if (!firstBtn) return;
 
-        var btn = document.createElement('button');
-        btn.type = 'button';
+        // Clone the first button to perfectly inherit the current theme's styles and classes
+        var btn = firstBtn.cloneNode(true);
         btn.id = 'jf-ctx-exclude';
-        btn.className = 'actionSheetMenuItem emby-button';
-        btn.innerHTML = '<span class="material-icons actionSheetMenuItemIcon" style="color:#f44336;">block</span><span class="actionSheetMenuItemText" style="color:#f44336;">Exclude &amp; Remove</span>';
+        btn.removeAttribute('data-id');
+        btn.removeAttribute('data-action');
+        
+        // Update Icon
+        var iconEl = btn.querySelector('.actionSheetMenuItemIcon, .md-icon');
+        if (iconEl) {
+            iconEl.textContent = 'block';
+            iconEl.style.color = '#f44336';
+        }
+        
+        // Update Text
+        var textEl = btn.querySelector('.actionSheetMenuItemText') || btn;
+        if (textEl !== btn) {
+            textEl.textContent = 'Exclude & Remove';
+            textEl.style.color = '#f44336';
+        } else {
+            btn.innerHTML = '<span class="actionSheetMenuItemIcon md-icon material-icons" style="color:#f44336;">block</span><span class="actionSheetMenuItemText" style="color:#f44336;">Exclude &amp; Remove</span>';
+        }
+        
+        // Ensure no default background overrides the theme
+        btn.style.background = 'transparent';
         
         scroller.appendChild(btn);
 
@@ -661,7 +682,7 @@
                         // Close action sheet by clicking background or removing node
                         var backdrop = document.querySelector('.actionSheetBackdrop') || document.querySelector('.dialogBackdrop');
                         if (backdrop) backdrop.click();
-                        else if (node.parentNode) node.parentNode.removeChild(node);
+                        else if (sheet.parentNode) sheet.parentNode.removeChild(sheet);
                         
                         // Open our modal and render confirm view
                         var view = document.querySelector('.view:not(.hide)') || document.body;
