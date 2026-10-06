@@ -9,12 +9,12 @@
     "imageUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/icon.jpg",
     "versions": [
       {
-        "version": "1.3.6.19",
-        "changelog": "v1.3.6.19: Final alignment fix by perfectly whitelisting native layout classes and omitting rogue glyphs.",
+        "version": "1.3.6.20",
+        "changelog": "v1.3.6.20: Fixed thick/small legacy font fallback causing alignment shift by prioritizing material-symbols-outlined.",
         "targetAbi": "10.9.9.0",
         "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
-        "checksum": "91d1ae08d3bbbfeb6a8528b66adc112f",
-        "timestamp": "2026-10-06T16:15:00Z"
+        "checksum": "5897a77be027621e62f78bd092a1c573",
+        "timestamp": "2026-10-06T16:20:00Z"
       },
       {
         "version": "1.3.5.3",
