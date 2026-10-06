@@ -649,26 +649,34 @@
         var firstBtn = scroller.querySelector('.actionSheetMenuItem');
         if (!firstBtn) return;
 
-        // Clone only the wrapper button to inherit classes but avoid duplicating ghost SVGs or text nodes
-        var btn = firstBtn.cloneNode(false);
+        // Deep clone to preserve exactly whatever flex/grid DOM structure the current Jellyfin version uses
+        var btn = firstBtn.cloneNode(true);
         btn.id = 'jf-ctx-exclude';
         btn.removeAttribute('data-id');
         btn.removeAttribute('data-action');
-        btn.style.background = 'transparent'; // Ensure no default gray button styling leaks through
         
-        // Jellyfin 10.9 uses listItemBody, 10.8 uses actionSheetMenuItemText
-        var is109 = !!firstBtn.querySelector('.listItemBody');
+        // Find and completely replace the icon element to purge any ghost ::before classes
+        var iconEl = btn.querySelector('.listItemIcon, .actionSheetMenuItemIcon, .md-icon, .material-symbols-outlined, .material-icons');
+        if (iconEl) {
+            var newIcon = document.createElement('span');
+            newIcon.className = 'listItemIcon actionSheetMenuItemIcon material-icons md-icon';
+            newIcon.style.color = '#f44336';
+            newIcon.textContent = 'block'; // 'block' is safe and guarantees no font loading issues
+            
+            // Keep any original margins/padding from the theme
+            if (iconEl.style.cssText) newIcon.style.cssText += iconEl.style.cssText;
+            
+            iconEl.parentNode.replaceChild(newIcon, iconEl);
+        }
         
-        if (is109) {
-            // Reconstruct 10.9 DOM. Do NOT inherit origIcon.className, as it contains the original button's specific icon class!
-            btn.innerHTML = 
-                '<span class="listItemIcon material-symbols-outlined" style="color:#f44336; margin-right:12px;">remove_circle_outline</span>' +
-                '<div class="listItemBody" style="display:flex; align-items:center;"><div class="listItemBodyText" style="color:inherit;">Exclude & Remove</div></div>';
-        } else {
-            // Reconstruct 10.8 DOM. Do NOT inherit origIcon.className.
-            btn.innerHTML = 
-                '<span class="actionSheetMenuItemIcon material-icons md-icon" style="color:#f44336; margin-right:12px;">remove_circle_outline</span>' +
-                '<span class="actionSheetMenuItemText" style="color:inherit;">Exclude & Remove</span>';
+        // Find and replace the text content
+        var textEl = btn.querySelector('.listItemBodyText, .actionSheetMenuItemText');
+        if (textEl) {
+            textEl.textContent = 'Exclude & Remove';
+            textEl.style.color = 'inherit';
+        } else if (btn.querySelector('.listItemBody')) {
+            // Fallback for weird custom themes if text node isn't directly matching class
+            btn.querySelector('.listItemBody').textContent = 'Exclude & Remove';
         }
         
         scroller.appendChild(btn);
