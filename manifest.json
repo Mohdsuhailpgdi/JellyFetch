@@ -9,11 +9,11 @@
     "imageUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/icon.jpg",
     "versions": [
       {
-        "version": "1.3.6.3",
-        "changelog": "v1.3.6.3: Injected 'Exclude & Remove' directly into Jellyfin native Context Menu.",
+        "version": "1.3.6.4",
+        "changelog": "v1.3.6.4: Hotfix - Exclude & Remove correctly moved to the Context Menu and hidden from Download modal.",
         "targetAbi": "10.9.9.0",
         "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
-        "checksum": "860055a81ba5dcb9754a9b894859f0f5",
+        "checksum": "3d5b5fe4fba935bf5e96acc458f49369",
         "timestamp": "2026-10-05T10:30:00Z"
       },
       {

@@ -236,6 +236,7 @@
             var isActivelyDownloading = st && !st.Completed && st.Status !== 'Idle' && st.Status !== 'Stopped' && st.Status !== 'Failed';
             var opts = Array.isArray(optData) ? optData : (optData && optData.Options ? optData.Options : []);
             var isStrm = optData && optData.IsStrm;
+            state.isStrm = isStrm;
             var isItemDownloadable = (opts && opts.length > 0) || isStrm;
 
             if (isActivelyDownloading) {
@@ -429,55 +430,10 @@
             '<span class="material-icons" style="font-size:24px;">close</span></button></div>' +
             (state.description ? '<p style="margin:0 0 14px;font-size:0.95em;color:#ffb74d;background:rgba(255,152,0,0.12);padding:10px 14px;border-radius:6px;border:1px solid rgba(255,152,0,0.35);line-height:1.4;">' + escHtml(state.description) + '</p>' : '') +
             (opts.length > 0 ? ('<div id="jf-lang-tabs" style="display:flex;gap:10px;margin-bottom:15px;border-bottom:1px solid #333;padding-bottom:10px;overflow-x:auto;">' + tabsHtml + '</div>' +
-            '<div id="jf-opt-list" style="display:flex;flex-direction:column;gap:12px;">' + listHtml + '</div>') : '') +
-            '<div style="margin-top:20px;padding-top:16px;border-top:1px solid #333;text-align:right;">' +
-            '<button type="button" id="jf-btn-exclude" style="background:transparent;color:#f44336;padding:8px 16px;border-radius:4px;border:1px solid rgba(244,67,54,0.5);cursor:pointer;font-weight:600;transition:background 0.2s;">Exclude &amp; Remove</button></div>';
+            '<div id="jf-opt-list" style="display:flex;flex-direction:column;gap:12px;">' + listHtml + '</div>') : '');
 
         var closeBtn = inner.querySelector('#jf-btn-close');
         if (closeBtn) closeBtn.addEventListener('click', function () { modal.classList.add('hide'); });
-
-        var excludeBtn = inner.querySelector('#jf-btn-exclude');
-        if (excludeBtn) {
-            excludeBtn.addEventListener('click', function () {
-                inner.innerHTML =
-                    '<div style="display:flex;flex-direction:column;align-items:center;padding:20px;text-align:center;">' +
-                    '<span class="material-icons" style="font-size:48px;color:#f44336;margin-bottom:15px;">warning</span>' +
-                    '<h2 style="margin:0 0 10px;font-size:1.4em;">Exclude & Remove Movie</h2>' +
-                    '<p style="margin:0 0 25px;color:#bbb;line-height:1.5;max-width:400px;">Are you sure you want to block this movie from being scraped again? This will also remove the item from your Jellyfin library.</p>' +
-                    '<div style="display:flex;gap:15px;justify-content:center;">' +
-                    '<button type="button" id="jf-confirm-cancel" style="background:#444;color:#fff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;font-weight:bold;transition:background 0.2s;">Cancel</button>' +
-                    '<button type="button" id="jf-confirm-exclude" style="background:#f44336;color:#fff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;font-weight:bold;transition:background 0.2s;">Exclude & Remove</button>' +
-                    '</div></div>';
-
-                inner.querySelector('#jf-confirm-cancel').addEventListener('click', function () {
-                    renderOptionsView(inner, modal, view, itemId);
-                });
-
-                var confBtn = inner.querySelector('#jf-confirm-exclude');
-                confBtn.addEventListener('click', function () {
-                    confBtn.disabled = true;
-                    confBtn.textContent = 'Excluding...';
-                    
-                    jfFetch('/System/Configuration/Downloaders/Exclude/' + itemId, { method: 'POST' })
-                        .then(function () { 
-                            return window.ApiClient ? window.ApiClient.deleteItem(itemId) : Promise.resolve();
-                        })
-                        .then(function () {
-                            modal.classList.add('hide');
-                            if (window.Dashboard && window.Dashboard.navigate) {
-                                window.Dashboard.navigate('movies.html');
-                            } else {
-                                window.history.back();
-                            }
-                        })
-                        .catch(function () {
-                            confBtn.disabled = false;
-                            confBtn.textContent = 'Failed';
-                            setTimeout(function() { confBtn.textContent = 'Exclude & Remove'; }, 2000);
-                        });
-                });
-            });
-        }
 
         inner.querySelectorAll('.jf-lang-tab').forEach(function (tb) {
             tb.addEventListener('click', function () {
