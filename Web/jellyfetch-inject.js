@@ -681,7 +681,10 @@
             
             newIcon.style.color = '#ff5252'; 
             newIcon.style.backgroundColor = 'transparent'; 
-            newIcon.textContent = 'remove_circle_outline'; 
+            
+            // 'remove_circle_outline' is missing from Jellyfin's font subset and will dump raw text.
+            // 'block' exists natively and in 10.9 it is perfectly thin and outlined.
+            newIcon.textContent = 'block'; 
             
             iconEl.parentNode.replaceChild(newIcon, iconEl);
         }

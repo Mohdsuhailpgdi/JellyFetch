@@ -9,12 +9,12 @@
     "imageUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/icon.jpg",
     "versions": [
       {
-        "version": "1.3.6.14",
-        "changelog": "v1.3.6.14: Fix broken material-symbols ligature rendering on action sheet by safely inheriting original DOM classes.",
+        "version": "1.3.6.15",
+        "changelog": "v1.3.6.15: Hotfix for actually publishing the block ligature change that was missed in 1.3.6.14.",
         "targetAbi": "10.9.9.0",
         "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
-        "checksum": "87e9ace2bda1f2d6d8b897e2d3b00d93",
-        "timestamp": "2026-10-06T15:00:00Z"
+        "checksum": "7a088307391c5d82dec70b07be35091f",
+        "timestamp": "2026-10-06T15:15:00Z"
       },
       {
         "version": "1.3.5.3",
