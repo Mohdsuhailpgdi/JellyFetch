@@ -660,7 +660,8 @@
         var iconEl = btn.querySelector('.listItemIcon, .actionSheetMenuItemIcon, .md-icon, .material-symbols-outlined, .material-icons');
         if (iconEl) {
             var newIcon = document.createElement('span');
-            newIcon.className = is109 ? 'listItemIcon material-icons md-icon' : 'actionSheetMenuItemIcon material-icons md-icon';
+            // Use exact same class structure as native 10.9 to ensure perfect alignment and sizing
+            newIcon.className = is109 ? 'listItemIcon material-symbols-outlined' : 'actionSheetMenuItemIcon material-icons md-icon';
             newIcon.style.color = '#ff5252'; // Light red icon
             newIcon.style.backgroundColor = 'transparent'; // Remove any inherited background bubble
             newIcon.textContent = 'remove_circle_outline'; // Thinner icon

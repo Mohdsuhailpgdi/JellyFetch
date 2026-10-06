@@ -9,12 +9,12 @@
     "imageUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/icon.jpg",
     "versions": [
       {
-        "version": "1.3.6.12",
-        "changelog": "v1.3.6.12: Remove icon background, match native color scheme, and visually remove cards from the grid upon exclusion.",
+        "version": "1.3.6.13",
+        "changelog": "v1.3.6.13: Fix context menu icon alignment and sizing by using correct native material-symbols-outlined class.",
         "targetAbi": "10.9.9.0",
         "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
-        "checksum": "01058fb8c8539dccc98f72d18b5ab5f4",
-        "timestamp": "2026-10-06T12:50:00Z"
+        "checksum": "88065eee955cab9e3e526752a14e0608",
+        "timestamp": "2026-10-06T14:30:00Z"
       },
       {
         "version": "1.3.5.3",
