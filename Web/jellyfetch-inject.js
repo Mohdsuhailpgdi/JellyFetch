@@ -655,23 +655,30 @@
         btn.removeAttribute('data-id');
         btn.removeAttribute('data-action');
         
-        // Update Icon
-        var iconEl = btn.querySelector('.actionSheetMenuItemIcon, .md-icon');
+        // Jellyfin 10.9 uses listItemIcon/listItemBodyText, 10.8 used actionSheetMenuItemIcon/Text
+        var iconEl = btn.querySelector('.listItemIcon, .actionSheetMenuItemIcon, .md-icon, .material-symbols-outlined');
         if (iconEl) {
-            iconEl.textContent = 'block';
+            iconEl.textContent = 'remove_circle_outline'; // Thinner icon to match theme
             iconEl.style.color = '#f44336';
         }
         
-        // Update Text
-        var textEl = btn.querySelector('.actionSheetMenuItemText') || btn;
-        if (textEl !== btn) {
+        var textEl = btn.querySelector('.listItemBodyText, .actionSheetMenuItemText');
+        if (textEl) {
             textEl.textContent = 'Exclude & Remove';
-            textEl.style.color = '#f44336';
+            textEl.style.removeProperty('color'); // Ensure text is default theme color
         } else {
-            btn.innerHTML = '<span class="actionSheetMenuItemIcon md-icon material-icons" style="color:#f44336;">block</span><span class="actionSheetMenuItemText" style="color:#f44336;">Exclude &amp; Remove</span>';
+            // Absolute fallback if classes change again, just find the text node safely
+            var walker = document.createTreeWalker(btn, NodeFilter.SHOW_TEXT, null, false);
+            var node;
+            while (node = walker.nextNode()) {
+                if (node.nodeValue.trim().length > 0) {
+                    node.nodeValue = 'Exclude & Remove';
+                    break;
+                }
+            }
         }
         
-        // Ensure no default background overrides the theme
+        // Ensure no default background overrides the theme if our fallback somehow runs
         btn.style.background = 'transparent';
         
         scroller.appendChild(btn);
