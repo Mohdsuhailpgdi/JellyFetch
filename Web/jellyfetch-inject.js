@@ -660,20 +660,14 @@
         var is109 = !!firstBtn.querySelector('.listItemBody');
         
         if (is109) {
-            // Reconstruct 10.9 DOM
-            var origIcon = firstBtn.querySelector('.listItemIcon, .material-symbols-outlined');
-            var iconClass = origIcon ? origIcon.className : 'listItemIcon material-symbols-outlined';
-            
+            // Reconstruct 10.9 DOM. Do NOT inherit origIcon.className, as it contains the original button's specific icon class!
             btn.innerHTML = 
-                '<span class="' + iconClass + '" style="color:#f44336; margin-right:12px;">remove_circle_outline</span>' +
+                '<span class="listItemIcon material-symbols-outlined" style="color:#f44336; margin-right:12px;">remove_circle_outline</span>' +
                 '<div class="listItemBody" style="display:flex; align-items:center;"><div class="listItemBodyText" style="color:inherit;">Exclude & Remove</div></div>';
         } else {
-            // Reconstruct 10.8 DOM
-            var origIcon = firstBtn.querySelector('.actionSheetMenuItemIcon, .md-icon');
-            var iconClass = origIcon ? origIcon.className : 'actionSheetMenuItemIcon material-icons md-icon';
-            
+            // Reconstruct 10.8 DOM. Do NOT inherit origIcon.className.
             btn.innerHTML = 
-                '<span class="' + iconClass + '" style="color:#f44336; margin-right:12px;">remove_circle_outline</span>' +
+                '<span class="actionSheetMenuItemIcon material-icons md-icon" style="color:#f44336; margin-right:12px;">remove_circle_outline</span>' +
                 '<span class="actionSheetMenuItemText" style="color:inherit;">Exclude & Remove</span>';
         }
         
