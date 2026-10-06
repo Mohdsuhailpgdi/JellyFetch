@@ -655,24 +655,17 @@
         btn.removeAttribute('data-id');
         btn.removeAttribute('data-action');
         
-        // Find and completely replace the icon element to purge any ghost ::before classes
-        var iconEl = btn.querySelector('.listItemIcon, .actionSheetMenuItemIcon, .md-icon, .material-symbols-outlined, .material-icons');
-        if (iconEl) {
+        // Nuke ALL existing icon elements to completely prevent "dual icon" overlaps
+        var iconEls = btn.querySelectorAll('.listItemIcon, .actionSheetMenuItemIcon, .md-icon, .material-symbols-outlined, .material-icons, svg');
+        if (iconEls.length > 0) {
+            var templateIcon = iconEls[0];
             var newIcon = document.createElement('span');
             
             // Start with exact classes to inherit perfect alignment, spacing, and fonts
-            newIcon.className = iconEl.className;
+            newIcon.className = templateIcon.className;
             
             // Strip out specific glyph classes (e.g. 'icon-add') to prevent ghost ::before elements
-            var classArray = newIcon.className.split(' ');
-            var safeClasses = [];
-            for (var i = 0; i < classArray.length; i++) {
-                var c = classArray[i];
-                if (c.indexOf('icon-') !== 0 && c.indexOf('md-icon-') !== 0) {
-                    safeClasses.push(c);
-                }
-            }
-            newIcon.className = safeClasses.join(' ');
+            newIcon.className = newIcon.className.replace(/\b(icon-|md-icon-)[a-zA-Z0-9_-]+\b/g, '').trim();
             
             // Ensure ligature support if stripped
             if (newIcon.className.indexOf('material-') === -1) {
@@ -681,12 +674,17 @@
             
             newIcon.style.color = '#ff5252'; 
             newIcon.style.backgroundColor = 'transparent'; 
-            
-            // 'remove_circle_outline' is missing from Jellyfin's font subset and will dump raw text.
-            // 'block' exists natively and in 10.9 it is perfectly thin and outlined.
             newIcon.textContent = 'block'; 
             
-            iconEl.parentNode.replaceChild(newIcon, iconEl);
+            // Insert our pristine icon
+            templateIcon.parentNode.insertBefore(newIcon, templateIcon);
+            
+            // Annihilate all original icons so they can't overlap
+            for (var i = 0; i < iconEls.length; i++) {
+                if (iconEls[i].parentNode) {
+                    iconEls[i].parentNode.removeChild(iconEls[i]);
+                }
+            }
         }
         
         // Find and replace the text content
