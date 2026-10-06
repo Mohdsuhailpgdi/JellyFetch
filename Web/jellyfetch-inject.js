@@ -661,11 +661,27 @@
             var templateIcon = iconEls[0];
             var newIcon = document.createElement('span');
             
-            // Jellyfin 10.9 uses 'material-icons' and 'listItemIcon' for action sheet icons.
-            // We do NOT inherit templateIcon.className directly to avoid inheriting specific 
-            // ligature classes (like 'add' or 'playlist_add') that cause ::before overlaps.
-            var is109 = templateIcon.className.indexOf('listItemIcon') !== -1;
-            newIcon.className = is109 ? 'listItemIcon actionSheetMenuItemIcon material-icons' : 'actionSheetMenuItemIcon material-icons md-icon';
+            // Jellyfin 10.9 changed icon classes. To perfectly preserve alignment without 
+            // inheriting ghost glyph classes (like 'playlist_add'), we strictly whitelist layout classes.
+            var keepClasses = [];
+            var parts = templateIcon.className.split(/\s+/);
+            for (var j = 0; j < parts.length; j++) {
+                var p = parts[j];
+                if (p === 'listItemIcon' || 
+                    p === 'actionSheetMenuItemIcon' || 
+                    p === 'md-icon' || 
+                    p === 'material-icons' || 
+                    p === 'material-symbols-outlined' ||
+                    p.indexOf('icon-') === 0 || 
+                    p.indexOf('md-icon-') === 0) 
+                {
+                    keepClasses.push(p);
+                }
+            }
+            if (keepClasses.indexOf('material-icons') === -1) {
+                keepClasses.push('material-icons'); // Guarantee font loads for ligature
+            }
+            newIcon.className = keepClasses.join(' ');
             
             newIcon.style.color = '#ff5252'; 
             newIcon.style.backgroundColor = 'transparent'; 
