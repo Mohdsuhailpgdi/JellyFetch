@@ -661,16 +661,12 @@
             var templateIcon = iconEls[0];
             var newIcon = document.createElement('span');
             
-            // Start with exact classes to inherit perfect alignment, spacing, and fonts
-            newIcon.className = templateIcon.className;
-            
-            // Strip out specific glyph classes (e.g. 'icon-add') to prevent ghost ::before elements
-            newIcon.className = newIcon.className.replace(/\b(icon-|md-icon-)[a-zA-Z0-9_-]+\b/g, '').trim();
-            
-            // Ensure ligature support if stripped
-            if (newIcon.className.indexOf('material-') === -1) {
-                newIcon.className += ' material-icons';
-            }
+            // Use safe baseline classes! 
+            // DO NOT inherit the exact original class list because Jellyfin often injects the 
+            // specific glyph name as a CSS class (e.g. 'playlist_add') which generates a rogue 
+            // ::before pseudo-element overlapping our textContent ligature!
+            var is109 = templateIcon.className.indexOf('listItemIcon') !== -1;
+            newIcon.className = is109 ? 'listItemIcon material-symbols-outlined' : 'actionSheetMenuItemIcon material-icons md-icon';
             
             newIcon.style.color = '#ff5252'; 
             newIcon.style.backgroundColor = 'transparent'; 
