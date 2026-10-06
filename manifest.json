@@ -9,12 +9,12 @@
     "imageUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/icon.jpg",
     "versions": [
       {
-        "version": "1.3.6.11",
-        "changelog": "v1.3.6.11: Fix context menu click handler rendering empty black screen instead of confirmation modal.",
+        "version": "1.3.6.12",
+        "changelog": "v1.3.6.12: Remove icon background, match native color scheme, and visually remove cards from the grid upon exclusion.",
         "targetAbi": "10.9.9.0",
         "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
-        "checksum": "6363ddb79de6db90c12ffad8a76ff7e1",
-        "timestamp": "2026-10-06T12:15:00Z"
+        "checksum": "01058fb8c8539dccc98f72d18b5ab5f4",
+        "timestamp": "2026-10-06T12:50:00Z"
       },
       {
         "version": "1.3.5.3",
