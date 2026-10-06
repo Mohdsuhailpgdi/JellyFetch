@@ -664,37 +664,48 @@
         var iconEls = btn.querySelectorAll('.listItemIcon, .actionSheetMenuItemIcon, .md-icon, .material-symbols-outlined, .material-icons, svg');
         if (iconEls.length > 0) {
             var templateIcon = iconEls[0];
-            var newIcon = document.createElement('span');
             
-            // Jellyfin 10.9 changed icon classes. To perfectly preserve alignment without 
-            // inheriting ghost glyph classes (like 'playlist_add'), we strictly whitelist layout classes.
+            // Jellyfin 10.9 uses SVG icons natively which have rigid layout boxes.
+            // Using a font ligature (span) causes slight sub-pixel width differences based on 
+            // the OS font engine, which shifts the adjacent text. We inject a raw SVG instead.
+            var newSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            newSvg.setAttribute('viewBox', '0 0 24 24');
+            newSvg.setAttribute('width', '24');
+            newSvg.setAttribute('height', '24');
+            newSvg.setAttribute('fill', 'currentColor');
+            newSvg.style.color = '#ff5252'; 
+            
             var keepClasses = [];
-            var parts = templateIcon.className.split(/\s+/);
+            var parts = templateIcon.className.split ? templateIcon.className.split(/\s+/) : (templateIcon.className.baseVal ? templateIcon.className.baseVal.split(/\s+/) : []);
             for (var j = 0; j < parts.length; j++) {
                 var p = parts[j];
                 if (p === 'listItemIcon' || 
                     p === 'actionSheetMenuItemIcon' || 
                     p === 'md-icon' || 
-                    p === 'material-icons' || 
-                    p === 'material-symbols-outlined' ||
                     p.indexOf('icon-') === 0 || 
                     p.indexOf('md-icon-') === 0) 
                 {
                     keepClasses.push(p);
                 }
             }
-            // Ensure font loads, but prefer modern symbols over legacy icons to fix padding/thickness
-            if (keepClasses.indexOf('material-symbols-outlined') === -1 && keepClasses.indexOf('md-icon') === -1 && keepClasses.indexOf('material-icons') === -1) {
-                keepClasses.push('material-symbols-outlined'); 
+            if (keepClasses.indexOf('md-icon') === -1) {
+                keepClasses.push('md-icon');
             }
-            newIcon.className = keepClasses.join(' ');
             
-            newIcon.style.color = '#ff5252'; 
-            newIcon.style.backgroundColor = 'transparent'; 
-            newIcon.textContent = 'block'; 
+            // SVG classes must be set via setAttribute in some older browser contexts, but className.baseVal is standard
+            if (typeof newSvg.className === 'object') {
+                newSvg.className.baseVal = keepClasses.join(' ');
+            } else {
+                newSvg.setAttribute('class', keepClasses.join(' '));
+            }
+
+            var newPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            // Material Design "block" icon path
+            newPath.setAttribute('d', 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8 0-1.85.63-3.55 1.69-4.9L16.9 18.31C15.55 19.37 13.85 20 12 20zm6.31-3.1L7.1 5.69C8.45 4.63 10.15 4 12 4c4.41 0 8 3.59 8 8 0 1.85-.63 3.55-1.69 4.9z');
+            newSvg.appendChild(newPath);
             
             // Insert our pristine icon
-            templateIcon.parentNode.insertBefore(newIcon, templateIcon);
+            templateIcon.parentNode.insertBefore(newSvg, templateIcon);
             
             // Annihilate all original icons so they can't overlap
             for (var i = 0; i < iconEls.length; i++) {
