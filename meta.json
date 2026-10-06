@@ -12,11 +12,11 @@
     "versions": [
         {
             "checksum": "860055a81ba5dcb9754a9b894859f0f5",
-            "changelog": "v1.3.6.13: Fix context menu icon alignment and sizing by using correct native material-symbols-outlined class.",
+            "changelog": "v1.3.6.14: Fix broken material-symbols ligature rendering on action sheet by safely inheriting original DOM classes.",
             "targetAbi": "10.9.0.0",
             "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
-            "timestamp": "2026-10-06T14:30:00Z",
-            "version": "1.3.6.13"
+            "timestamp": "2026-10-06T15:00:00Z",
+            "version": "1.3.6.14"
         }
     ]
 }

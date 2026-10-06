@@ -656,15 +656,32 @@
         btn.removeAttribute('data-action');
         
         // Find and completely replace the icon element to purge any ghost ::before classes
-        var is109 = !!btn.querySelector('.listItemBody');
         var iconEl = btn.querySelector('.listItemIcon, .actionSheetMenuItemIcon, .md-icon, .material-symbols-outlined, .material-icons');
         if (iconEl) {
             var newIcon = document.createElement('span');
-            // Use exact same class structure as native 10.9 to ensure perfect alignment and sizing
-            newIcon.className = is109 ? 'listItemIcon material-symbols-outlined' : 'actionSheetMenuItemIcon material-icons md-icon';
-            newIcon.style.color = '#ff5252'; // Light red icon
-            newIcon.style.backgroundColor = 'transparent'; // Remove any inherited background bubble
-            newIcon.textContent = 'remove_circle_outline'; // Thinner icon
+            
+            // Start with exact classes to inherit perfect alignment, spacing, and fonts
+            newIcon.className = iconEl.className;
+            
+            // Strip out specific glyph classes (e.g. 'icon-add') to prevent ghost ::before elements
+            var classArray = newIcon.className.split(' ');
+            var safeClasses = [];
+            for (var i = 0; i < classArray.length; i++) {
+                var c = classArray[i];
+                if (c.indexOf('icon-') !== 0 && c.indexOf('md-icon-') !== 0) {
+                    safeClasses.push(c);
+                }
+            }
+            newIcon.className = safeClasses.join(' ');
+            
+            // Ensure ligature support if stripped
+            if (newIcon.className.indexOf('material-') === -1) {
+                newIcon.className += ' material-icons';
+            }
+            
+            newIcon.style.color = '#ff5252'; 
+            newIcon.style.backgroundColor = 'transparent'; 
+            newIcon.textContent = 'remove_circle_outline'; 
             
             iconEl.parentNode.replaceChild(newIcon, iconEl);
         }
