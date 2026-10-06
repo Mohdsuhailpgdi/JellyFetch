@@ -664,45 +664,31 @@
         var iconEls = btn.querySelectorAll('.listItemIcon, .actionSheetMenuItemIcon, .md-icon, .material-symbols-outlined, .material-icons, svg');
         if (iconEls.length > 0) {
             var templateIcon = iconEls[0];
+            var exactClasses = typeof templateIcon.className === 'object' ? templateIcon.className.baseVal : templateIcon.className;
             
-            // Jellyfin 10.9 uses SVG icons natively which have rigid layout boxes.
-            // Using a font ligature (span) causes slight sub-pixel width differences based on 
-            // the OS font engine, which shifts the adjacent text. We inject a raw SVG instead.
+            // Jellyfin 10.9 uses thin, outlined SVGs natively. 
+            // We inject a modern stroke-based SVG (circle + line) that perfectly matches the aesthetic,
+            // and we apply the EXACT classes from the native icon to guarantee zero layout shifts.
             var newSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
             newSvg.setAttribute('viewBox', '0 0 24 24');
             newSvg.setAttribute('width', '24');
             newSvg.setAttribute('height', '24');
-            newSvg.setAttribute('fill', 'currentColor');
+            newSvg.setAttribute('fill', 'none');
+            newSvg.setAttribute('stroke', 'currentColor');
+            newSvg.setAttribute('stroke-width', '1.8');
+            newSvg.setAttribute('stroke-linecap', 'round');
+            newSvg.setAttribute('stroke-linejoin', 'round');
             newSvg.style.color = '#ff5252'; 
-            
-            var keepClasses = [];
-            var parts = templateIcon.className.split ? templateIcon.className.split(/\s+/) : (templateIcon.className.baseVal ? templateIcon.className.baseVal.split(/\s+/) : []);
-            for (var j = 0; j < parts.length; j++) {
-                var p = parts[j];
-                if (p === 'listItemIcon' || 
-                    p === 'actionSheetMenuItemIcon' || 
-                    p === 'md-icon' || 
-                    p.indexOf('icon-') === 0 || 
-                    p.indexOf('md-icon-') === 0) 
-                {
-                    keepClasses.push(p);
-                }
-            }
-            if (keepClasses.indexOf('md-icon') === -1) {
-                keepClasses.push('md-icon');
-            }
             
             // SVG classes must be set via setAttribute in some older browser contexts, but className.baseVal is standard
             if (typeof newSvg.className === 'object') {
-                newSvg.className.baseVal = keepClasses.join(' ');
+                newSvg.className.baseVal = exactClasses;
             } else {
-                newSvg.setAttribute('class', keepClasses.join(' '));
+                newSvg.setAttribute('class', exactClasses);
             }
 
-            var newPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            // Material Design "block" icon path
-            newPath.setAttribute('d', 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8 0-1.85.63-3.55 1.69-4.9L16.9 18.31C15.55 19.37 13.85 20 12 20zm6.31-3.1L7.1 5.69C8.45 4.63 10.15 4 12 4c4.41 0 8 3.59 8 8 0 1.85-.63 3.55-1.69 4.9z');
-            newSvg.appendChild(newPath);
+            // A sleek, thin "Exclude/Block" icon using basic SVG geometry
+            newSvg.innerHTML = '<circle cx="12" cy="12" r="10"></circle><line x1="5.5" y1="5.5" x2="18.5" y2="18.5"></line>';
             
             // Insert our pristine icon
             templateIcon.parentNode.insertBefore(newSvg, templateIcon);
