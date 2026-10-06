@@ -637,24 +637,25 @@
         var itemId = getCurrentItemId();
         if (!itemId) return;
 
-        mutations.forEach(function (mutation) {
-            mutation.addedNodes.forEach(function (node) {
-                if (node.nodeType === 1 && (node.classList.contains('actionSheet') || node.classList.contains('actionsheet'))) {
-                    // Check if there is a scroller or list
-                    var scroller = node.querySelector('.actionSheetScroller') || node;
-                    
-                    // Prevent duplicates
-                    if (scroller.querySelector('#jf-ctx-exclude')) return;
-                    
-                    var btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.id = 'jf-ctx-exclude';
-                    btn.className = 'actionSheetMenuItem emby-button';
-                    btn.innerHTML = '<span class="material-icons actionSheetMenuItemIcon" style="color:#f44336;">block</span><span class="actionSheetMenuItemText" style="color:#f44336;">Exclude &amp; Remove</span>';
-                    
-                    scroller.appendChild(btn);
+        var sheet = document.querySelector('.actionSheet, .actionsheet');
+        if (!sheet) return;
 
-                    btn.addEventListener('click', function(e) {
+        var scroller = sheet.querySelector('.actionSheetScroller') || sheet;
+        
+        // Prevent duplicates
+        if (scroller.querySelector('#jf-ctx-exclude')) return;
+        // Wait until Jellyfin has actually populated the scroller with buttons
+        if (!scroller.querySelector('.actionSheetMenuItem')) return;
+
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.id = 'jf-ctx-exclude';
+        btn.className = 'actionSheetMenuItem emby-button';
+        btn.innerHTML = '<span class="material-icons actionSheetMenuItemIcon" style="color:#f44336;">block</span><span class="actionSheetMenuItemText" style="color:#f44336;">Exclude &amp; Remove</span>';
+        
+        scroller.appendChild(btn);
+
+        btn.addEventListener('click', function(e) {
                         e.preventDefault();
                         e.stopPropagation();
                         // Close action sheet by clicking background or removing node
@@ -711,9 +712,6 @@
                                 });
                         });
                     });
-                }
-            });
-        });
     });
     contextMenuObserver.observe(document.body, { childList: true, subtree: true });
 
