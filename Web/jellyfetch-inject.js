@@ -646,11 +646,16 @@
         if (scroller.querySelector('#jf-ctx-exclude')) return;
         
         // Wait until Jellyfin has actually populated the scroller with buttons
-        var firstBtn = scroller.querySelector('.actionSheetMenuItem');
-        if (!firstBtn) return;
+        var allBtns = scroller.querySelectorAll('.actionSheetMenuItem');
+        if (!allBtns || allBtns.length === 0) return;
+
+        // Clone the LAST button instead of the first. In Jellyfin 10.9, top-level items 
+        // like "Add to collection" have slightly different padding than bottom-level items like "Share".
+        // Since we insert our custom button at the bottom, cloning the bottom item guarantees perfect alignment.
+        var templateBtn = allBtns[allBtns.length - 1];
 
         // Deep clone to preserve exactly whatever flex/grid DOM structure the current Jellyfin version uses
-        var btn = firstBtn.cloneNode(true);
+        var btn = templateBtn.cloneNode(true);
         btn.id = 'jf-ctx-exclude';
         btn.removeAttribute('data-id');
         btn.removeAttribute('data-action');
