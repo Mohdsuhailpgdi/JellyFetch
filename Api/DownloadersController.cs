@@ -401,7 +401,18 @@ public class DownloadersController : ControllerBase
             _logger.LogInformation("Added {ItemId} ({Title}) to blocklist. TMDB: {TmdbId}", itemId, title, tmdbId);
         }
 
-        return Ok(new { Success = true, Excluded = true });
+        try
+        {
+            _libraryManager.DeleteItem(item, new DeleteOptions { DeleteFileLocation = true });
+            _logger.LogInformation("Deleted item {ItemId} from library and filesystem.", itemId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete item {ItemId} from library during Exclude action.", itemId);
+            return StatusCode(500, "Blocked successfully, but failed to delete item.");
+        }
+
+        return Ok(new { Success = true, Excluded = true, Deleted = true });
     }
 
     [HttpGet("Status/{itemId}")]

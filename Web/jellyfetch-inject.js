@@ -631,163 +631,170 @@
         setTimeout(onPageChange, 300);
     }
 
+    var lastKnownItemId = null;
+    function updateLastKnownId(e) {
+        // Find the closest ancestor that has a data-id or data-itemid
+        var el = e.target.closest('[data-id], [data-itemid]');
+        if (el) {
+            lastKnownItemId = el.getAttribute('data-id') || el.getAttribute('data-itemid');
+        }
+    }
+    document.addEventListener('click', updateLastKnownId, true);
+    document.addEventListener('contextmenu', updateLastKnownId, true);
+
     // ── Context Menu Injection ──────────────────────────────────────────────────
     var contextMenuObserver = new MutationObserver(function (mutations) {
-        if (!isDetailsPage() || isPlayerActive() || !state.isStrm) return;
-        var itemId = getCurrentItemId();
-        if (!itemId) return;
+        if (isPlayerActive()) return;
 
         var sheet = document.querySelector('.actionSheet, .actionsheet');
         if (!sheet) return;
 
         var scroller = sheet.querySelector('.actionSheetScroller') || sheet;
-        
-        // Prevent duplicates
         if (scroller.querySelector('#jf-ctx-exclude')) return;
-        
-        // Wait until Jellyfin has actually populated the scroller with buttons
+
         var allBtns = scroller.querySelectorAll('.actionSheetMenuItem');
         if (!allBtns || allBtns.length === 0) return;
 
-        // Clone the LAST button instead of the first. In Jellyfin 10.9, top-level items 
-        // like "Add to collection" have slightly different padding than bottom-level items like "Share".
-        // Since we insert our custom button at the bottom, cloning the bottom item guarantees perfect alignment.
-        var templateBtn = allBtns[allBtns.length - 1];
+        // Trust lastKnownItemId first, then fallback to URL-based getCurrentItemId()
+        var itemId = lastKnownItemId || getCurrentItemId();
+        if (!itemId) return;
 
-        // Deep clone to preserve exactly whatever flex/grid DOM structure the current Jellyfin version uses
-        var btn = templateBtn.cloneNode(true);
-        btn.id = 'jf-ctx-exclude';
-        btn.removeAttribute('data-id');
-        btn.removeAttribute('data-action');
-        
-        // Nuke ALL existing icon elements to completely prevent "dual icon" overlaps
-        var iconEls = btn.querySelectorAll('.listItemIcon, .actionSheetMenuItemIcon, .md-icon, .material-symbols-outlined, .material-icons, svg');
-        if (iconEls.length > 0) {
-            var templateIcon = iconEls[0];
-            var exactClasses = typeof templateIcon.className === 'object' ? templateIcon.className.baseVal : templateIcon.className;
-            
-            // Jellyfin 10.9 uses thin, outlined SVGs natively. 
-            // We inject a modern stroke-based SVG (circle + line) that perfectly matches the aesthetic,
-            // and we apply the EXACT classes from the native icon to guarantee zero layout shifts.
-            var newSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            newSvg.setAttribute('viewBox', '0 0 24 24');
-            newSvg.setAttribute('width', '24');
-            newSvg.setAttribute('height', '24');
-            newSvg.setAttribute('fill', 'none');
-            newSvg.setAttribute('stroke', 'currentColor');
-            newSvg.setAttribute('stroke-width', '1.8');
-            newSvg.setAttribute('stroke-linecap', 'round');
-            newSvg.setAttribute('stroke-linejoin', 'round');
-            newSvg.style.color = '#ff5252'; 
-            
-            // SVG classes must be set via setAttribute in some older browser contexts, but className.baseVal is standard
-            if (typeof newSvg.className === 'object') {
-                newSvg.className.baseVal = exactClasses;
-            } else {
-                newSvg.setAttribute('class', exactClasses);
-            }
+        if (sheet.getAttribute('data-jf-checked') === itemId) return;
+        sheet.setAttribute('data-jf-checked', itemId);
 
-            // A sleek, thin "Exclude/Block" icon using basic SVG geometry
-            newSvg.innerHTML = '<circle cx="12" cy="12" r="10"></circle><line x1="5.5" y1="5.5" x2="18.5" y2="18.5"></line>';
-            
-            // Insert our pristine icon
-            templateIcon.parentNode.insertBefore(newSvg, templateIcon);
-            
-            // Annihilate all original icons so they can't overlap
-            for (var i = 0; i < iconEls.length; i++) {
-                if (iconEls[i].parentNode) {
-                    iconEls[i].parentNode.removeChild(iconEls[i]);
+        jfFetch('/System/Configuration/Downloaders/Options/' + itemId)
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (optData) {
+                var isStrm = optData && optData.IsStrm;
+                if (!isStrm) return;
+
+                if (!document.body.contains(sheet)) return;
+                if (sheet.getAttribute('data-jf-checked') !== itemId) return;
+                if (scroller.querySelector('#jf-ctx-exclude')) return;
+
+                var templateBtn = allBtns[allBtns.length - 1];
+                var btn = templateBtn.cloneNode(true);
+                btn.id = 'jf-ctx-exclude';
+                btn.removeAttribute('data-id');
+                btn.removeAttribute('data-action');
+                
+                var iconEls = btn.querySelectorAll('.listItemIcon, .actionSheetMenuItemIcon, .md-icon, .material-symbols-outlined, .material-icons, svg');
+                if (iconEls.length > 0) {
+                    var templateIcon = iconEls[0];
+                    var exactClasses = typeof templateIcon.className === 'object' ? templateIcon.className.baseVal : templateIcon.className;
+                    
+                    var newSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                    newSvg.setAttribute('viewBox', '0 0 24 24');
+                    newSvg.setAttribute('width', '24');
+                    newSvg.setAttribute('height', '24');
+                    newSvg.setAttribute('fill', 'none');
+                    newSvg.setAttribute('stroke', 'currentColor');
+                    newSvg.setAttribute('stroke-width', '1.8');
+                    newSvg.setAttribute('stroke-linecap', 'round');
+                    newSvg.setAttribute('stroke-linejoin', 'round');
+                    newSvg.style.color = '#ff5252'; 
+                    
+                    if (typeof newSvg.className === 'object') {
+                        newSvg.className.baseVal = exactClasses;
+                    } else {
+                        newSvg.setAttribute('class', exactClasses);
+                    }
+
+                    newSvg.innerHTML = '<circle cx="12" cy="12" r="10"></circle><line x1="5.5" y1="5.5" x2="18.5" y2="18.5"></line>';
+                    
+                    templateIcon.parentNode.insertBefore(newSvg, templateIcon);
+                    
+                    for (var i = 0; i < iconEls.length; i++) {
+                        if (iconEls[i].parentNode) {
+                            iconEls[i].parentNode.removeChild(iconEls[i]);
+                        }
+                    }
                 }
-            }
-        }
-        
-        // Find and replace the text content
-        var textEl = btn.querySelector('.listItemBodyText, .actionSheetMenuItemText');
-        if (textEl) {
-            textEl.textContent = 'Exclude & Remove';
-            textEl.style.color = 'inherit'; // Make text white/inherit to match others
-        } else if (btn.querySelector('.listItemBody')) {
-            // Fallback for weird custom themes if text node isn't directly matching class
-            var bodyText = btn.querySelector('.listItemBody');
-            bodyText.textContent = 'Exclude & Remove';
-            bodyText.style.color = 'inherit';
-        }
-        
-        scroller.appendChild(btn);
+                
+                var textEl = btn.querySelector('.listItemBodyText, .actionSheetMenuItemText');
+                if (textEl) {
+                    textEl.textContent = 'Exclude & Remove';
+                    textEl.style.color = 'inherit';
+                } else if (btn.querySelector('.listItemBody')) {
+                    var bodyText = btn.querySelector('.listItemBody');
+                    bodyText.textContent = 'Exclude & Remove';
+                    bodyText.style.color = 'inherit';
+                }
+                
+                scroller.appendChild(btn);
 
-        btn.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        // Close action sheet by clicking background or removing node
-                        var backdrop = document.querySelector('.actionSheetBackdrop') || document.querySelector('.dialogBackdrop');
-                        if (backdrop) backdrop.click();
-                        else if (sheet.parentNode) sheet.parentNode.removeChild(sheet);
-                        
-                        // Open our modal and render confirm view
-                        var modal = document.getElementById('jf-dl-modal');
-                        if (!modal) {
-                            modal = ensureModal();
-                        }
-                        modal.classList.remove('hide');
-                        
-                        var inner = modal.querySelector('.jf-modal-inner');
-                        if (!inner) {
-                            inner = document.createElement('div');
-                            inner.className = 'jf-modal-inner';
-                            modal.appendChild(inner);
-                        }
-                        
-                        inner.style.cssText = 'background:#222;padding:24px;border-radius:8px;width:90%;max-width:450px;color:#fff;box-shadow:0 4px 20px rgba(0,0,0,0.6);';
-                        
-                        inner.innerHTML =
-                            '<div style="display:flex;flex-direction:column;align-items:center;padding:20px;text-align:center;">' +
-                            '<span class="material-icons" style="font-size:48px;color:#f44336;margin-bottom:15px;">warning</span>' +
-                            '<h2 style="margin:0 0 10px;font-size:1.4em;">Exclude & Remove Movie</h2>' +
-                            '<p style="margin:0 0 25px;color:#bbb;line-height:1.5;max-width:400px;">Are you sure you want to block this movie from being scraped again? This will also remove the item from your Jellyfin library.</p>' +
-                            '<div style="display:flex;gap:15px;justify-content:center;">' +
-                            '<button type="button" id="jf-confirm-cancel-ctx" style="background:#444;color:#fff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;font-weight:bold;transition:background 0.2s;">Cancel</button>' +
-                            '<button type="button" id="jf-confirm-exclude-ctx" style="background:#f44336;color:#fff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;font-weight:bold;transition:background 0.2s;">Exclude & Remove</button>' +
-                            '</div></div>';
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var backdrop = document.querySelector('.actionSheetBackdrop') || document.querySelector('.dialogBackdrop');
+                    if (backdrop) backdrop.click();
+                    else if (sheet.parentNode) sheet.parentNode.removeChild(sheet);
+                    
+                    var modal = document.getElementById('jf-dl-modal');
+                    if (!modal) {
+                        modal = ensureModal();
+                    }
+                    modal.classList.remove('hide');
+                    
+                    var inner = modal.querySelector('.jf-modal-inner');
+                    if (!inner) {
+                        inner = document.createElement('div');
+                        inner.className = 'jf-modal-inner';
+                        modal.appendChild(inner);
+                    }
+                    
+                    inner.style.cssText = 'background:#222;padding:24px;border-radius:8px;width:90%;max-width:450px;color:#fff;box-shadow:0 4px 20px rgba(0,0,0,0.6);';
+                    
+                    inner.innerHTML =
+                        '<div style="display:flex;flex-direction:column;align-items:center;padding:20px;text-align:center;">' +
+                        '<span class="material-icons" style="font-size:48px;color:#f44336;margin-bottom:15px;">warning</span>' +
+                        '<h2 style="margin:0 0 10px;font-size:1.4em;">Exclude & Remove Movie</h2>' +
+                        '<p style="margin:0 0 25px;color:#bbb;line-height:1.5;max-width:400px;">Are you sure you want to block this movie from being scraped again? This will also remove the item from your Jellyfin library.</p>' +
+                        '<div style="display:flex;gap:15px;justify-content:center;">' +
+                        '<button type="button" id="jf-confirm-cancel-ctx" style="background:#444;color:#fff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;font-weight:bold;transition:background 0.2s;">Cancel</button>' +
+                        '<button type="button" id="jf-confirm-exclude-ctx" style="background:#f44336;color:#fff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;font-weight:bold;transition:background 0.2s;">Exclude & Remove</button>' +
+                        '</div></div>';
 
-                        var cancelBtn = inner.querySelector('#jf-confirm-cancel-ctx');
-                        if (cancelBtn) cancelBtn.addEventListener('click', function () {
-                            modal.classList.add('hide');
-                        });
-
-                        var confBtn = inner.querySelector('#jf-confirm-exclude-ctx');
-                        if (confBtn) confBtn.addEventListener('click', function () {
-                            confBtn.disabled = true;
-                            confBtn.textContent = 'Excluding...';
-                            
-                            jfFetch('/System/Configuration/Downloaders/Exclude/' + itemId, { method: 'POST' })
-                                .then(function () { 
-                                    return window.ApiClient ? window.ApiClient.deleteItem(itemId) : Promise.resolve();
-                                })
-                                .then(function () {
-                                    modal.classList.add('hide');
-                                    
-                                    // Remove the card visually from the DOM
-                                    var card = document.querySelector('.card[data-id="' + itemId + '"]');
-                                    if (card) {
-                                        if (card.parentNode && card.parentNode.classList.contains('cardWrapper')) {
-                                            card.parentNode.remove();
-                                        } else {
-                                            card.remove();
-                                        }
-                                    }
-                                    
-                                    // If we are currently on the details page of this item, navigate away
-                                    if (isDetailsPage() && getCurrentItemId() === itemId) {
-                                        window.history.back();
-                                    }
-                                })
-                                .catch(function () {
-                                    confBtn.disabled = false;
-                                    confBtn.textContent = 'Failed';
-                                    setTimeout(function() { confBtn.textContent = 'Exclude & Remove'; }, 2000);
-                                });
-                        });
+                    var cancelBtn = inner.querySelector('#jf-confirm-cancel-ctx');
+                    if (cancelBtn) cancelBtn.addEventListener('click', function () {
+                        modal.classList.add('hide');
                     });
+
+                    var confBtn = inner.querySelector('#jf-confirm-exclude-ctx');
+                    if (confBtn) confBtn.addEventListener('click', function () {
+                        confBtn.disabled = true;
+                        confBtn.textContent = 'Excluding...';
+                        
+                        jfFetch('/System/Configuration/Downloaders/Exclude/' + itemId, { method: 'POST' })
+                            .then(function (r) {
+                                if (!r.ok) throw new Error("Backend failed");
+                                modal.classList.add('hide');
+                                
+                                var card = document.querySelector('.card[data-id="' + itemId + '"]');
+                                if (card) {
+                                    if (card.parentNode && card.parentNode.classList.contains('cardWrapper')) {
+                                        card.parentNode.remove();
+                                    } else {
+                                        card.remove();
+                                    }
+                                }
+                                
+                                if (isDetailsPage() && getCurrentItemId() === itemId) {
+                                    if (window.Dashboard && typeof window.Dashboard.navigate === 'function') {
+                                        window.Dashboard.navigate('#/home');
+                                    } else {
+                                        window.location.hash = '#/home';
+                                    }
+                                }
+                            })
+                            .catch(function () {
+                                confBtn.disabled = false;
+                                confBtn.textContent = 'Failed';
+                                setTimeout(function() { confBtn.textContent = 'Exclude & Remove'; }, 2000);
+                            });
+                    });
+                });
+            });
     });
     contextMenuObserver.observe(document.body, { childList: true, subtree: true });
 
