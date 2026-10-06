@@ -678,8 +678,9 @@
                     keepClasses.push(p);
                 }
             }
-            if (keepClasses.indexOf('material-icons') === -1) {
-                keepClasses.push('material-icons'); // Guarantee font loads for ligature
+            // Ensure font loads, but prefer modern symbols over legacy icons to fix padding/thickness
+            if (keepClasses.indexOf('material-symbols-outlined') === -1 && keepClasses.indexOf('md-icon') === -1 && keepClasses.indexOf('material-icons') === -1) {
+                keepClasses.push('material-symbols-outlined'); 
             }
             newIcon.className = keepClasses.join(' ');
             
