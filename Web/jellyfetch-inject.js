@@ -649,37 +649,33 @@
         var firstBtn = scroller.querySelector('.actionSheetMenuItem');
         if (!firstBtn) return;
 
-        // Clone the first button to perfectly inherit the current theme's styles and classes
-        var btn = firstBtn.cloneNode(true);
+        // Clone only the wrapper button to inherit classes but avoid duplicating ghost SVGs or text nodes
+        var btn = firstBtn.cloneNode(false);
         btn.id = 'jf-ctx-exclude';
         btn.removeAttribute('data-id');
         btn.removeAttribute('data-action');
+        btn.style.background = 'transparent'; // Ensure no default gray button styling leaks through
         
-        // Jellyfin 10.9 uses listItemIcon/listItemBodyText, 10.8 used actionSheetMenuItemIcon/Text
-        var iconEl = btn.querySelector('.listItemIcon, .actionSheetMenuItemIcon, .md-icon, .material-symbols-outlined');
-        if (iconEl) {
-            iconEl.textContent = 'remove_circle_outline'; // Thinner icon to match theme
-            iconEl.style.color = '#f44336';
-        }
+        // Jellyfin 10.9 uses listItemBody, 10.8 uses actionSheetMenuItemText
+        var is109 = !!firstBtn.querySelector('.listItemBody');
         
-        var textEl = btn.querySelector('.listItemBodyText, .actionSheetMenuItemText');
-        if (textEl) {
-            textEl.textContent = 'Exclude & Remove';
-            textEl.style.removeProperty('color'); // Ensure text is default theme color
+        if (is109) {
+            // Reconstruct 10.9 DOM
+            var origIcon = firstBtn.querySelector('.listItemIcon, .material-symbols-outlined');
+            var iconClass = origIcon ? origIcon.className : 'listItemIcon material-symbols-outlined';
+            
+            btn.innerHTML = 
+                '<span class="' + iconClass + '" style="color:#f44336; margin-right:12px;">remove_circle_outline</span>' +
+                '<div class="listItemBody" style="display:flex; align-items:center;"><div class="listItemBodyText" style="color:inherit;">Exclude & Remove</div></div>';
         } else {
-            // Absolute fallback if classes change again, just find the text node safely
-            var walker = document.createTreeWalker(btn, NodeFilter.SHOW_TEXT, null, false);
-            var node;
-            while (node = walker.nextNode()) {
-                if (node.nodeValue.trim().length > 0) {
-                    node.nodeValue = 'Exclude & Remove';
-                    break;
-                }
-            }
+            // Reconstruct 10.8 DOM
+            var origIcon = firstBtn.querySelector('.actionSheetMenuItemIcon, .md-icon');
+            var iconClass = origIcon ? origIcon.className : 'actionSheetMenuItemIcon material-icons md-icon';
+            
+            btn.innerHTML = 
+                '<span class="' + iconClass + '" style="color:#f44336; margin-right:12px;">remove_circle_outline</span>' +
+                '<span class="actionSheetMenuItemText" style="color:inherit;">Exclude & Remove</span>';
         }
-        
-        // Ensure no default background overrides the theme if our fallback somehow runs
-        btn.style.background = 'transparent';
         
         scroller.appendChild(btn);
 
