@@ -661,12 +661,11 @@
             var templateIcon = iconEls[0];
             var newIcon = document.createElement('span');
             
-            // Use safe baseline classes! 
-            // DO NOT inherit the exact original class list because Jellyfin often injects the 
-            // specific glyph name as a CSS class (e.g. 'playlist_add') which generates a rogue 
-            // ::before pseudo-element overlapping our textContent ligature!
+            // Jellyfin 10.9 uses 'material-icons' and 'listItemIcon' for action sheet icons.
+            // We do NOT inherit templateIcon.className directly to avoid inheriting specific 
+            // ligature classes (like 'add' or 'playlist_add') that cause ::before overlaps.
             var is109 = templateIcon.className.indexOf('listItemIcon') !== -1;
-            newIcon.className = is109 ? 'listItemIcon material-symbols-outlined' : 'actionSheetMenuItemIcon material-icons md-icon';
+            newIcon.className = is109 ? 'listItemIcon actionSheetMenuItemIcon material-icons' : 'actionSheetMenuItemIcon material-icons md-icon';
             
             newIcon.style.color = '#ff5252'; 
             newIcon.style.backgroundColor = 'transparent'; 

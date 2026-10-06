@@ -9,12 +9,12 @@
     "imageUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/icon.jpg",
     "versions": [
       {
-        "version": "1.3.6.17",
-        "changelog": "v1.3.6.17: Ultimate fix for dual-icon ghosting by stripping raw class inheritance of specific glyph names (e.g. playlist_add) generating ghost ::before pseudo elements.",
+        "version": "1.3.6.18",
+        "changelog": "v1.3.6.18: Fixed missing font class causing plain text rendering instead of ligature.",
         "targetAbi": "10.9.9.0",
         "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
-        "checksum": "31b5e5690b7a1de1e928169c69bd39ff",
-        "timestamp": "2026-10-06T15:55:00Z"
+        "checksum": "a402488712460abd711035b6873e5d6e",
+        "timestamp": "2026-10-06T16:05:00Z"
       },
       {
         "version": "1.3.5.3",
