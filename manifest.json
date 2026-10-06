@@ -9,12 +9,12 @@
     "imageUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/icon.jpg",
     "versions": [
       {
-        "version": "1.3.6.18",
-        "changelog": "v1.3.6.18: Fixed missing font class causing plain text rendering instead of ligature.",
+        "version": "1.3.6.19",
+        "changelog": "v1.3.6.19: Final alignment fix by perfectly whitelisting native layout classes and omitting rogue glyphs.",
         "targetAbi": "10.9.9.0",
         "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
-        "checksum": "a402488712460abd711035b6873e5d6e",
-        "timestamp": "2026-10-06T16:05:00Z"
+        "checksum": "91d1ae08d3bbbfeb6a8528b66adc112f",
+        "timestamp": "2026-10-06T16:15:00Z"
       },
       {
         "version": "1.3.5.3",
