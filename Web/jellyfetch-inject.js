@@ -661,7 +661,7 @@
             var newIcon = document.createElement('span');
             newIcon.className = 'listItemIcon actionSheetMenuItemIcon material-icons md-icon';
             newIcon.style.color = '#f44336';
-            newIcon.textContent = 'block'; // 'block' is safe and guarantees no font loading issues
+            newIcon.textContent = 'remove_circle_outline'; // Thinner icon, matches theme better than block
             
             // Keep any original margins/padding from the theme
             if (iconEl.style.cssText) newIcon.style.cssText += iconEl.style.cssText;
@@ -673,10 +673,12 @@
         var textEl = btn.querySelector('.listItemBodyText, .actionSheetMenuItemText');
         if (textEl) {
             textEl.textContent = 'Exclude & Remove';
-            textEl.style.color = 'inherit';
+            textEl.style.color = '#f44336'; // Make text red to match the destructive action
         } else if (btn.querySelector('.listItemBody')) {
             // Fallback for weird custom themes if text node isn't directly matching class
-            btn.querySelector('.listItemBody').textContent = 'Exclude & Remove';
+            var bodyText = btn.querySelector('.listItemBody');
+            bodyText.textContent = 'Exclude & Remove';
+            bodyText.style.color = '#f44336';
         }
         
         scroller.appendChild(btn);
@@ -690,14 +692,20 @@
                         else if (sheet.parentNode) sheet.parentNode.removeChild(sheet);
                         
                         // Open our modal and render confirm view
-                        var view = document.querySelector('.view:not(.hide)') || document.body;
                         var modal = document.getElementById('jf-dl-modal');
                         if (!modal) {
-                            ensureModal(view);
-                            modal = document.getElementById('jf-dl-modal');
+                            modal = ensureModal();
                         }
                         modal.classList.remove('hide');
-                        var inner = modal.querySelector('#jf-modal-inner');
+                        
+                        var inner = modal.querySelector('.jf-modal-inner');
+                        if (!inner) {
+                            inner = document.createElement('div');
+                            inner.className = 'jf-modal-inner';
+                            modal.appendChild(inner);
+                        }
+                        
+                        inner.style.cssText = 'background:#222;padding:24px;border-radius:8px;width:90%;max-width:450px;color:#fff;box-shadow:0 4px 20px rgba(0,0,0,0.6);';
                         
                         inner.innerHTML =
                             '<div style="display:flex;flex-direction:column;align-items:center;padding:20px;text-align:center;">' +

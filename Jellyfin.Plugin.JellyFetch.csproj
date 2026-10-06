@@ -3,9 +3,9 @@
     <TargetFramework>net8.0</TargetFramework>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
-    <Version>1.3.6.10</Version>
-    <AssemblyVersion>1.3.6.10</AssemblyVersion>
-    <FileVersion>1.3.6.10</FileVersion>
+    <Version>1.3.6.11</Version>
+    <AssemblyVersion>1.3.6.11</AssemblyVersion>
+    <FileVersion>1.3.6.11</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
