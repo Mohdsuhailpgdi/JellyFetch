@@ -107,6 +107,21 @@ public class DownloadersController : ControllerBase
     private static readonly List<string> _metadataLogs = new();
     private static readonly object _metadataLogLock = new();
 
+    [HttpGet("Inject.js")]
+    [AllowAnonymous]
+    [Produces("application/javascript")]
+    public ActionResult GetInjectJs()
+    {
+        var asm = typeof(Plugin).Assembly;
+        var resource = asm.GetManifestResourceNames()
+            .FirstOrDefault(n => n.EndsWith("jellyfetch-inject.js", StringComparison.OrdinalIgnoreCase) || 
+                                 n.EndsWith("jellyfetch_inject.js", StringComparison.OrdinalIgnoreCase));
+        
+        if (resource == null) return NotFound();
+        var stream = asm.GetManifestResourceStream(resource);
+        return File(stream!, "application/javascript");
+    }
+
     public static void ReportScrapeProgress(string msg, double pct)
     {
         if (pct >= 0) _scrapeProgress = Math.Round(pct, 1);

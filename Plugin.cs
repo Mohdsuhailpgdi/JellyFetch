@@ -4,12 +4,17 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyFetch.Configuration;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Plugins;
 using MediaBrowser.Model.Plugins;
 using MediaBrowser.Model.Serialization;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 
 namespace Jellyfin.Plugin.JellyFetch;
 
@@ -40,7 +45,6 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
         Instance          = this;
         _applicationPaths = applicationPaths;
         _logger           = loggerFactory.CreateLogger<Plugin>();
-        TryPatchWebDirectory(applicationPaths);
     }
 
     /// <inheritdoc />
@@ -76,183 +80,103 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
         };
     }
 
-    // ─── Web directory auto-patching ────────────────────────────────────────
+    // ─── In-Memory UI Injection ─────────────────────────────────────────────
 
     /// <summary>
-    /// Attempts to locate the Jellyfin web directory, write jellyfetch-inject.js
-    /// into it, and patch index.html with a &lt;script&gt; tag — all silently.
-    /// Failure is logged as a warning but never crashes the plugin.
+    /// Registers the startup filter that injects our HTTP middleware into the ASP.NET Core pipeline.
+    /// This entirely replaces the old index.html file-patching mechanism, preventing Linux permission lockouts.
     /// </summary>
-    private void TryPatchWebDirectory(IApplicationPaths paths)
+    public class PluginServiceRegistrator : MediaBrowser.Controller.Plugins.IPluginServiceRegistrator
     {
-        try
+        public void RegisterServices(IServiceCollection services, MediaBrowser.Controller.IServerApplicationHost applicationHost)
         {
-            var webDir = FindWebDirectory(paths);
-            if (webDir is null)
+            services.AddTransient<IStartupFilter, JellyFetchStartupFilter>();
+        }
+    }
+
+    public class JellyFetchStartupFilter : IStartupFilter
+    {
+        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next)
+        {
+            return builder =>
             {
-                _logger.LogWarning("[JellyFetch] Could not locate the Jellyfin web directory. " +
-                    "Automatic UI injection skipped. See README for manual install.");
+                builder.UseMiddleware<JellyFetchInjectionMiddleware>();
+                next(builder);
+            };
+        }
+    }
+
+    public class JellyFetchInjectionMiddleware
+    {
+        private readonly RequestDelegate _next;
+
+        public JellyFetchInjectionMiddleware(RequestDelegate next)
+        {
+            _next = next;
+        }
+
+        public async Task InvokeAsync(HttpContext context)
+        {
+            var path = context.Request.Path.Value ?? string.Empty;
+            // Only intercept the root web index
+            if (!path.Equals("/web/index.html", StringComparison.OrdinalIgnoreCase) && 
+                !path.Equals("/web/", StringComparison.OrdinalIgnoreCase))
+            {
+                await _next(context);
                 return;
             }
 
-            WriteInjectScript(webDir);
-            PatchIndexHtml(webDir);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "[JellyFetch] Web directory patching failed (non-fatal).");
-        }
-    }
-
-    /// <summary>
-    /// Returns the Jellyfin web directory, checking several well-known paths.
-    /// </summary>
-    private string? FindWebDirectory(IApplicationPaths paths)
-    {
-        // Candidates ordered by likelihood
-        var candidates = new List<string>
-        {
-            // Derive from the server binary location (most reliable)
-            Path.Combine(AppContext.BaseDirectory, "jellyfin-web"),
-            Path.Combine(AppContext.BaseDirectory, "..", "jellyfin-web"),
-            Path.Combine(AppContext.BaseDirectory, "web"),
-            // Native Ubuntu/Debian install
-            "/usr/share/jellyfin/web",
-            // Docker official image
-            "/jellyfin/jellyfin-web",
-            // Docker linuxserver.io image
-            "/app/jellyfin/web",
-            "/app/www",
-        };
-
-        // Also try sibling "web" next to the data folder
-        if (!string.IsNullOrEmpty(paths.DataPath))
-        {
-            candidates.Insert(0, Path.Combine(Path.GetDirectoryName(paths.DataPath) ?? string.Empty, "web"));
-        }
-
-        return candidates
-            .Select(p => Path.GetFullPath(p))
-            .FirstOrDefault(p => File.Exists(Path.Combine(p, "index.html")));
-    }
-
-    /// <summary>
-    /// Extracts the embedded jellyfetch-inject.js and writes it to the web directory.
-    /// </summary>
-    private void WriteInjectScript(string webDir)
-    {
-        var dest = Path.Combine(webDir, InjectScriptName);
-        var asm  = Assembly.GetExecutingAssembly();
-
-        // Find the embedded resource by suffix match (handles naming edge-cases)
-        var resource = asm.GetManifestResourceNames()
-            .FirstOrDefault(n => n.EndsWith("jellyfetch-inject.js", StringComparison.OrdinalIgnoreCase)
-                              || n.EndsWith("jellyfetch_inject.js", StringComparison.OrdinalIgnoreCase));
-
-        if (resource is null)
-        {
-            _logger.LogWarning("[JellyFetch] Embedded resource jellyfetch-inject.js not found in assembly.");
-            return;
-        }
-
-        using var stream = asm.GetManifestResourceStream(resource)!;
-        using var fs     = new FileStream(dest, FileMode.Create, FileAccess.Write);
-        stream.CopyTo(fs);
-
-        _logger.LogInformation("[JellyFetch] Wrote {Script} to {Dir}", InjectScriptName, webDir);
-    }
-
-    /// <summary>
-    /// Patches index.html to include a &lt;script src="jellyfetch-inject.js"&gt; tag.
-    /// The patch is idempotent — it will not add the tag a second time.
-    /// </summary>
-    private void PatchIndexHtml(string webDir)
-    {
-        var indexPath = Path.Combine(webDir, "index.html");
-        var html = File.ReadAllText(indexPath, Encoding.UTF8);
-
-        if (html.Contains(ScriptMarker))
-        {
-            var updated = System.Text.RegularExpressions.Regex.Replace(
-                html,
-                @"jellyfetch-inject\.js(\?v=[^""]*)?",
-                $"{InjectScriptName}?v={Version}");
-
-            if (updated != html)
+            // Remove Content-Length right before headers are sent so Kestrel switches to chunked encoding.
+            // This allows us to modify the HTML body size dynamically.
+            context.Response.OnStarting(() =>
             {
-                File.WriteAllText(indexPath, updated, Encoding.UTF8);
-                _logger.LogInformation("[JellyFetch] Updated index.html inject script to version {Version}", Version);
+                if (context.Response.StatusCode == 200 && 
+                    context.Response.ContentType != null && 
+                    context.Response.ContentType.Contains("text/html"))
+                {
+                    context.Response.Headers.Remove("Content-Length");
+                }
+                return Task.CompletedTask;
+            });
+
+            var originalBodyStream = context.Response.Body;
+            using var responseBody = new MemoryStream();
+            context.Response.Body = responseBody;
+
+            await _next(context);
+
+            context.Response.Body = originalBodyStream;
+
+            if (context.Response.StatusCode == 200 && 
+                context.Response.ContentType != null && 
+                context.Response.ContentType.Contains("text/html"))
+            {
+                responseBody.Seek(0, SeekOrigin.Begin);
+                var html = await new StreamReader(responseBody).ReadToEndAsync();
+
+                // Inject our script tag (which is dynamically served by DownloadersController)
+                string scriptTag = $"\n    <script src=\"/System/Configuration/Downloaders/Inject.js?v={Plugin.Instance.Version}\"></script>\n";
+
+                if (!html.Contains("Downloaders/Inject.js"))
+                {
+                    if (html.Contains("</body>"))
+                    {
+                        html = html.Replace("</body>", scriptTag + "</body>");
+                    }
+                    else
+                    {
+                        html += scriptTag;
+                    }
+                }
+
+                var injectedBytes = Encoding.UTF8.GetBytes(html);
+                await context.Response.Body.WriteAsync(injectedBytes, 0, injectedBytes.Length);
             }
             else
             {
-                _logger.LogInformation("[JellyFetch] index.html already contains the inject script v{Version} — skipping patch.", Version);
+                responseBody.Seek(0, SeekOrigin.Begin);
+                await responseBody.CopyToAsync(originalBodyStream);
             }
-            return;
-        }
-
-        // Insert just before </body>
-        var scriptTag = $"\n    <script src=\"{InjectScriptName}?v={Version}\"></script>";
-        var patched   = html.Replace("</body>", scriptTag + "\n</body>");
-
-        if (patched == html)
-        {
-            // No </body> found — append at end of file as fallback
-            patched = html + scriptTag;
-        }
-
-        File.WriteAllText(indexPath, patched, Encoding.UTF8);
-        _logger.LogInformation("[JellyFetch] Patched index.html in {Dir}", webDir);
-    }
-
-    /// <inheritdoc />
-    public override void OnUninstalling()
-    {
-        try
-        {
-            var webDir = FindWebDirectory(_applicationPaths);
-            if (!string.IsNullOrEmpty(webDir))
-            {
-                RevertIndexHtml(webDir);
-                DeleteInjectScript(webDir);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "[JellyFetch] Failed to cleanly revert web files during uninstallation.");
-        }
-
-        base.OnUninstalling();
-    }
-
-    /// <summary>
-    /// Removes the &lt;script src="jellyfetch-inject.js..."&gt; tag from index.html on uninstallation.
-    /// </summary>
-    private void RevertIndexHtml(string webDir)
-    {
-        var indexPath = Path.Combine(webDir, "index.html");
-        if (!File.Exists(indexPath)) return;
-
-        var html = File.ReadAllText(indexPath, Encoding.UTF8);
-        var pattern = @"\s*<script\s+src=""jellyfetch-inject\.js(\?v=[^""]*)?"">\s*</script>";
-        var reverted = System.Text.RegularExpressions.Regex.Replace(html, pattern, string.Empty);
-
-        if (reverted != html)
-        {
-            File.WriteAllText(indexPath, reverted, Encoding.UTF8);
-            _logger.LogInformation("[JellyFetch] Cleanly reverted index.html on uninstallation in {Dir}", webDir);
-        }
-    }
-
-    /// <summary>
-    /// Deletes jellyfetch-inject.js from the web directory on uninstallation.
-    /// </summary>
-    private void DeleteInjectScript(string webDir)
-    {
-        var dest = Path.Combine(webDir, InjectScriptName);
-        if (File.Exists(dest))
-        {
-            File.Delete(dest);
-            _logger.LogInformation("[JellyFetch] Deleted {Script} on uninstallation from {Dir}", InjectScriptName, webDir);
         }
     }
 }
