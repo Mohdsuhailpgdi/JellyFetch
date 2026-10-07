@@ -126,16 +126,16 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                 return;
             }
 
-            // Strip Accept-Encoding so ResponseCompressionMiddleware doesn't compress the payload,
-            // preventing us from reading garbage bytes.
+            // Strip Accept-Encoding as a first line of defense
             context.Request.Headers.Remove("Accept-Encoding");
             
             // Strip caching headers so we always get a 200 OK and can inject our script.
             context.Request.Headers.Remove("If-None-Match");
             context.Request.Headers.Remove("If-Modified-Since");
 
-            // Remove Content-Length and ETag right before headers are sent.
-            // This allows us to modify the HTML body size dynamically.
+            // Remove Content-Length, ETag, and Content-Encoding right before headers are sent.
+            // We strip Content-Encoding because if the payload was compressed by downstream middleware,
+            // we will decompress it, inject our script, and serve it uncompressed!
             context.Response.OnStarting(() =>
             {
                 if (context.Response.StatusCode == 200 && 
@@ -144,6 +144,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                 {
                     context.Response.Headers.Remove("Content-Length");
                     context.Response.Headers.Remove("ETag");
+                    context.Response.Headers.Remove("Content-Encoding");
                 }
                 return Task.CompletedTask;
             });
@@ -160,8 +161,28 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                 context.Response.ContentType != null && 
                 context.Response.ContentType.Contains("text/html"))
             {
+                var contentEncoding = context.Response.Headers["Content-Encoding"].ToString().ToLower();
                 responseBody.Seek(0, SeekOrigin.Begin);
-                var html = await new StreamReader(responseBody).ReadToEndAsync();
+                
+                string html = string.Empty;
+                
+                if (contentEncoding.Contains("gzip"))
+                {
+                    using var gzipStream = new System.IO.Compression.GZipStream(responseBody, System.IO.Compression.CompressionMode.Decompress, true);
+                    using var reader = new StreamReader(gzipStream);
+                    html = await reader.ReadToEndAsync();
+                }
+                else if (contentEncoding.Contains("br"))
+                {
+                    using var brotliStream = new System.IO.Compression.BrotliStream(responseBody, System.IO.Compression.CompressionMode.Decompress, true);
+                    using var reader = new StreamReader(brotliStream);
+                    html = await reader.ReadToEndAsync();
+                }
+                else
+                {
+                    using var reader = new StreamReader(responseBody, Encoding.UTF8, false, 1024, true);
+                    html = await reader.ReadToEndAsync();
+                }
 
                 // Inject our script tag (which is dynamically served by DownloadersController)
                 string scriptTag = $"\n    <script src=\"/System/Configuration/Downloaders/Inject.js?v={Plugin.Instance.Version}\"></script>\n";
