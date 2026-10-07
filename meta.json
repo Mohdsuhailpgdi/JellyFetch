@@ -12,11 +12,11 @@
     "versions": [
         {
             "checksum": "C826E06C765C9F7B49922D869108D6F9",
-            "changelog": "v1.3.7.5: Major Architecture Update. Replaced index.html disk patching with a robust in-memory ASP.NET Core middleware interceptor. The plugin now perfectly injects the UI directly into the HTTP stream, guaranteeing compatibility across Windows, Docker, and Linux APT upgrades without permission lockouts.",
+            "changelog": "v1.3.7.6: Hotfix for in-memory middleware corrupting GZip compressed responses. Stripped Accept-Encoding headers to safely mutate the HTML stream without breaking the Jellyfin UI.",
             "targetAbi": "12.2.0.0",
             "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/dev/Jellyfin.Plugin.JellyFetch.zip",
-            "timestamp": "2026-10-07T14:15:00Z",
-            "version": "1.3.7.5"
+            "timestamp": "2026-10-07T14:45:00Z",
+            "version": "1.3.7.6"
         }
     ]
 }

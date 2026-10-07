@@ -126,7 +126,15 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                 return;
             }
 
-            // Remove Content-Length right before headers are sent so Kestrel switches to chunked encoding.
+            // Strip Accept-Encoding so ResponseCompressionMiddleware doesn't compress the payload,
+            // preventing us from reading garbage bytes.
+            context.Request.Headers.Remove("Accept-Encoding");
+            
+            // Strip caching headers so we always get a 200 OK and can inject our script.
+            context.Request.Headers.Remove("If-None-Match");
+            context.Request.Headers.Remove("If-Modified-Since");
+
+            // Remove Content-Length and ETag right before headers are sent.
             // This allows us to modify the HTML body size dynamically.
             context.Response.OnStarting(() =>
             {
@@ -135,6 +143,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                     context.Response.ContentType.Contains("text/html"))
                 {
                     context.Response.Headers.Remove("Content-Length");
+                    context.Response.Headers.Remove("ETag");
                 }
                 return Task.CompletedTask;
             });
