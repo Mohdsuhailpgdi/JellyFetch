@@ -13,7 +13,7 @@
         "changelog": "v1.3.7.5: Major Architecture Update. Replaced index.html disk patching with a robust in-memory ASP.NET Core middleware interceptor. The plugin now perfectly injects the UI directly into the HTTP stream, guaranteeing compatibility across Windows, Docker, and Linux APT upgrades without permission lockouts.",
         "targetAbi": "12.2.0.0",
         "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/dev/Jellyfin.Plugin.JellyFetch.zip",
-        "checksum": "c039dff267a144237598852716547763",
+        "checksum": "C826E06C765C9F7B49922D869108D6F9",
         "timestamp": "2026-10-07T14:15:00Z"
       },
       {
