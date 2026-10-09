@@ -791,7 +791,9 @@
                                 }
                                 
                                 if (isDetailsPage() && getCurrentItemId() === itemId) {
-                                    if (window.Dashboard && typeof window.Dashboard.navigate === 'function') {
+                                    if (window.Emby && window.Emby.Page && typeof window.Emby.Page.back === 'function') {
+                                        window.Emby.Page.back();
+                                    } else if (window.Dashboard && typeof window.Dashboard.navigate === 'function') {
                                         window.Dashboard.navigate('#/home');
                                     } else {
                                         window.location.hash = '#/home';

@@ -12,11 +12,11 @@
     "versions": [
         {
             "checksum": "C826E06C765C9F7B49922D869108D6F9",
-            "changelog": "v1.3.7.9: Added strict safety safeguards to Exclude directory deletion to prevent accidental deletion of root library folders. Added Blocklist persistence for stage shows.",
+            "changelog": "v1.3.8.0: Fixed navigation hang when excluding items from the UI. Fixed 1-2 minute delay in item removal by deleting filesystem directories *before* calling LibraryManager.DeleteItem.",
             "targetAbi": "12.2.0.0",
             "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
-            "timestamp": "2026-10-10T02:45:00Z",
-            "version": "1.3.7.9"
+            "timestamp": "2026-10-10T03:00:00Z",
+            "version": "1.3.8.0"
         }
     ]
 }

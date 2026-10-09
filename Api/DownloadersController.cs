@@ -421,8 +421,7 @@ public class DownloadersController : ControllerBase
             string path = item.Path;
             string dirPath = !string.IsNullOrEmpty(path) ? System.IO.Path.GetDirectoryName(path) : null;
             
-            _libraryManager.DeleteItem(item, new DeleteOptions { DeleteFileLocation = true });
-            
+            // DELETE FOLDER FIRST to prevent the realtime file watcher from resurrecting it via movie.nfo when .strm is deleted
             if (!string.IsNullOrEmpty(dirPath) && System.IO.Directory.Exists(dirPath))
             {
                 string configDownDir = Plugin.Instance.Configuration.DownloadsDirectory ?? "/media/Downloads";
@@ -451,6 +450,11 @@ public class DownloadersController : ControllerBase
                     }
                 }
             }
+            
+            // Now tell Jellyfin to remove the item from the DB and trigger websocket LibraryChanged
+            try {
+                _libraryManager.DeleteItem(item, new DeleteOptions { DeleteFileLocation = true });
+            } catch { }
             
             _logger.LogInformation("Deleted item {ItemId} from library and filesystem.", itemId);
         }
