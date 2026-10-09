@@ -5,7 +5,7 @@
   
   **Automated media scraping, cloud downloading, and library injection for Jellyfin.**
   
-  [![Version](https://img.shields.io/badge/version-1.3.5.1-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
+  [![Version](https://img.shields.io/badge/version-1.3.8.1-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
   [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9.x--12.x-orange)](https://jellyfin.org)
   [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey)](https://github.com/Mohdsuhailpgdi/JellyFetch)
 </div>
@@ -17,13 +17,11 @@ This plugin is specifically optimized for Indian media consumers. The default sc
 
 ---
 
-## ✨ What's New in v1.3.5.1 — Deduplication & UI Fixes
-- 🚑 **Stream & Metadata Hotfixes (v1.3.5.1)**: Fixed an issue where the Sanitize background task could deadlock indefinitely when parsing large files, and fixed a bug where Cloudflare/CDN blocks caused the downloader to get stuck at 20% in an infinite loop instead of failing gracefully.
-- 🔍 **Increased Scrape Depth**: Searches further back into forums (8 pages instead of 4) to prevent missing older releases.
-- 🎯 **Deduplication via movie.nfo**: Added `movie.nfo` sidecar file generation beside `.strm` dummy files to embed `<tmdbid>`, locking Jellyfin metadata and grouping multi-language dubs into the same movie object.
-- 🎬 **Hardened Language Extraction**: Audio tags (e.g. `[Tam + Mal]`) in filenames now strictly take precedence over the movie's TMDB default language, preventing "language bleeding".
-- 🛡️ **Clean UI for Free Tier**: Completely removed the "Torbox Required" warning banner for users running a free-only setup.
-- 📦 **Sanitize Background Task**: Improved sanitize scheduled task metadata handling against domain spam.
+## ✨ What's New in v1.3.8.1 — Phase 3: Blocklists & UX Polish
+- **Context Menu Integration**: You can now instantly "Exclude & Remove" movies directly from Jellyfin's native 3-dot context menu.
+- **Smart Blocklist Persistence**: Excluded items are permanently saved so they never accidentally re-download. You can manage this list in the Plugin Configuration tab.
+- **Navigation & Library Fixes**: Instant item removal using deep frontend/backend integration without leaving "ghost" items floating in your library.
+- **Improved UI Injection**: Cleaner, fully native-looking buttons seamlessly injected into Jellyfin's SPA router without recursion or lags.
 
 ---
 
