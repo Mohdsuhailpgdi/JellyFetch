@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/icon.jpg",
     "versions": [
       {
+        "version": "1.3.8.1",
+        "changelog": "v1.3.8.1: Fixed backend library deletion exception caused by early file deletion. Restored successful DB removal and websocket UI sync on Exclude.",
+        "targetAbi": "12.2.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
+        "checksum": "324B39D1833C22019F2627CCDC32E87E",
+        "timestamp": "2026-10-10T03:10:00Z"
+      },
+      {
         "version": "1.3.8.0",
         "changelog": "v1.3.8.0: Fixed navigation hang when excluding items from the UI. Fixed 1-2 minute delay in item removal by deleting filesystem directories *before* calling LibraryManager.DeleteItem.",
         "targetAbi": "12.2.0.0",

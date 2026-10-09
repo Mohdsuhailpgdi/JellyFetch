@@ -421,6 +421,7 @@ public class DownloadersController : ControllerBase
             string path = item.Path;
             string dirPath = !string.IsNullOrEmpty(path) ? System.IO.Path.GetDirectoryName(path) : null;
             
+            bool directoryDeleted = false;
             // DELETE FOLDER FIRST to prevent the realtime file watcher from resurrecting it via movie.nfo when .strm is deleted
             if (!string.IsNullOrEmpty(dirPath) && System.IO.Directory.Exists(dirPath))
             {
@@ -434,7 +435,7 @@ public class DownloadersController : ControllerBase
                     string dirName = System.IO.Path.GetFileName(dirPath);
                     if (!string.IsNullOrEmpty(dirName) && (dirName.Contains(title, StringComparison.OrdinalIgnoreCase) || title.Contains(dirName, StringComparison.OrdinalIgnoreCase)))
                     {
-                        try { System.IO.Directory.Delete(dirPath, true); } catch { }
+                        try { System.IO.Directory.Delete(dirPath, true); directoryDeleted = true; } catch { }
                     }
                     else 
                     {
@@ -444,16 +445,22 @@ public class DownloadersController : ControllerBase
                                 !System.IO.Directory.EnumerateFiles(dirPath, "*.mp4", System.IO.SearchOption.AllDirectories).Any() &&
                                 !System.IO.Directory.EnumerateFiles(dirPath, "*.avi", System.IO.SearchOption.AllDirectories).Any())
                             {
-                                System.IO.Directory.Delete(dirPath, true); 
+                                System.IO.Directory.Delete(dirPath, true); directoryDeleted = true; 
                             }
                         } catch { }
                     }
                 }
             }
             
+            // If the folder wasn't deleted (e.g. safety check failed), at least delete the .strm file
+            if (!directoryDeleted && !string.IsNullOrEmpty(path) && System.IO.File.Exists(path))
+            {
+                try { System.IO.File.Delete(path); } catch { }
+            }
+            
             // Now tell Jellyfin to remove the item from the DB and trigger websocket LibraryChanged
             try {
-                _libraryManager.DeleteItem(item, new DeleteOptions { DeleteFileLocation = true });
+                _libraryManager.DeleteItem(item, new DeleteOptions { DeleteFileLocation = false });
             } catch { }
             
             _logger.LogInformation("Deleted item {ItemId} from library and filesystem.", itemId);
