@@ -12,11 +12,11 @@
     "versions": [
         {
             "checksum": "C826E06C765C9F7B49922D869108D6F9",
-            "changelog": "v1.3.7.7: Implemented native GZip and Brotli decompression in the middleware to fully support Jellyfin's static file pre-compression and downstream compression interceptors.",
+            "changelog": "v1.3.7.8: Phase 3 Bug Fixes. Fixed blocklist persistence for non-TMDB items (like stage shows), fixed Exclude UI double-window bugs, eliminated item removal lag by destroying directories, and ensured properly sorted 'Recently Added' scraping via NFO `<dateadded>` generation.",
             "targetAbi": "12.2.0.0",
             "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
-            "timestamp": "2026-10-07T14:55:00Z",
-            "version": "1.3.7.7"
+            "timestamp": "2026-10-10T02:30:00Z",
+            "version": "1.3.7.8"
         }
     ]
 }

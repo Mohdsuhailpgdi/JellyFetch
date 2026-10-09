@@ -418,7 +418,23 @@ public class DownloadersController : ControllerBase
 
         try
         {
+            string path = item.Path;
+            string dirPath = !string.IsNullOrEmpty(path) ? System.IO.Path.GetDirectoryName(path) : null;
+            
             _libraryManager.DeleteItem(item, new DeleteOptions { DeleteFileLocation = true });
+            
+            if (!string.IsNullOrEmpty(dirPath) && System.IO.Directory.Exists(dirPath))
+            {
+                string configDownDir = Plugin.Instance.Configuration.DownloadsDirectory ?? "/media/Downloads";
+                // Safety check: ensure we don't delete the root library folder
+                if (!dirPath.Equals(configDownDir, StringComparison.OrdinalIgnoreCase) && 
+                    !dirPath.Equals(configDownDir.TrimEnd('/'), StringComparison.OrdinalIgnoreCase) &&
+                    !dirPath.Equals(configDownDir.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
+                {
+                    try { System.IO.Directory.Delete(dirPath, true); } catch { }
+                }
+            }
+            
             _logger.LogInformation("Deleted item {ItemId} from library and filesystem.", itemId);
         }
         catch (Exception ex)

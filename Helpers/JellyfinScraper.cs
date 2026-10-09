@@ -700,8 +700,16 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                     if (!ok) return;
 
                     var blocklist = Plugin.Instance?.Configuration?.Blocklist ?? Array.Empty<string>();
-                    if (blocklist.Any(b => (!string.IsNullOrEmpty(tmdbId) && b.Equals(tmdbId, StringComparison.OrdinalIgnoreCase)) || baseN.Equals(b, StringComparison.OrdinalIgnoreCase)))
+                    string normFull = NormalizeKey(full);
+                    string normBase = NormalizeKey(baseN);
+                    if (blocklist.Any(b => {
+                        if (!string.IsNullOrEmpty(tmdbId) && string.Equals(b, tmdbId, StringComparison.OrdinalIgnoreCase)) return true;
+                        string normB = NormalizeKey(b);
+                        return normB == normFull || normB == normBase;
+                    }))
+                    {
                         return;
+                    }
 
                     // STRICT ORIGINAL LANGUAGE CHECK VIA TMDB
                     // (Implemented above in DetectLanguageAsync as a fallback)
@@ -794,14 +802,21 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                         if (isBrandNew)
                         {
                             await File.WriteAllTextAsync(strm, "http://localhost:8096/dummy.mp4", tct);
+                            string dateAddedStr = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                            
                             if (!string.IsNullOrEmpty(tmdbId))
                             {
-                                string nfo = $"<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>\n<movie>\n  <tmdbid>{tmdbId}</tmdbid>\n</movie>";
+                                string nfo = $"<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>\n<movie>\n  <tmdbid>{tmdbId}</tmdbid>\n  <dateadded>{dateAddedStr}</dateadded>\n</movie>";
                                 await File.WriteAllTextAsync(Path.Combine(mDir, "movie.nfo"), nfo, tct);
                             }
                             else if (!string.IsNullOrEmpty(imdbId))
                             {
-                                string nfo = $"<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>\n<movie>\n  <imdbid>{imdbId}</imdbid>\n</movie>";
+                                string nfo = $"<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>\n<movie>\n  <imdbid>{imdbId}</imdbid>\n  <dateadded>{dateAddedStr}</dateadded>\n</movie>";
+                                await File.WriteAllTextAsync(Path.Combine(mDir, "movie.nfo"), nfo, tct);
+                            }
+                            else
+                            {
+                                string nfo = $"<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>\n<movie>\n  <dateadded>{dateAddedStr}</dateadded>\n</movie>";
                                 await File.WriteAllTextAsync(Path.Combine(mDir, "movie.nfo"), nfo, tct);
                             }
                         }
