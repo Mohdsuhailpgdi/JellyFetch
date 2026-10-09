@@ -426,12 +426,29 @@ public class DownloadersController : ControllerBase
             if (!string.IsNullOrEmpty(dirPath) && System.IO.Directory.Exists(dirPath))
             {
                 string configDownDir = Plugin.Instance.Configuration.DownloadsDirectory ?? "/media/Downloads";
-                // Safety check: ensure we don't delete the root library folder
+                // Safety check 1: ensure we don't delete the root library folder
                 if (!dirPath.Equals(configDownDir, StringComparison.OrdinalIgnoreCase) && 
                     !dirPath.Equals(configDownDir.TrimEnd('/'), StringComparison.OrdinalIgnoreCase) &&
                     !dirPath.Equals(configDownDir.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
                 {
-                    try { System.IO.Directory.Delete(dirPath, true); } catch { }
+                    // Safety check 2: Only delete if the directory name matches the movie name (it's a dedicated folder)
+                    string dirName = System.IO.Path.GetFileName(dirPath);
+                    if (!string.IsNullOrEmpty(dirName) && (dirName.Contains(title, StringComparison.OrdinalIgnoreCase) || title.Contains(dirName, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        try { System.IO.Directory.Delete(dirPath, true); } catch { }
+                    }
+                    else 
+                    {
+                        // Fallback: only delete if it contains no other video files
+                        try { 
+                            if (!System.IO.Directory.EnumerateFiles(dirPath, "*.mkv", System.IO.SearchOption.AllDirectories).Any() &&
+                                !System.IO.Directory.EnumerateFiles(dirPath, "*.mp4", System.IO.SearchOption.AllDirectories).Any() &&
+                                !System.IO.Directory.EnumerateFiles(dirPath, "*.avi", System.IO.SearchOption.AllDirectories).Any())
+                            {
+                                System.IO.Directory.Delete(dirPath, true); 
+                            }
+                        } catch { }
+                    }
                 }
             }
             
