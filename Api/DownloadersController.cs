@@ -396,79 +396,66 @@ public class DownloadersController : ControllerBase
 
         var config = Plugin.Instance.Configuration;
         var blocklist = config.Blocklist?.ToList() ?? new List<string>();
-        bool added = false;
 
-        if (!string.IsNullOrEmpty(tmdbId) && !blocklist.Contains(tmdbId))
-        {
-            blocklist.Add(tmdbId);
-            added = true;
-        }
-        if (!string.IsNullOrEmpty(baseN) && !blocklist.Contains(baseN))
-        {
-            blocklist.Add(baseN);
-            added = true;
-        }
+        string entry = !string.IsNullOrEmpty(tmdbId) ? $"{title} [TMDB: {tmdbId}]" : title;
 
-        if (added)
+        bool alreadyBlocked = blocklist.Any(b => 
+            b.Equals(entry, StringComparison.OrdinalIgnoreCase) ||
+            (!string.IsNullOrEmpty(tmdbId) && b.Equals(tmdbId, StringComparison.OrdinalIgnoreCase)) ||
+            (!string.IsNullOrEmpty(tmdbId) && b.Contains($"[TMDB: {tmdbId}]", StringComparison.OrdinalIgnoreCase)) ||
+            b.Equals(title, StringComparison.OrdinalIgnoreCase));
+
+        if (!alreadyBlocked)
         {
+            // Clean up any legacy separate entries for this movie/tmdbId
+            blocklist.RemoveAll(b => 
+                (!string.IsNullOrEmpty(tmdbId) && b.Equals(tmdbId, StringComparison.OrdinalIgnoreCase)) ||
+                b.Equals(title, StringComparison.OrdinalIgnoreCase));
+
+            blocklist.Add(entry);
             config.Blocklist = blocklist.ToArray();
             Plugin.Instance.SaveConfiguration();
-            _logger.LogInformation("Added {ItemId} ({Title}) to blocklist. TMDB: {TmdbId}", itemId, title, tmdbId);
+            _logger.LogInformation("Added {ItemId} ({Entry}) to blocklist.", itemId, entry);
         }
 
         try
         {
             string path = item.Path;
             string dirPath = !string.IsNullOrEmpty(path) ? System.IO.Path.GetDirectoryName(path) : null;
-            
-            bool directoryDeleted = false;
-            // DELETE FOLDER FIRST to prevent the realtime file watcher from resurrecting it via movie.nfo when .strm is deleted
+            string configDownDir = Plugin.Instance.Configuration.DownloadsDirectory ?? "/media/Downloads";
+
+            // 1. Tell Jellyfin to remove the item from SQLite DB and filesystem atomically
+            try
+            {
+                _libraryManager.DeleteItem(item, new DeleteOptions { DeleteFileLocation = true }, true);
+                _logger.LogInformation("Deleted item {ItemId} ({Title}) via LibraryManager.", itemId, title);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "LibraryManager.DeleteItem threw for {ItemId}, falling back to manual disk cleanup.", itemId);
+            }
+
+            // 2. Clean up any leftover empty/dummy directory on disk (e.g. movie.nfo, poster.jpg, downloads.json)
             if (!string.IsNullOrEmpty(dirPath) && System.IO.Directory.Exists(dirPath))
             {
-                string configDownDir = Plugin.Instance.Configuration.DownloadsDirectory ?? "/media/Downloads";
-                // Safety check 1: ensure we don't delete the root library folder
                 if (!dirPath.Equals(configDownDir, StringComparison.OrdinalIgnoreCase) && 
                     !dirPath.Equals(configDownDir.TrimEnd('/'), StringComparison.OrdinalIgnoreCase) &&
                     !dirPath.Equals(configDownDir.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
                 {
-                    // Safety check 2: Only delete if the directory name matches the movie name (it's a dedicated folder)
-                    string dirName = System.IO.Path.GetFileName(dirPath);
-                    if (!string.IsNullOrEmpty(dirName) && (dirName.Contains(title, StringComparison.OrdinalIgnoreCase) || title.Contains(dirName, StringComparison.OrdinalIgnoreCase)))
+                    // Only delete if it contains no real video files (.mkv, .mp4, .avi)
+                    if (!System.IO.Directory.EnumerateFiles(dirPath, "*.mkv", System.IO.SearchOption.AllDirectories).Any() &&
+                        !System.IO.Directory.EnumerateFiles(dirPath, "*.mp4", System.IO.SearchOption.AllDirectories).Any() &&
+                        !System.IO.Directory.EnumerateFiles(dirPath, "*.avi", System.IO.SearchOption.AllDirectories).Any())
                     {
-                        try { System.IO.Directory.Delete(dirPath, true); directoryDeleted = true; } catch { }
-                    }
-                    else 
-                    {
-                        // Fallback: only delete if it contains no other video files
-                        try { 
-                            if (!System.IO.Directory.EnumerateFiles(dirPath, "*.mkv", System.IO.SearchOption.AllDirectories).Any() &&
-                                !System.IO.Directory.EnumerateFiles(dirPath, "*.mp4", System.IO.SearchOption.AllDirectories).Any() &&
-                                !System.IO.Directory.EnumerateFiles(dirPath, "*.avi", System.IO.SearchOption.AllDirectories).Any())
-                            {
-                                System.IO.Directory.Delete(dirPath, true); directoryDeleted = true; 
-                            }
-                        } catch { }
+                        try { System.IO.Directory.Delete(dirPath, true); } catch { }
                     }
                 }
             }
-            
-            // If the folder wasn't deleted (e.g. safety check failed), at least delete the .strm file
-            if (!directoryDeleted && !string.IsNullOrEmpty(path) && System.IO.File.Exists(path))
-            {
-                try { System.IO.File.Delete(path); } catch { }
-            }
-            
-            // Now tell Jellyfin to remove the item from the DB and trigger websocket LibraryChanged
-            try {
-                _libraryManager.DeleteItem(item, new DeleteOptions { DeleteFileLocation = false });
-            } catch { }
-            
-            _logger.LogInformation("Deleted item {ItemId} from library and filesystem.", itemId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to delete item {ItemId} from library during Exclude action.", itemId);
-            return StatusCode(500, "Blocked successfully, but failed to delete item.");
+            _logger.LogError(ex, "Failed during Exclude cleanup for item {ItemId}.", itemId);
+            return StatusCode(500, "Blocked successfully, but encountered an error during item deletion.");
         }
 
         return Ok(new { Success = true, Excluded = true, Deleted = true });
@@ -1089,9 +1076,11 @@ public class DownloadersController : ControllerBase
                             bool hasIds = !string.IsNullOrEmpty(tmdbId) || !string.IsNullOrEmpty(imdbId);
                             if (hasIds && !System.IO.File.Exists(nfoPath))
                             {
+                                var dateAddedStr = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
                                 var nfoContent = "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>\n<movie>\n";
                                 if (!string.IsNullOrEmpty(tmdbId)) nfoContent += $"  <tmdbid>{tmdbId}</tmdbid>\n";
                                 if (!string.IsNullOrEmpty(imdbId)) nfoContent += $"  <imdbid>{imdbId}</imdbid>\n";
+                                nfoContent += $"  <dateadded>{dateAddedStr}</dateadded>\n";
                                 nfoContent += "</movie>";
                                 try { System.IO.File.WriteAllText(nfoPath, nfoContent); } catch { }
                             }
@@ -1244,9 +1233,11 @@ public class DownloadersController : ControllerBase
                             bool hasIds = !string.IsNullOrEmpty(tmdbId) || !string.IsNullOrEmpty(imdbId);
                             if (hasIds && !System.IO.File.Exists(nfoPath))
                             {
+                                var dateAddedStr = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
                                 var nfoContent = "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>\n<movie>\n";
                                 if (!string.IsNullOrEmpty(tmdbId)) nfoContent += $"  <tmdbid>{tmdbId}</tmdbid>\n";
                                 if (!string.IsNullOrEmpty(imdbId)) nfoContent += $"  <imdbid>{imdbId}</imdbid>\n";
+                                nfoContent += $"  <dateadded>{dateAddedStr}</dateadded>\n";
                                 nfoContent += "</movie>";
                                 try { System.IO.File.WriteAllText(nfoPath, nfoContent); } catch { }
                             }
@@ -1592,8 +1583,8 @@ public class DownloadersController : ControllerBase
             // 2. Pre-scan library for real movies (to detect duplicates)
             using var client = new HttpClient();
             var scraper = new JellyfinScraper(client, libraryManager);
-            var realLibraryMovies = scraper.LoadRealLibraryMovieKeys(targetDir, (msg, _) => AddCleanupLog(msg));
-            ReportCleanupProgress($"Library check: {realLibraryMovies.Count} existing downloaded movies identified.", 15);
+            var realLibrary = scraper.LoadRealLibraryMedia(targetDir, (msg, _) => AddCleanupLog(msg));
+            ReportCleanupProgress($"Library check: {realLibrary.Keys.Count} existing downloaded movies identified.", 15);
             taskProgress?.Report(15);
 
             // 3. Scan subdirectories in targetDir
@@ -1648,7 +1639,25 @@ public class DownloadersController : ControllerBase
 
                     // Check if this is a duplicate of a movie already in the library
                     var normKey = JellyfinScraper.NormalizeKey(dirName);
-                    bool isDuplicateOfLibrary = !string.IsNullOrEmpty(normKey) && realLibraryMovies.Contains(normKey);
+                    bool isDuplicateOfLibrary = !string.IsNullOrEmpty(normKey) && realLibrary.Keys.Contains(normKey);
+
+                    // Cross-check TMDB / IMDb IDs in movie.nfo against library
+                    if (!isDuplicateOfLibrary)
+                    {
+                        var nfo = Path.Combine(dir, "movie.nfo");
+                        if (System.IO.File.Exists(nfo))
+                        {
+                            try
+                            {
+                                var nfoTxt = System.IO.File.ReadAllText(nfo);
+                                var tm = System.Text.RegularExpressions.Regex.Match(nfoTxt, @"<tmdbid>(\d+)</tmdbid>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                                if (tm.Success && realLibrary.TmdbIds.Contains(tm.Groups[1].Value)) isDuplicateOfLibrary = true;
+                                var im = System.Text.RegularExpressions.Regex.Match(nfoTxt, @"<imdbid>(tt\d+)</imdbid>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                                if (im.Success && realLibrary.ImdbIds.Contains(im.Groups[1].Value)) isDuplicateOfLibrary = true;
+                            }
+                            catch { }
+                        }
+                    }
 
                     // Cross-directory duplicate check
                     if (!isDuplicateOfLibrary && !string.IsNullOrEmpty(normKey))

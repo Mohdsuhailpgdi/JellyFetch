@@ -729,16 +729,9 @@
                     var backdrop = document.querySelector('.actionSheetBackdrop, .dialogBackdrop, .actionsheet-backdrop');
                     if (backdrop) {
                         try {
-                            backdrop.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
                             backdrop.click();
                         } catch(e) {}
                     }
-                    setTimeout(function() {
-                        var b2 = document.querySelector('.actionSheetBackdrop, .dialogBackdrop, .actionsheet-backdrop');
-                        if (b2 && b2.parentNode) b2.parentNode.removeChild(b2);
-                        var s2 = btn.closest('.actionSheet, .dialogContainer, .focuscontainer-actionsheet');
-                        if (s2 && s2.parentNode) s2.parentNode.removeChild(s2);
-                    }, 50);
 
                     
                     var modal = document.getElementById('jf-dl-modal');

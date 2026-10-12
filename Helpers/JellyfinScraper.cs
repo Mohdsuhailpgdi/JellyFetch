@@ -37,6 +37,13 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
         public string ImdbId { get; set; } = string.Empty;
     }
 
+    public class RealLibraryMedia
+    {
+        public HashSet<string> Keys { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> TmdbIds { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> ImdbIds { get; } = new(StringComparer.OrdinalIgnoreCase);
+    }
+
     public class JellyfinScraper
     {
         private readonly HttpClient _httpClient;
@@ -114,7 +121,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
 
         private async Task<string> GetWorkingDomainAsync(CancellationToken ct)
         {
-            var domains = new List<string> { "1tamilmv.meme", "1tamilmv.rocks", "1tamilmv.ing", "1tamilmv.xyz", "1tamilmv.pizza", "1tamilmv.pics", "1tamilmv.eu", "1tamilmv.tf" };
+            var domains = new List<string> { "1tamilmv.capital", "1tamilmv.meme", "1tamilmv.rocks", "1tamilmv.ing", "1tamilmv.xyz", "1tamilmv.pizza", "1tamilmv.pics", "1tamilmv.eu", "1tamilmv.tf" };
             
             // Priority 1: User's manual backup override (if configured)
             var overrideFile = Path.Combine(Plugin.Instance.DataFolderPath, ".custom_domain");
@@ -161,13 +168,15 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                     var res = await _httpClient.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
                     if (res.IsSuccessStatusCode)
                     {
+                        var actualHost = res.RequestMessage?.RequestUri?.Host?.Replace("www.", "");
+                        string winningDomain = !string.IsNullOrEmpty(actualHost) && actualHost.Contains("1tamilmv") ? actualHost : d;
                         try
                         {
                             Directory.CreateDirectory(Path.GetDirectoryName(cacheFile)!);
-                            await File.WriteAllTextAsync(cacheFile, d, ct);
+                            await File.WriteAllTextAsync(cacheFile, winningDomain, ct);
                         }
                         catch { }
-                        return d;
+                        return winningDomain;
                     }
                 }
                 catch { }
@@ -402,14 +411,15 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             if (string.IsNullOrEmpty(s)) return string.Empty;
             var clean = Regex.Replace(s, @"\(\d{4}\)", "");
             clean = Regex.Replace(clean, @"\b(19\d{2}|20\d{2})\b", "");
+            clean = clean.Replace("&", " and ").Replace("+", " and ");
             clean = Regex.Replace(clean.ToLowerInvariant(), @"[^a-z0-9]", "");
             if (clean.StartsWith("the") && clean.Length > 3) clean = clean.Substring(3);
             return clean;
         }
 
-        public HashSet<string> LoadRealLibraryMovieKeys(string downDir, Action<string, double> logger = null)
+        public RealLibraryMedia LoadRealLibraryMedia(string downDir, Action<string, double> logger = null)
         {
-            var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var result = new RealLibraryMedia();
 
             // 1. Check downDir for any directories containing actual downloaded video files
             try
@@ -426,7 +436,21 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                             {
                                 var dirName = Path.GetFileName(dir);
                                 var k = NormalizeKey(dirName);
-                                if (!string.IsNullOrEmpty(k)) keys.Add(k);
+                                if (!string.IsNullOrEmpty(k)) result.Keys.Add(k);
+
+                                var nfoPath = Path.Combine(dir, "movie.nfo");
+                                if (File.Exists(nfoPath))
+                                {
+                                    try
+                                    {
+                                        var txt = File.ReadAllText(nfoPath);
+                                        var tm = Regex.Match(txt, @"<tmdbid>(\d+)</tmdbid>", RegexOptions.IgnoreCase);
+                                        if (tm.Success) result.TmdbIds.Add(tm.Groups[1].Value);
+                                        var im = Regex.Match(txt, @"<imdbid>(tt\d+)</imdbid>", RegexOptions.IgnoreCase);
+                                        if (im.Success) result.ImdbIds.Add(im.Groups[1].Value);
+                                    }
+                                    catch { }
+                                }
                             }
                         }
                         catch { }
@@ -463,12 +487,20 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                         if (!isStrm)
                         {
                             var k1 = NormalizeKey(item.Name);
-                            if (!string.IsNullOrEmpty(k1)) keys.Add(k1);
+                            if (!string.IsNullOrEmpty(k1)) result.Keys.Add(k1);
 
                             if (!string.IsNullOrEmpty(item.OriginalTitle))
                             {
                                 var k2 = NormalizeKey(item.OriginalTitle);
-                                if (!string.IsNullOrEmpty(k2)) keys.Add(k2);
+                                if (!string.IsNullOrEmpty(k2)) result.Keys.Add(k2);
+                            }
+
+                            if (item.ProviderIds != null)
+                            {
+                                if (item.ProviderIds.TryGetValue("Tmdb", out var tId) && !string.IsNullOrEmpty(tId))
+                                    result.TmdbIds.Add(tId);
+                                if (item.ProviderIds.TryGetValue("Imdb", out var iId) && !string.IsNullOrEmpty(iId))
+                                    result.ImdbIds.Add(iId);
                             }
                         }
                     }
@@ -479,7 +511,12 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                 }
             }
 
-            return keys;
+            return result;
+        }
+
+        public HashSet<string> LoadRealLibraryMovieKeys(string downDir, Action<string, double> logger = null)
+        {
+            return LoadRealLibraryMedia(downDir, logger).Keys;
         }
 
         private async Task<(string Title, string Poster, List<ScrapedMagnetOption> Magnets)> ScrapeTopicAsync(string url, CancellationToken ct)
@@ -678,8 +715,8 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             int totalTasks = tasksList.Count;
             logger?.Invoke($"Found {totalTasks} topics to scrape. Scanning library to prevent duplicates...", 20);
 
-            var realLibraryMovies = LoadRealLibraryMovieKeys(downDir, logger);
-            logger?.Invoke($"Identified {realLibraryMovies.Count} existing downloaded movies in library. Starting parallel scrape...", 22);
+            var realLibrary = LoadRealLibraryMedia(downDir, logger);
+            logger?.Invoke($"Identified {realLibrary.Keys.Count} existing downloaded movies in library. Starting parallel scrape...", 22);
 
             int newMovies = 0;
             int processedTasks = 0;
@@ -704,7 +741,10 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                     string normBase = NormalizeKey(baseN);
                     if (blocklist.Any(b => {
                         if (!string.IsNullOrEmpty(tmdbId) && string.Equals(b, tmdbId, StringComparison.OrdinalIgnoreCase)) return true;
-                        string normB = NormalizeKey(b);
+                        var tmdbM = Regex.Match(b, @"\[TMDB:\s*(\d+)\]", RegexOptions.IgnoreCase);
+                        if (tmdbM.Success && !string.IsNullOrEmpty(tmdbId) && string.Equals(tmdbM.Groups[1].Value, tmdbId, StringComparison.OrdinalIgnoreCase)) return true;
+                        string bTitle = tmdbM.Success ? b.Substring(0, tmdbM.Index).Trim() : b;
+                        string normB = NormalizeKey(bTitle);
                         return normB == normFull || normB == normBase;
                     }))
                     {
@@ -756,8 +796,20 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                     magnets = goodMagnets;
 
                     // Prevent duplicate entries: skip if already downloaded anywhere in the Jellyfin library
+                    if (!string.IsNullOrEmpty(tmdbId) && realLibrary.TmdbIds.Contains(tmdbId))
+                    {
+                        logger?.Invoke($"Skipped {full} (TMDB ID {tmdbId} already downloaded in library)", -1);
+                        return;
+                    }
+                    if (!string.IsNullOrEmpty(imdbId) && realLibrary.ImdbIds.Contains(imdbId))
+                    {
+                        logger?.Invoke($"Skipped {full} (IMDb ID {imdbId} already downloaded in library)", -1);
+                        return;
+                    }
+
                     var normKey = NormalizeKey(baseN);
-                    if (realLibraryMovies.Contains(normKey))
+                    var normFullKey = NormalizeKey(full);
+                    if (realLibrary.Keys.Contains(normKey) || realLibrary.Keys.Contains(normFullKey))
                     {
                         logger?.Invoke($"Skipped {full} (Already in library)", -1);
                         return;
@@ -792,7 +844,9 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                         // If already downloaded (.mkv/.mp4/.avi), keep existing files
                         if (Directory.Exists(mDir) && Directory.GetFiles(mDir).Any(f => f.EndsWith(".mkv") || f.EndsWith(".mp4") || f.EndsWith(".avi")))
                         {
-                            realLibraryMovies.Add(normKey);
+                            realLibrary.Keys.Add(normKey);
+                            if (!string.IsNullOrEmpty(tmdbId)) realLibrary.TmdbIds.Add(tmdbId);
+                            if (!string.IsNullOrEmpty(imdbId)) realLibrary.ImdbIds.Add(imdbId);
                             return;
                         }
 
@@ -802,7 +856,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                         if (isBrandNew)
                         {
                             await File.WriteAllTextAsync(strm, "http://localhost:8096/dummy.mp4", tct);
-                            string dateAddedStr = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                            string dateAddedStr = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
                             
                             if (!string.IsNullOrEmpty(tmdbId))
                             {

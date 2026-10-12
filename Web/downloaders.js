@@ -444,20 +444,32 @@ export default function(view, params) {
         function loadBlocklist() {
             const tbody = view.querySelector('#blocklistTableBody');
             if (tbody) {
-                tbody.innerHTML = '<tr><td colspan="2" style="padding: 10px; text-align: center; color: #888;">Loading blocklist...</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="3" style="padding: 10px; text-align: center; color: #888;">Loading blocklist...</td></tr>';
                 ApiClient.getPluginConfiguration(pluginId).then(function (config) {
                     const bl = config.Blocklist || [];
                     tbody.innerHTML = '';
                     if (bl.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="2" style="padding: 10px; text-align: center; color: #888;">Blocklist is empty.</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="3" style="padding: 10px; text-align: center; color: #888;">Blocklist is empty.</td></tr>';
                         return;
                     }
                     bl.forEach(item => {
+                        let title = item;
+                        let tmdbId = '-';
+                        const match = item.match(/^(.*?)\s*\[TMDB:\s*(\d+)\]$/i);
+                        if (match) {
+                            title = match[1].trim();
+                            tmdbId = match[2].trim();
+                        } else if (/^\d+$/.test(item.trim())) {
+                            title = 'Unknown Title';
+                            tmdbId = item.trim();
+                        }
+
                         let row = document.createElement('tr');
                         row.style.borderBottom = '1px solid #333';
                         row.innerHTML = `
-                            <td style="padding: 10px; vertical-align:middle;">${item}</td>
-                            <td style="padding: 10px; vertical-align:middle;">
+                            <td style="padding: 10px; vertical-align:middle; font-weight: 500;">${title}</td>
+                            <td style="padding: 10px; vertical-align:middle; color: ${tmdbId !== '-' ? '#4caf50' : '#888'}; font-family: monospace;">${tmdbId}</td>
+                            <td style="padding: 10px; vertical-align:middle; text-align: center;">
                                 <button class="btnRemoveBlocklist raised" data-id="${item}" style="font-size: 0.8em; padding: 4px 8px; border-radius: 3px; cursor: pointer; color: #f44336; border: 1px solid rgba(244,67,54,0.5); background: transparent;">Remove</button>
                             </td>
                         `;
@@ -474,7 +486,7 @@ export default function(view, params) {
                         });
                     });
                 }).catch(e => {
-                    tbody.innerHTML = '<tr><td colspan="2" style="padding: 10px; text-align: center; color: #f44336;">Failed to load blocklist.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="3" style="padding: 10px; text-align: center; color: #f44336;">Failed to load blocklist.</td></tr>';
                 });
             }
         }
