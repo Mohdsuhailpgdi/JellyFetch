@@ -1,8 +1,8 @@
 /**
- * JellyFetch UI Injection Script — v1.3.0
+ * JellyFetch UI Injection Script — v1.3.8.1
  *
- * Listens to Jellyfin's native viewshow / hashchange events.
- * Zero MutationObservers. Zero recursive DOM loops.
+ * Listens to Jellyfin's native viewshow / hashchange events, with a scoped
+ * observer for context menu action sheets. Zero recursive DOM loops.
  */
 (function () {
     'use strict';

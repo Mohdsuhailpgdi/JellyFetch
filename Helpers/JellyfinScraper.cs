@@ -531,7 +531,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                     var sm = Regex.Match(dn, @"(\d+(?:\.\d+)?)\s*(GB|MB)", RegexOptions.IgnoreCase);
                     if (sm.Success)
                     {
-                        double val = double.Parse(sm.Groups[1].Value);
+                        double val = double.Parse(sm.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
                         xlGb = sm.Groups[2].Value.ToUpperInvariant() == "MB" ? Math.Round(val / 1024.0, 2) : Math.Round(val, 2);
                     }
                 }

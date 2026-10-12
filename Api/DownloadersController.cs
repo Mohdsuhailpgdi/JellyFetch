@@ -403,7 +403,7 @@ public class DownloadersController : ControllerBase
             blocklist.Add(tmdbId);
             added = true;
         }
-        else if (!string.IsNullOrEmpty(baseN) && !blocklist.Contains(baseN))
+        if (!string.IsNullOrEmpty(baseN) && !blocklist.Contains(baseN))
         {
             blocklist.Add(baseN);
             added = true;
@@ -1010,7 +1010,6 @@ public class DownloadersController : ControllerBase
     private async Task ProcessSeedrDownload(DownloadProgressInfo progress, PluginConfiguration config, string itemPath, string magnetUri, double magnetSize, string? tmdbId, string? imdbId)
     {
         string normalizedId = progress.ItemId;
-        System.IO.File.AppendAllText("/tmp/plugin_debug.log", $"[{DateTime.UtcNow}] Inside ProcessSeedrDownload\n");
         await Task.Yield();
         var activeFolderIds = _activeDownloads.Values
                         .Where(d => d.FolderId != null && !d.Completed && string.IsNullOrEmpty(d.Error) && d.Status != "Stopped" && d.Status != "Failed")
@@ -1183,7 +1182,6 @@ public class DownloadersController : ControllerBase
     private async Task ProcessTorboxDownload(DownloadProgressInfo progress, PluginConfiguration config, string itemPath, string magnetUri, double magnetSize, string? tmdbId, string? imdbId)
     {
         string normalizedId = progress.ItemId;
-        System.IO.File.AppendAllText("/tmp/plugin_debug.log", $"[{DateTime.UtcNow}] Inside ProcessTorboxDownload\n");
         await Task.Yield();
         try
                 {
@@ -1429,7 +1427,7 @@ public class DownloadersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult TriggerMetadataCleanup()
     {
-        var worker = GetTaskWorker(_taskManager, "SanitizeScheduledTask", "Sanitize JellyFetch Video Metadata");
+        var worker = GetTaskWorker(_taskManager, "SanitizeScheduledTask", "SanitizeJellyFetchMetadata");
         if (worker != null)
         {
             if (TryExecuteScheduledTask(_taskManager, worker))
@@ -2103,7 +2101,7 @@ public class DownloadersController : ControllerBase
             return BadRequest(new { Message = string.Join(" ", errors) });
         }
         
-        return Ok(new { Message = "Torbox credentials are valid." });
+        return Ok(new { Message = "Credentials are valid." });
     }
 
     [HttpGet("Scrape/Status")]
