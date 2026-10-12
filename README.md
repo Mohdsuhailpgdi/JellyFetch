@@ -5,7 +5,7 @@
   
   **Automated media scraping, cloud downloading, and library injection for Jellyfin.**
   
-  [![Version](https://img.shields.io/badge/version-1.3.8.1-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
+  [![Version](https://img.shields.io/badge/version-1.3.8.3-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
   [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9.x--12.x-orange)](https://jellyfin.org)
   [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey)](https://github.com/Mohdsuhailpgdi/JellyFetch)
 </div>
@@ -17,11 +17,13 @@ This plugin is specifically optimized for Indian media consumers. The default sc
 
 ---
 
-## ✨ What's New in v1.3.8.1 — Phase 3: Blocklists & UX Polish
-- **Context Menu Integration**: You can now instantly "Exclude & Remove" movies directly from Jellyfin's native 3-dot context menu.
-- **Smart Blocklist Persistence**: Excluded items are permanently saved so they never accidentally re-download. You can manage this list in the Plugin Configuration tab.
-- **Navigation & Library Fixes**: Instant item removal using deep frontend/backend integration without leaving "ghost" items floating in your library.
-- **Improved UI Injection**: Cleaner, fully native-looking buttons seamlessly injected into Jellyfin's SPA router without recursion or lags.
+## ✨ What's New in v1.3.8.3 — Phase 3 Polish & Stability
+- **Atomic Library Removal**: Fixes UI hang and eliminates reappearance of excluded media upon browser refresh by calling `DeleteItem` atomically on the backend.
+- **Enhanced Deduplication**: Added TMDB/IMDb ID checks to prevent re-scraping movies already in your library (e.g. *Vishwanath & Sons*).
+- **Domain Mirror Continuity**: Integrated `1tamilmv.capital` mirror and dynamic HTTP redirect host tracking to prevent scraper stalls.
+- **UTC NFO Timestamps**: Standardized `<dateadded>` to UTC, fixing ordering issues in "Recently Added in Movies".
+- **Unified Blocklist Table**: Settings page now displays clean movie titles and TMDB IDs in separate, readable columns.
+
 
 ---
 
