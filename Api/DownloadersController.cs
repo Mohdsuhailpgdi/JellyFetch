@@ -310,67 +310,69 @@ public class DownloadersController : ControllerBase
             return NotFound("Media is already downloaded and playable.");
         }
 
-        var dir = Path.GetDirectoryName(item.Path);
-        if (dir == null)
-        {
-            return NotFound("No directory for this item.");
-        }
-
-        var jsonPath = Path.Combine(dir, "downloads.json");
-        if (!System.IO.File.Exists(jsonPath))
-        {
-            return NotFound("No downloads.json found for this item.");
-        }
-        
-        var content = System.IO.File.ReadAllText(jsonPath);
-        var options = JsonSerializer.Deserialize<List<JsonElement>>(content) ?? new List<JsonElement>();
-
-        var config = Plugin.Instance.Configuration;
         var filteredOptions = new List<JsonElement>();
+        string description = "";
+        var config = Plugin.Instance.Configuration;
 
-        foreach (var opt in options)
+        var dir = Path.GetDirectoryName(item.Path);
+        var jsonPath = !string.IsNullOrEmpty(dir) ? Path.Combine(dir, "downloads.json") : null;
+        if (jsonPath != null && System.IO.File.Exists(jsonPath))
         {
-            if (opt.TryGetProperty("dn", out var nameProp) && opt.TryGetProperty("xl_gb", out var sizeProp))
+            try
             {
-                var dn = nameProp.GetString()?.ToLowerInvariant() ?? "";
-                if (sizeProp.TryGetDouble(out var sizeGb))
+                var content = System.IO.File.ReadAllText(jsonPath);
+                var options = JsonSerializer.Deserialize<List<JsonElement>>(content) ?? new List<JsonElement>();
+
+                foreach (var opt in options)
                 {
-                    if (sizeGb <= 4.0 && !config.EnableSeedr && !config.EnableTorbox) continue;
-                    if (sizeGb > 4.0 && !config.EnableTorbox) continue;
-                    
-                    if (dn.Contains("480p") || dn.Contains("360p")) { } // Allow lower resolutions so button appears
-                    
-                    // We no longer completely exclude theater captured and poor quality files here.
-                    // This ensures the Download button appears. We sort them lower anyway.
+                    if (opt.TryGetProperty("dn", out var nameProp) && opt.TryGetProperty("xl_gb", out var sizeProp))
+                    {
+                        var dn = nameProp.GetString()?.ToLowerInvariant() ?? "";
+                        if (sizeProp.TryGetDouble(out var sizeGb))
+                        {
+                            if (sizeGb <= 4.0 && !config.EnableSeedr && !config.EnableTorbox) continue;
+                            if (sizeGb > 4.0 && !config.EnableTorbox) continue;
+                            
+                            if (dn.Contains("480p") || dn.Contains("360p")) { } // Allow lower resolutions so button appears
+                        }
+                    }
+                    filteredOptions.Add(opt);
+                }
+
+                filteredOptions.Sort((a, b) => 
+                {
+                    double sizeA = a.TryGetProperty("xl_gb", out var sA) ? sA.GetDouble() : 0;
+                    double sizeB = b.TryGetProperty("xl_gb", out var sB) ? sB.GetDouble() : 0;
+                    string dnA = a.TryGetProperty("dn", out var nA) ? nA.GetString()?.ToLowerInvariant() ?? "" : "";
+                    string dnB = b.TryGetProperty("dn", out var nB) ? nB.GetString()?.ToLowerInvariant() ?? "" : "";
+
+                    bool is1080A = dnA.Contains("1080p");
+                    bool is1080B = dnB.Contains("1080p");
+
+                    if (is1080A && !is1080B) return -1;
+                    if (!is1080A && is1080B) return 1;
+
+                    return sizeA.CompareTo(sizeB);
+                });
+
+                if (!config.EnableSeedr && !config.EnableTorbox)
+                {
+                    description = "All downloaders are currently disabled in JellyFetch settings.";
+                }
+                else if (filteredOptions.Count == 0 && options.Count > 0)
+                {
+                    description = "No download options match the current provider filters.";
                 }
             }
-            filteredOptions.Add(opt);
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error reading downloads.json for {ItemId}", itemId);
+                description = "Error reading download options from disk.";
+            }
         }
-
-        filteredOptions.Sort((a, b) => 
+        else
         {
-            double sizeA = a.TryGetProperty("xl_gb", out var sA) ? sA.GetDouble() : 0;
-            double sizeB = b.TryGetProperty("xl_gb", out var sB) ? sB.GetDouble() : 0;
-            string dnA = a.TryGetProperty("dn", out var nA) ? nA.GetString()?.ToLowerInvariant() ?? "" : "";
-            string dnB = b.TryGetProperty("dn", out var nB) ? nB.GetString()?.ToLowerInvariant() ?? "" : "";
-
-            bool is1080A = dnA.Contains("1080p");
-            bool is1080B = dnB.Contains("1080p");
-
-            if (is1080A && !is1080B) return -1;
-            if (!is1080A && is1080B) return 1;
-
-            return sizeA.CompareTo(sizeB);
-        });
-
-        string description = "";
-        if (!config.EnableSeedr && !config.EnableTorbox)
-        {
-            description = "All downloaders are currently disabled in JellyFetch settings.";
-        }
-        else if (filteredOptions.Count == 0 && options.Count > 0)
-        {
-            description = "No download options match the current provider filters.";
+            description = "No download options currently found on disk.";
         }
 
         _logger.LogInformation("GetOptions for {ItemId} returning {Count} options (IsStrm: true)", itemId, filteredOptions.Count);

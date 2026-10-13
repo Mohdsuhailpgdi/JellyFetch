@@ -5,7 +5,7 @@
   
   **Automated media scraping, cloud downloading, and library injection for Jellyfin.**
   
-  [![Version](https://img.shields.io/badge/version-1.3.8.3-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
+  [![Version](https://img.shields.io/badge/version-1.3.8.4-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
   [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9.x--12.x-orange)](https://jellyfin.org)
   [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey)](https://github.com/Mohdsuhailpgdi/JellyFetch)
 </div>
@@ -17,13 +17,22 @@ This plugin is specifically optimized for Indian media consumers. The default sc
 
 ---
 
-## ✨ What's New in v1.3.8.3 — Phase 3 Polish & Stability
+## ✨ What's New in v1.3.8.4 — Exclude & Remove Lifecycle & Multi-Select Fixes
+- **Native ActionSheet Close Lifecycle**: Eliminated UI freezes and stuck pages after excluding movies by adhering to Jellyfin Web's natural event bubbling (`chunk 62882` / `dialogHelper`).
+- **Multi-Select Batch Exclusion**: Added support for selecting multiple `.strm` movies on library grids and excluding/removing them in parallel with clean selection panel teardown.
+- **Details Page Clean Route Navigation**: Eliminated hang states when excluding from a movie details page, smoothly navigating home via `window.Emby.Page.goHome()` and suppressing phantom play buttons.
+- **Decoupled .strm Determination**: Ensured Download and Exclude buttons appear reliably on `.strm` media placeholders even if `downloads.json` is missing or unreadable on disk.
+
+<details>
+<summary><b>📜 What's New in v1.3.8.3 — Phase 3 Polish & Stability</b></summary>
+
 - **Atomic Library Removal**: Fixes UI hang and eliminates reappearance of excluded media upon browser refresh by calling `DeleteItem` atomically on the backend.
 - **Enhanced Deduplication**: Added TMDB/IMDb ID checks to prevent re-scraping movies already in your library (e.g. *Vishwanath & Sons*).
 - **Domain Mirror Continuity**: Integrated `1tamilmv.capital` mirror and dynamic HTTP redirect host tracking to prevent scraper stalls.
 - **UTC NFO Timestamps**: Standardized `<dateadded>` to UTC, fixing ordering issues in "Recently Added in Movies".
 - **Unified Blocklist Table**: Settings page now displays clean movie titles and TMDB IDs in separate, readable columns.
 
+</details>
 
 ---
 

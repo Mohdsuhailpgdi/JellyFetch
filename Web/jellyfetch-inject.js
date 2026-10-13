@@ -1,5 +1,5 @@
 /**
- * JellyFetch UI Injection Script — v1.3.8.1
+ * JellyFetch UI Injection Script — v1.3.8.4
  *
  * Listens to Jellyfin's native viewshow / hashchange events, with a scoped
  * observer for context menu action sheets. Zero recursive DOM loops.
@@ -14,7 +14,8 @@
         st.textContent = [
             '@keyframes jf-spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}',
             '.jf-spin{animation:jf-spin 1.2s linear infinite!important;display:inline-block!important;}',
-            'body.jf-download-mode .btnPlay, body.jf-download-mode .btnReplay, body.jf-download-mode [data-action="play"], body.jf-download-mode [data-action="resume"] { display: none !important; }',
+            'body.jf-download-mode .btnPlay, body.jf-download-mode .btnReplay, body.jf-download-mode [data-action="play"], body.jf-download-mode [data-action="resume"], .jf-suppress-play .btnPlay, .jf-suppress-play .btnReplay, .jf-suppress-play [data-action="play"], .jf-suppress-play [data-action="resume"], .jf-suppress-play #jf-dl-btn { display: none !important; }',
+            '#jf-dl-modal.hide, #jf-dl-modal[hidden] { display: none !important; visibility: hidden !important; pointer-events: none !important; }',
             '#jf-dl-btn:not([data-downloading="true"]) { transition: transform 0.2s ease, background-color 0.2s ease, color 0.2s ease !important; border-radius: 50% !important; background: transparent !important; }',
             '#jf-dl-btn:not([data-downloading="true"]):hover { transform: scale(1.15) !important; background-color: rgba(255, 255, 255, 0.12) !important; color: #00a4dc !important; }',
             '#jf-dl-btn:not([data-downloading="true"]):active { transform: scale(0.95) !important; }',
@@ -39,6 +40,8 @@
         navTimer: null,
         lowPeerWarning: false   // Item #7: low-peer warning flag from backend
     };
+
+    var excludedItemIds = {};
 
     // ── Helpers ──────────────────────────────────────────────────────
     function getToken() {
@@ -108,7 +111,7 @@
     }
 
     function applyButtonSync(area, itemId) {
-        if (!area || isPlayerActive()) return;
+        if (!area || isPlayerActive() || (itemId && excludedItemIds[itemId])) return;
 
         var shouldDownload = state.isDownloadable || state.isDownloading;
 
@@ -210,9 +213,10 @@
     function handleView(view, itemId) {
         if (!isDetailsPage()) return;
         var targetId = itemId || getCurrentItemId();
-        if (!targetId) return;
+        if (!targetId || excludedItemIds[targetId]) return;
 
         state.itemId = targetId;
+        lastKnownItemId = targetId;
 
         // Query Status and Options in parallel
         var statusPromise = jfFetch('/System/Configuration/Downloaders/Status/' + targetId + '?t=' + Date.now())
@@ -260,16 +264,54 @@
         });
     }
 
-    // ── Download modal ────────────────────────────────────────────────
+    // ── Download modal & cleanup ─────────────────────────────────────
+    function hideModal() {
+        var m = document.getElementById('jf-dl-modal');
+        if (m) {
+            m.classList.add('hide');
+            m.style.setProperty('display', 'none', 'important');
+            m.style.setProperty('pointer-events', 'none', 'important');
+            m.innerHTML = '';
+        }
+
+        // Clean up any lingering backdrops or empty dialog containers that might block the UI
+        document.querySelectorAll('.dialogBackdrop, .actionSheetBackdrop, .actionsheet-backdrop').forEach(function(el) {
+            try { el.remove(); } catch(e) {}
+        });
+        document.querySelectorAll('.dialogContainer').forEach(function(el) {
+            var activeDlg = el.querySelector('.dialog:not(.hide), .actionSheet:not(.hide)');
+            if (!activeDlg) {
+                try { el.remove(); } catch(e) {}
+            }
+        });
+
+        // Ensure body and html scrolling and pointer events are fully unlocked
+        document.body.classList.remove('noScroll');
+        document.documentElement.classList.remove('noScroll');
+        document.body.style.overflow = '';
+        document.documentElement.style.overflow = '';
+        document.body.style.pointerEvents = '';
+        document.documentElement.style.pointerEvents = '';
+    }
+
+    function cleanupAllModalsAndBackdrops() {
+        hideModal();
+    }
+
     function ensureModal() {
         var m = document.getElementById('jf-dl-modal');
         if (!m) {
             m = document.createElement('div');
             m.id = 'jf-dl-modal';
-            m.className = 'dialogContainer hide';
-            m.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:999999;' +
-                'background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;' +
-                'padding:20px;box-sizing:border-box;backdrop-filter:blur(4px);';
+            m.className = 'hide';
+            m.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999999;' +
+                'background:rgba(0,0,0,0.85);display:none;align-items:center;justify-content:center;' +
+                'padding:20px;box-sizing:border-box;backdrop-filter:blur(4px);pointer-events:none;';
+            m.addEventListener('click', function(e) {
+                if (e.target === m) {
+                    hideModal();
+                }
+            });
             document.body.appendChild(m);
         }
         return m;
@@ -279,7 +321,209 @@
         var modal = ensureModal();
         renderModalContent(modal, view, itemId);
         modal.classList.remove('hide');
+        modal.style.setProperty('display', 'flex', 'important');
+        modal.style.setProperty('pointer-events', 'auto', 'important');
+        modal.style.setProperty('visibility', 'visible', 'important');
+        modal.style.setProperty('z-index', '9999999', 'important');
     }
+
+    function getSelectedMultiItemIds() {
+        var ids = [];
+        var allBoxes = document.querySelectorAll('.chkItemSelect, .itemSelectionPanel input[type="checkbox"]');
+        allBoxes.forEach(function (cb) {
+            var isChecked = cb.checked || cb.hasAttribute('checked') || cb.classList.contains('checkedInitial');
+            if (isChecked) {
+                var card = cb.closest('[data-id], [data-itemid]');
+                if (!card) {
+                    var p = cb.parentElement;
+                    while (p && p !== document.body) {
+                        if (p.getAttribute('data-id') || p.getAttribute('data-itemid')) {
+                            card = p;
+                            break;
+                        }
+                        p = p.parentElement;
+                    }
+                }
+                if (card) {
+                    var id = card.getAttribute('data-id') || card.getAttribute('data-itemid');
+                    if (id && ids.indexOf(id) === -1) {
+                        ids.push(id);
+                    }
+                }
+            }
+        });
+        return ids;
+    }
+
+    function exitMultiSelectMode() {
+        var panel = document.querySelector('.selectionCommandsPanel');
+        if (!panel) return;
+
+        var closeBtn = panel.querySelector('.btnCloseSelectionPanel') || document.querySelector('.btnCloseSelectionPanel');
+        if (closeBtn) {
+            try { closeBtn.click(); } catch(e) {}
+        }
+        if (panel.parentNode) {
+            try { panel.parentNode.removeChild(panel); } catch(e) {}
+        }
+        document.querySelectorAll('.itemSelectionPanel').forEach(function(el) {
+            var parent = el.parentNode;
+            try { el.remove(); } catch(e) {}
+            if (parent) parent.classList.remove('withMultiSelect');
+        });
+        document.querySelectorAll('.withMultiSelect').forEach(function(el) {
+            el.classList.remove('withMultiSelect');
+        });
+    }
+
+    function showExcludeConfirmModal(targetItemIds) {
+        var ids = Array.isArray(targetItemIds) ? targetItemIds : [targetItemIds];
+        var count = ids.length;
+        var isMultiple = count > 1;
+
+        hideModal();
+
+        var modal = ensureModal();
+        modal.classList.remove('hide');
+        modal.style.setProperty('display', 'flex', 'important');
+        modal.style.setProperty('pointer-events', 'auto', 'important');
+        modal.style.setProperty('visibility', 'visible', 'important');
+        modal.style.setProperty('z-index', '9999999', 'important');
+
+        var inner = modal.querySelector('.jf-modal-inner') || document.createElement('div');
+        inner.className = 'jf-modal-inner';
+        modal.innerHTML = '';
+        modal.appendChild(inner);
+
+        inner.style.cssText = 'background:#222;padding:24px;border-radius:8px;width:90%;max-width:450px;color:#fff;box-shadow:0 8px 32px rgba(0,0,0,0.8);position:relative;z-index:10000000;';
+
+        var title = isMultiple ? ('Exclude & Remove ' + count + ' Movies') : 'Exclude & Remove Movie';
+        var desc = isMultiple
+            ? ('Are you sure you want to block these ' + count + ' movies from being scraped again? This will also remove them from your Jellyfin library.')
+            : 'Are you sure you want to block this movie from being scraped again? This will also remove the item from your Jellyfin library.';
+        var btnText = isMultiple ? ('Exclude & Remove (' + count + ')') : 'Exclude & Remove';
+
+        inner.innerHTML =
+            '<div style="display:flex;flex-direction:column;align-items:center;padding:20px;text-align:center;">' +
+            '<span class="material-icons" style="font-size:48px;color:#f44336;margin-bottom:15px;">warning</span>' +
+            '<h2 style="margin:0 0 10px;font-size:1.4em;font-weight:600;">' + escHtml(title) + '</h2>' +
+            '<p style="margin:0 0 25px;color:#bbb;line-height:1.5;max-width:400px;font-size:0.95em;">' + escHtml(desc) + '</p>' +
+            '<div style="display:flex;gap:15px;justify-content:center;">' +
+            '<button type="button" id="jf-confirm-cancel-ctx" style="background:#444;color:#fff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;font-weight:bold;transition:background 0.2s;">Cancel</button>' +
+            '<button type="button" id="jf-confirm-exclude-ctx" style="background:#f44336;color:#fff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;font-weight:bold;transition:background 0.2s;">' + escHtml(btnText) + '</button>' +
+            '</div></div>';
+
+        var cancelBtn = inner.querySelector('#jf-confirm-cancel-ctx');
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                hideModal();
+            });
+        }
+
+        var confBtn = inner.querySelector('#jf-confirm-exclude-ctx');
+        if (confBtn) {
+            confBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                executeExclusion(ids, confBtn);
+            });
+        }
+    }
+
+    function executeExclusion(targetItemIds, confBtn) {
+        var ids = Array.isArray(targetItemIds) ? targetItemIds : [targetItemIds];
+        confBtn.disabled = true;
+        confBtn.textContent = ids.length > 1 ? ('Excluding ' + ids.length + ' movies...') : 'Excluding...';
+
+        // Exit multi-select if active
+        exitMultiSelectMode();
+
+        // 1. Mark as excluded immediately so handleView / applyButtonSync cannot unhide play button
+        ids.forEach(function (id) {
+            excludedItemIds[id] = true;
+        });
+
+        // 2. If on details page, suppress play button
+        var onCurrentDetails = isDetailsPage() && ids.indexOf(getCurrentItemId()) !== -1;
+        if (onCurrentDetails) {
+            var area = getButtonArea(document);
+            if (area) {
+                area.querySelectorAll('.btnPlay, .btnReplay, [data-action="play"], [data-action="resume"]').forEach(function (b) {
+                    b.style.setProperty('display', 'none', 'important');
+                });
+                var dlBtn = area.querySelector('#jf-dl-btn');
+                if (dlBtn) dlBtn.remove();
+            }
+            document.body.classList.add('jf-suppress-play');
+        }
+
+        var promises = ids.map(function (id) {
+            return jfFetch('/System/Configuration/Downloaders/Exclude/' + id, { method: 'POST' });
+        });
+
+        Promise.all(promises)
+            .then(function () {
+                hideModal();
+                exitMultiSelectMode();
+
+                // 3. Remove item cards from any grid or list currently rendered
+                ids.forEach(function (id) {
+                    var cards = document.querySelectorAll('[data-id="' + id + '"], [data-itemid="' + id + '"]');
+                    cards.forEach(function (card) {
+                        var wrapper = card.closest('.cardWrapper, .card, .listItem') || card;
+                        wrapper.remove();
+                    });
+                });
+
+                // 4. Instruct Jellyfin items containers to refresh (matching native delete)
+                var containers = document.querySelectorAll('[is="emby-itemscontainer"]');
+                containers.forEach(function (c) {
+                    if (typeof c.notifyRefreshNeeded === 'function') {
+                        c.notifyRefreshNeeded(true);
+                    }
+                });
+
+                // 5. Navigation: ONLY IF currently on a details page for one of the deleted items
+                if (onCurrentDetails) {
+                    stopAll();
+                    state.itemId = null;
+                    state.isDownloadable = false;
+                    state.isDownloading = false;
+                    document.body.classList.remove('jf-download-mode');
+
+                    // Native Jellyfin router navigation (matching chunk 46634 deleteItem)
+                    if (window.Emby && window.Emby.Page && typeof window.Emby.Page.goHome === 'function') {
+                        window.Emby.Page.goHome();
+                    } else if (window.Dashboard && typeof window.Dashboard.navigate === 'function') {
+                        window.Dashboard.navigate('home');
+                    } else {
+                        window.location.hash = '#/home';
+                    }
+
+                    setTimeout(function () {
+                        hideModal();
+                        document.body.classList.remove('jf-suppress-play');
+                    }, 250);
+                } else {
+                    // On Home page or list views: remain on page smoothly
+                    document.body.classList.remove('jf-suppress-play');
+                }
+            })
+            .catch(function () {
+                ids.forEach(function (id) {
+                    delete excludedItemIds[id];
+                });
+                document.body.classList.remove('jf-suppress-play');
+                confBtn.disabled = false;
+                confBtn.textContent = 'Failed';
+                setTimeout(function () {
+                    confBtn.textContent = ids.length > 1 ? ('Exclude & Remove (' + ids.length + ')') : 'Exclude & Remove';
+                }, 2000);
+            });
+    }
+
 
     function renderModalContent(modal, view, itemId) {
         var inner = modal.querySelector('.jf-modal-inner') || document.createElement('div');
@@ -433,7 +677,7 @@
             '<div id="jf-opt-list" style="display:flex;flex-direction:column;gap:12px;">' + listHtml + '</div>') : '');
 
         var closeBtn = inner.querySelector('#jf-btn-close');
-        if (closeBtn) closeBtn.addEventListener('click', function () { modal.classList.add('hide'); });
+        if (closeBtn) closeBtn.addEventListener('click', function () { hideModal(); });
 
         inner.querySelectorAll('.jf-lang-tab').forEach(function (tb) {
             tb.addEventListener('click', function () {
@@ -579,11 +823,11 @@
 
     // ── Event Listeners (Native Jellyfin Event-Driven) ────────────────
     function onPageChange() {
-        var m = document.getElementById('jf-dl-modal');
-        if (m) m.classList.add('hide');
+        cleanupAllModalsAndBackdrops();
 
         if (isPlayerActive() || !isDetailsPage()) {
             document.body.classList.remove('jf-download-mode');
+            document.body.classList.remove('jf-suppress-play');
             stopAll();
             var btn = document.getElementById('jf-dl-btn');
             if (btn) btn.remove();
@@ -613,8 +857,7 @@
 
     // Cleanup on view hide
     document.addEventListener('viewhide', function () {
-        var m = document.getElementById('jf-dl-modal');
-        if (m) m.classList.add('hide');
+        cleanupAllModalsAndBackdrops();
         if (isPlayerActive() || !isDetailsPage()) {
             stopAll();
             document.body.classList.remove('jf-download-mode');
@@ -646,8 +889,16 @@
     var contextMenuObserver = new MutationObserver(function (mutations) {
         if (isPlayerActive()) return;
 
-        var sheet = document.querySelector('.actionSheet, .actionsheet');
-        if (!sheet) return;
+        var sheets = document.querySelectorAll('.actionSheet, .actionsheet');
+        if (!sheets || sheets.length === 0) return;
+        var sheet = null;
+        for (var sIdx = sheets.length - 1; sIdx >= 0; sIdx--) {
+            if (sheets[sIdx].style.display !== 'none' && !sheets[sIdx].classList.contains('hide')) {
+                sheet = sheets[sIdx];
+                break;
+            }
+        }
+        if (!sheet) sheet = sheets[sheets.length - 1];
 
         var scroller = sheet.querySelector('.actionSheetScroller') || sheet;
         if (scroller.querySelector('#jf-ctx-exclude')) return;
@@ -655,21 +906,33 @@
         var allBtns = scroller.querySelectorAll('.actionSheetMenuItem');
         if (!allBtns || allBtns.length === 0) return;
 
-        // Trust lastKnownItemId first, then fallback to URL-based getCurrentItemId()
-        var itemId = lastKnownItemId || getCurrentItemId();
-        if (!itemId) return;
+        // Check if multi-select mode is currently active
+        var isMultiSelect = !!document.querySelector('.selectionCommandsPanel');
+        var multiIds = isMultiSelect ? getSelectedMultiItemIds() : [];
 
-        if (sheet.getAttribute('data-jf-checked') === itemId) return;
-        sheet.setAttribute('data-jf-checked', itemId);
+        var targetIds = [];
+        if (isMultiSelect && multiIds.length > 0) {
+            targetIds = multiIds;
+        } else {
+            var singleId = (isDetailsPage() ? getCurrentItemId() : null) || lastKnownItemId || getCurrentItemId();
+            if (singleId) targetIds = [singleId];
+        }
 
-        jfFetch('/System/Configuration/Downloaders/Options/' + itemId)
+        if (targetIds.length === 0) return;
+
+        var cacheKey = targetIds.join(',');
+        if (sheet.getAttribute('data-jf-checked') === cacheKey) return;
+        sheet.setAttribute('data-jf-checked', cacheKey);
+
+        var probeId = targetIds[0];
+        jfFetch('/System/Configuration/Downloaders/Options/' + probeId)
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (optData) {
                 var isStrm = optData && optData.IsStrm;
-                if (!isStrm) return;
+                if (!isStrm && !isMultiSelect) return;
 
                 if (!document.body.contains(sheet)) return;
-                if (sheet.getAttribute('data-jf-checked') !== itemId) return;
+                if (sheet.getAttribute('data-jf-checked') !== cacheKey) return;
                 if (scroller.querySelector('#jf-ctx-exclude')) return;
 
                 var templateBtn = allBtns[allBtns.length - 1];
@@ -711,94 +974,38 @@
                     }
                 }
                 
+                var label = targetIds.length > 1 ? ('Exclude & Remove (' + targetIds.length + ')') : 'Exclude & Remove';
                 var textEl = btn.querySelector('.listItemBodyText, .actionSheetMenuItemText');
                 if (textEl) {
-                    textEl.textContent = 'Exclude & Remove';
+                    textEl.textContent = label;
                     textEl.style.color = 'inherit';
                 } else if (btn.querySelector('.listItemBody')) {
                     var bodyText = btn.querySelector('.listItemBody');
-                    bodyText.textContent = 'Exclude & Remove';
+                    bodyText.textContent = label;
                     bodyText.style.color = 'inherit';
                 }
                 
                 scroller.appendChild(btn);
 
+                btn.setAttribute('data-id', 'jf-exclude');
                 btn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    var backdrop = document.querySelector('.actionSheetBackdrop, .dialogBackdrop, .actionsheet-backdrop');
-                    if (backdrop) {
-                        try {
-                            backdrop.click();
-                        } catch(e) {}
+                    var currentTargetIds = targetIds.slice();
+
+                    var modalTriggered = false;
+                    function openConfirm() {
+                        if (modalTriggered) return;
+                        modalTriggered = true;
+                        showExcludeConfirmModal(currentTargetIds);
                     }
 
-                    
-                    var modal = document.getElementById('jf-dl-modal');
-                    if (!modal) {
-                        modal = ensureModal();
-                    }
-                    modal.classList.remove('hide');
-                    
-                    var inner = modal.querySelector('.jf-modal-inner');
-                    if (!inner) {
-                        inner = document.createElement('div');
-                        inner.className = 'jf-modal-inner';
-                        modal.appendChild(inner);
-                    }
-                    
-                    inner.style.cssText = 'background:#222;padding:24px;border-radius:8px;width:90%;max-width:450px;color:#fff;box-shadow:0 4px 20px rgba(0,0,0,0.6);';
-                    
-                    inner.innerHTML =
-                        '<div style="display:flex;flex-direction:column;align-items:center;padding:20px;text-align:center;">' +
-                        '<span class="material-icons" style="font-size:48px;color:#f44336;margin-bottom:15px;">warning</span>' +
-                        '<h2 style="margin:0 0 10px;font-size:1.4em;">Exclude & Remove Movie</h2>' +
-                        '<p style="margin:0 0 25px;color:#bbb;line-height:1.5;max-width:400px;">Are you sure you want to block this movie from being scraped again? This will also remove the item from your Jellyfin library.</p>' +
-                        '<div style="display:flex;gap:15px;justify-content:center;">' +
-                        '<button type="button" id="jf-confirm-cancel-ctx" style="background:#444;color:#fff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;font-weight:bold;transition:background 0.2s;">Cancel</button>' +
-                        '<button type="button" id="jf-confirm-exclude-ctx" style="background:#f44336;color:#fff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;font-weight:bold;transition:background 0.2s;">Exclude & Remove</button>' +
-                        '</div></div>';
+                    // Listen for sheet closing/close event or wait for clean dialogHelper teardown
+                    sheet.addEventListener('close', openConfirm, { once: true });
+                    setTimeout(openConfirm, 160);
 
-                    var cancelBtn = inner.querySelector('#jf-confirm-cancel-ctx');
-                    if (cancelBtn) cancelBtn.addEventListener('click', function () {
-                        modal.classList.add('hide');
-                    });
-
-                    var confBtn = inner.querySelector('#jf-confirm-exclude-ctx');
-                    if (confBtn) confBtn.addEventListener('click', function () {
-                        confBtn.disabled = true;
-                        confBtn.textContent = 'Excluding...';
-                        
-                        jfFetch('/System/Configuration/Downloaders/Exclude/' + itemId, { method: 'POST' })
-                            .then(function (r) {
-                                if (!r.ok) throw new Error("Backend failed");
-                                modal.classList.add('hide');
-                                
-                                var card = document.querySelector('.card[data-id="' + itemId + '"]');
-                                if (card) {
-                                    if (card.parentNode && card.parentNode.classList.contains('cardWrapper')) {
-                                        card.parentNode.remove();
-                                    } else {
-                                        card.remove();
-                                    }
-                                }
-                                
-                                if (isDetailsPage() && getCurrentItemId() === itemId) {
-                                    if (window.Emby && window.Emby.Page && typeof window.Emby.Page.back === 'function') {
-                                        window.Emby.Page.back();
-                                    } else if (window.Dashboard && typeof window.Dashboard.navigate === 'function') {
-                                        window.Dashboard.navigate('#/home');
-                                    } else {
-                                        window.location.hash = '#/home';
-                                    }
-                                }
-                            })
-                            .catch(function () {
-                                confBtn.disabled = false;
-                                confBtn.textContent = 'Failed';
-                                setTimeout(function() { confBtn.textContent = 'Exclude & Remove'; }, 2000);
-                            });
-                    });
+                    // Note: We do NOT call e.stopPropagation() or e.preventDefault()!
+                    // Allowing the click to bubble up to the actionSheet (sheet) triggers Jellyfin's
+                    // native actionSheet click handler, which cleanly invokes dialogHelper.close(sheet),
+                    // tearing down the dialogContainer, dialogBackdrop, focus scope, and history state!
                 });
             });
     });
