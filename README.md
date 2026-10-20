@@ -5,7 +5,7 @@
   
   **Automated media scraping, cloud downloading, and library injection for Jellyfin.**
   
-  [![Version](https://img.shields.io/badge/version-1.3.8.4-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
+  [![Version](https://img.shields.io/badge/version-1.3.8.5-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
   [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9.x--12.x-orange)](https://jellyfin.org)
   [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey)](https://github.com/Mohdsuhailpgdi/JellyFetch)
 </div>
@@ -17,11 +17,21 @@ This plugin is specifically optimized for Indian media consumers. The default sc
 
 ---
 
-## ✨ What's New in v1.3.8.4 — Exclude & Remove Lifecycle & Multi-Select Fixes
+## ✨ What's New in v1.3.8.5 — Details Page Teardown, 0ms ActionSheet & Scraper Accuracy
+- **Permanent Details Page Teardown**: Fully fixed Exclude & Remove on the Movie Details page. Permanently removes native Play button DOM elements and triggers native `window.history.back()` to prevent play button resurgence and view hang.
+- **Instant 0ms ActionSheet Menu Render**: Implemented in-memory `.strm` caching so "Exclude & Remove" renders synchronously (0ms) when opening the 3-dot context menu, completely eliminating rendering delay and pop-in flicker.
+- **Year-Aware Metadata Queries & Subforum Fallback**: Added 4-digit release year extraction to TMDB (`&primary_release_year=`) and OMDb (`&y=`) queries, preventing single-word titles (like *Aasha*) from colliding with older classics in unselected languages, plus subforum trust fallback.
+- **Chronological Sorting in Recently Added**: Staggered NFO `<dateadded>` timestamps based on topic priority index, ensuring Page 1 releases always sort ahead of older back-catalog items in "Recently Added".
+
+<details>
+<summary><b>📜 What's New in v1.3.8.4 — Exclude & Remove Lifecycle & Multi-Select Fixes</b></summary>
+
 - **Native ActionSheet Close Lifecycle**: Eliminated UI freezes and stuck pages after excluding movies by adhering to Jellyfin Web's natural event bubbling (`chunk 62882` / `dialogHelper`).
 - **Multi-Select Batch Exclusion**: Added support for selecting multiple `.strm` movies on library grids and excluding/removing them in parallel with clean selection panel teardown.
 - **Details Page Clean Route Navigation**: Eliminated hang states when excluding from a movie details page, smoothly navigating home via `window.Emby.Page.goHome()` and suppressing phantom play buttons.
 - **Decoupled .strm Determination**: Ensured Download and Exclude buttons appear reliably on `.strm` media placeholders even if `downloads.json` is missing or unreadable on disk.
+
+</details>
 
 <details>
 <summary><b>📜 What's New in v1.3.8.3 — Phase 3 Polish & Stability</b></summary>

@@ -1,5 +1,5 @@
 /**
- * JellyFetch UI Injection Script — v1.3.8.4
+ * JellyFetch UI Injection Script — v1.3.8.5
  *
  * Listens to Jellyfin's native viewshow / hashchange events, with a scoped
  * observer for context menu action sheets. Zero recursive DOM loops.
@@ -42,6 +42,7 @@
     };
 
     var excludedItemIds = {};
+    var strmItemCache = {};
 
     // ── Helpers ──────────────────────────────────────────────────────
     function getToken() {
@@ -64,8 +65,14 @@
 
     function getCurrentItemId() {
         var h = window.location.hash || '';
-        var m = h.match(/[?&]id=([a-f0-9]+)/i);
-        return m ? m[1] : null;
+        var m = h.match(/[?&]id=([a-f0-9\-]+)/i);
+        if (m) return m[1];
+        var page = document.querySelector('#itemDetailPage, .itemDetailPage, .mainAnimatedPage:not(.hide)');
+        if (page) {
+            var pid = page.getAttribute('data-id') || page.getAttribute('data-itemid');
+            if (pid) return pid;
+        }
+        return state.itemId || lastKnownItemId || null;
     }
 
     function isPlayerActive() {
@@ -79,7 +86,9 @@
 
     function isDetailsPage() {
         if (isPlayerActive()) return false;
-        return /[/#]details\?/.test(window.location.hash || '');
+        return /[/#]details\b/i.test(window.location.hash || '') ||
+               /[/#]item\b/i.test(window.location.hash || '') ||
+               !!document.querySelector('#itemDetailPage, .itemDetailPage, .itemDetailPage-container');
     }
 
     function stopAll() {
@@ -241,6 +250,7 @@
             var opts = Array.isArray(optData) ? optData : (optData && optData.Options ? optData.Options : []);
             var isStrm = optData && optData.IsStrm;
             state.isStrm = isStrm;
+            strmItemCache[targetId] = !!isStrm;
             var isItemDownloadable = (opts && opts.length > 0) || isStrm;
 
             if (isActivelyDownloading) {
@@ -445,13 +455,18 @@
             excludedItemIds[id] = true;
         });
 
-        // 2. If on details page, suppress play button
-        var onCurrentDetails = isDetailsPage() && ids.indexOf(getCurrentItemId()) !== -1;
+        // 2. Check if currently on a details page for one of the target items
+        var currentId = getCurrentItemId();
+        var onCurrentDetails = isDetailsPage() && (!currentId || ids.some(function (i) {
+            return (currentId + '').toLowerCase() === (i + '').toLowerCase();
+        }));
+
         if (onCurrentDetails) {
             var area = getButtonArea(document);
             if (area) {
                 area.querySelectorAll('.btnPlay, .btnReplay, [data-action="play"], [data-action="resume"]').forEach(function (b) {
                     b.style.setProperty('display', 'none', 'important');
+                    try { b.remove(); } catch(e) {}
                 });
                 var dlBtn = area.querySelector('#jf-dl-btn');
                 if (dlBtn) dlBtn.remove();
@@ -492,20 +507,26 @@
                     state.isDownloadable = false;
                     state.isDownloading = false;
                     document.body.classList.remove('jf-download-mode');
+                    document.body.classList.add('jf-suppress-play');
 
-                    // Native Jellyfin router navigation (matching chunk 46634 deleteItem)
-                    if (window.Emby && window.Emby.Page && typeof window.Emby.Page.goHome === 'function') {
-                        window.Emby.Page.goHome();
-                    } else if (window.Dashboard && typeof window.Dashboard.navigate === 'function') {
-                        window.Dashboard.navigate('home');
-                    } else {
-                        window.location.hash = '#/home';
-                    }
+                    // 5a. Native back navigation (returns to previous library list / home)
+                    try {
+                        window.history.back();
+                    } catch (e) {}
 
+                    // 5b. Safety fallback if history.back did not transition view
                     setTimeout(function () {
+                        if (isDetailsPage()) {
+                            if (window.Emby && window.Emby.Page && typeof window.Emby.Page.goHome === 'function') {
+                                window.Emby.Page.goHome();
+                            } else if (window.Dashboard && typeof window.Dashboard.navigate === 'function') {
+                                window.Dashboard.navigate('home');
+                            } else {
+                                window.location.hash = '#/home';
+                            }
+                        }
                         hideModal();
-                        document.body.classList.remove('jf-suppress-play');
-                    }, 250);
+                    }, 150);
                 } else {
                     // On Home page or list views: remain on page smoothly
                     document.body.classList.remove('jf-suppress-play');
@@ -925,82 +946,104 @@
         sheet.setAttribute('data-jf-checked', cacheKey);
 
         var probeId = targetIds[0];
+
+        function injectExcludeButton() {
+            if (!document.body.contains(sheet)) return;
+            if (sheet.getAttribute('data-jf-checked') !== cacheKey) return;
+            if (scroller.querySelector('#jf-ctx-exclude')) return;
+
+            var currentBtns = scroller.querySelectorAll('.actionSheetMenuItem');
+            var templateBtn = (currentBtns && currentBtns.length > 0) ? currentBtns[currentBtns.length - 1] : allBtns[allBtns.length - 1];
+            var btn = templateBtn.cloneNode(true);
+            btn.id = 'jf-ctx-exclude';
+            btn.removeAttribute('data-id');
+            btn.removeAttribute('data-action');
+            
+            var iconEls = btn.querySelectorAll('.listItemIcon, .actionSheetMenuItemIcon, .md-icon, .material-symbols-outlined, .material-icons, svg');
+            if (iconEls.length > 0) {
+                var templateIcon = iconEls[0];
+                var exactClasses = typeof templateIcon.className === 'object' ? templateIcon.className.baseVal : templateIcon.className;
+                
+                var newSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                newSvg.setAttribute('viewBox', '0 0 24 24');
+                newSvg.setAttribute('width', '24');
+                newSvg.setAttribute('height', '24');
+                newSvg.setAttribute('fill', 'none');
+                newSvg.setAttribute('stroke', 'currentColor');
+                newSvg.setAttribute('stroke-width', '1.8');
+                newSvg.setAttribute('stroke-linecap', 'round');
+                newSvg.setAttribute('stroke-linejoin', 'round');
+                newSvg.style.color = '#ff5252'; 
+                
+                if (typeof newSvg.className === 'object') {
+                    newSvg.className.baseVal = exactClasses;
+                } else {
+                    newSvg.setAttribute('class', exactClasses);
+                }
+
+                newSvg.innerHTML = '<circle cx="12" cy="12" r="10"></circle><line x1="5.5" y1="5.5" x2="18.5" y2="18.5"></line>';
+                
+                templateIcon.parentNode.insertBefore(newSvg, templateIcon);
+                
+                for (var i = 0; i < iconEls.length; i++) {
+                    if (iconEls[i].parentNode) {
+                        iconEls[i].parentNode.removeChild(iconEls[i]);
+                    }
+                }
+            }
+            
+            var label = targetIds.length > 1 ? ('Exclude & Remove (' + targetIds.length + ')') : 'Exclude & Remove';
+            var textEl = btn.querySelector('.listItemBodyText, .actionSheetMenuItemText');
+            if (textEl) {
+                textEl.textContent = label;
+                textEl.style.color = 'inherit';
+            } else if (btn.querySelector('.listItemBody')) {
+                var bodyText = btn.querySelector('.listItemBody');
+                bodyText.textContent = label;
+                bodyText.style.color = 'inherit';
+            }
+            
+            scroller.appendChild(btn);
+
+            btn.setAttribute('data-id', 'jf-exclude');
+            btn.addEventListener('click', function(e) {
+                var currentTargetIds = targetIds.slice();
+
+                var modalTriggered = false;
+                function openConfirm() {
+                    if (modalTriggered) return;
+                    modalTriggered = true;
+                    showExcludeConfirmModal(currentTargetIds);
+                }
+
+                // Listen for sheet closing/close event or wait for clean dialogHelper teardown
+                sheet.addEventListener('close', openConfirm, { once: true });
+                setTimeout(openConfirm, 160);
+            });
+        }
+
+        var isDetails = isDetailsPage();
+        var isKnownStrm = isMultiSelect ||
+            (isDetails && (probeId === state.itemId || probeId === getCurrentItemId()) && (state.isDownloadable || state.isDownloading || (state.options && state.options.length > 0))) ||
+            strmItemCache[probeId] === true;
+
+        if (isKnownStrm) {
+            injectExcludeButton();
+            return;
+        }
+
+        if (strmItemCache[probeId] === false) {
+            return;
+        }
+
         jfFetch('/System/Configuration/Downloaders/Options/' + probeId)
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (optData) {
                 var isStrm = optData && optData.IsStrm;
+                strmItemCache[probeId] = !!isStrm;
                 if (!isStrm && !isMultiSelect) return;
-
-                if (!document.body.contains(sheet)) return;
-                if (sheet.getAttribute('data-jf-checked') !== cacheKey) return;
-                if (scroller.querySelector('#jf-ctx-exclude')) return;
-
-                var templateBtn = allBtns[allBtns.length - 1];
-                var btn = templateBtn.cloneNode(true);
-                btn.id = 'jf-ctx-exclude';
-                btn.removeAttribute('data-id');
-                btn.removeAttribute('data-action');
-                
-                var iconEls = btn.querySelectorAll('.listItemIcon, .actionSheetMenuItemIcon, .md-icon, .material-symbols-outlined, .material-icons, svg');
-                if (iconEls.length > 0) {
-                    var templateIcon = iconEls[0];
-                    var exactClasses = typeof templateIcon.className === 'object' ? templateIcon.className.baseVal : templateIcon.className;
-                    
-                    var newSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-                    newSvg.setAttribute('viewBox', '0 0 24 24');
-                    newSvg.setAttribute('width', '24');
-                    newSvg.setAttribute('height', '24');
-                    newSvg.setAttribute('fill', 'none');
-                    newSvg.setAttribute('stroke', 'currentColor');
-                    newSvg.setAttribute('stroke-width', '1.8');
-                    newSvg.setAttribute('stroke-linecap', 'round');
-                    newSvg.setAttribute('stroke-linejoin', 'round');
-                    newSvg.style.color = '#ff5252'; 
-                    
-                    if (typeof newSvg.className === 'object') {
-                        newSvg.className.baseVal = exactClasses;
-                    } else {
-                        newSvg.setAttribute('class', exactClasses);
-                    }
-
-                    newSvg.innerHTML = '<circle cx="12" cy="12" r="10"></circle><line x1="5.5" y1="5.5" x2="18.5" y2="18.5"></line>';
-                    
-                    templateIcon.parentNode.insertBefore(newSvg, templateIcon);
-                    
-                    for (var i = 0; i < iconEls.length; i++) {
-                        if (iconEls[i].parentNode) {
-                            iconEls[i].parentNode.removeChild(iconEls[i]);
-                        }
-                    }
-                }
-                
-                var label = targetIds.length > 1 ? ('Exclude & Remove (' + targetIds.length + ')') : 'Exclude & Remove';
-                var textEl = btn.querySelector('.listItemBodyText, .actionSheetMenuItemText');
-                if (textEl) {
-                    textEl.textContent = label;
-                    textEl.style.color = 'inherit';
-                } else if (btn.querySelector('.listItemBody')) {
-                    var bodyText = btn.querySelector('.listItemBody');
-                    bodyText.textContent = label;
-                    bodyText.style.color = 'inherit';
-                }
-                
-                scroller.appendChild(btn);
-
-                btn.setAttribute('data-id', 'jf-exclude');
-                btn.addEventListener('click', function(e) {
-                    var currentTargetIds = targetIds.slice();
-
-                    var modalTriggered = false;
-                    function openConfirm() {
-                        if (modalTriggered) return;
-                        modalTriggered = true;
-                        showExcludeConfirmModal(currentTargetIds);
-                    }
-
-                    // Listen for sheet closing/close event or wait for clean dialogHelper teardown
-                    sheet.addEventListener('close', openConfirm, { once: true });
-                    setTimeout(openConfirm, 160);
+                injectExcludeButton();
+            });
 
                     // Note: We do NOT call e.stopPropagation() or e.preventDefault()!
                     // Allowing the click to bubble up to the actionSheet (sheet) triggers Jellyfin's
