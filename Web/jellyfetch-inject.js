@@ -1,5 +1,5 @@
 /**
- * JellyFetch UI Injection Script — v1.3.8.5
+ * JellyFetch UI Injection Script — v1.3.8.6
  *
  * Listens to Jellyfin's native viewshow / hashchange events, with a scoped
  * observer for context menu action sheets. Zero recursive DOM loops.
@@ -66,13 +66,7 @@
     function getCurrentItemId() {
         var h = window.location.hash || '';
         var m = h.match(/[?&]id=([a-f0-9\-]+)/i);
-        if (m) return m[1];
-        var page = document.querySelector('#itemDetailPage, .itemDetailPage, .mainAnimatedPage:not(.hide)');
-        if (page) {
-            var pid = page.getAttribute('data-id') || page.getAttribute('data-itemid');
-            if (pid) return pid;
-        }
-        return state.itemId || lastKnownItemId || null;
+        return m ? m[1] : null;
     }
 
     function isPlayerActive() {
@@ -86,9 +80,7 @@
 
     function isDetailsPage() {
         if (isPlayerActive()) return false;
-        return /[/#]details\b/i.test(window.location.hash || '') ||
-               /[/#]item\b/i.test(window.location.hash || '') ||
-               !!document.querySelector('#itemDetailPage, .itemDetailPage, .itemDetailPage-container');
+        return /[/#]details\?/.test(window.location.hash || '');
     }
 
     function stopAll() {
@@ -1032,24 +1024,13 @@
             return;
         }
 
-        if (strmItemCache[probeId] === false) {
-            return;
-        }
-
         jfFetch('/System/Configuration/Downloaders/Options/' + probeId)
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (optData) {
                 var isStrm = optData && optData.IsStrm;
-                strmItemCache[probeId] = !!isStrm;
+                if (isStrm) strmItemCache[probeId] = true;
                 if (!isStrm && !isMultiSelect) return;
                 injectExcludeButton();
-            });
-
-                    // Note: We do NOT call e.stopPropagation() or e.preventDefault()!
-                    // Allowing the click to bubble up to the actionSheet (sheet) triggers Jellyfin's
-                    // native actionSheet click handler, which cleanly invokes dialogHelper.close(sheet),
-                    // tearing down the dialogContainer, dialogBackdrop, focus scope, and history state!
-                });
             });
     });
     contextMenuObserver.observe(document.body, { childList: true, subtree: true });
