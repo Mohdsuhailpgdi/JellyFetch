@@ -191,7 +191,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             return patterns.Any(p => Regex.IsMatch(t, p));
         }
 
-        private async Task<(List<string> Langs, bool IsAllowed, string TmdbId, string ImdbId, List<string> OrigLangs)> DetectLanguageAsync(string rawTitle, string defaultLang, HashSet<string> allowedLangs, string baseName, string year = "")
+        public async Task<(List<string> Langs, bool IsAllowed, string TmdbId, string ImdbId, List<string> OrigLangs)> DetectLanguageAsync(string rawTitle, string defaultLang, HashSet<string> allowedLangs, string baseName, string year = "")
         {
             var foundOrig = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             string tmdbId = "";
@@ -317,26 +317,14 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                 SaveLanguageCache();
             }
 
-            // STRICT ORIGINAL LANGUAGE CHECK
+            // STRICT ORIGINAL LANGUAGE CHECK: If original language is not in allowed languages, reject immediately.
+            // Never override this check with subforum languages, otherwise foreign/dubbed releases bypass user filters.
             if (foundOrig.Count > 0)
             {
                 bool hasAllowedOrig = foundOrig.Any(ol => allowedLangs.Contains(ol));
                 if (!hasAllowedOrig)
                 {
-                    // Subforum Language Trust Fallback:
-                    // If external APIs matched an older/unrelated movie in another language (e.g. 1980 Hindi or 1983 Kannada movie)
-                    // but the topic was explicitly posted in an allowed subforum (e.g. Malayalam) and the title explicitly contains that language or tag:
-                    if (!string.IsNullOrEmpty(defaultLang) && allowedLangs.Contains(defaultLang) &&
-                        (rawTitle.Contains(defaultLang, StringComparison.OrdinalIgnoreCase) ||
-                         Regex.IsMatch(rawTitle, $@"\b{defaultLang}\b", RegexOptions.IgnoreCase)))
-                    {
-                        foundOrig.Clear();
-                        foundOrig.Add(defaultLang);
-                    }
-                    else
-                    {
-                        return (new List<string>(), false, "", "", new List<string>()); // Reject immediately if original language is excluded
-                    }
+                    return (new List<string>(), false, "", "", new List<string>()); // Reject immediately if original language is excluded
                 }
             }
 
@@ -381,7 +369,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             return (allowedFound, allowedFound.Count > 0, tmdbId, imdbId, foundOrig.ToList());
         }
 
-        private (string Full, string Base, string Year) CleanMovieTitle(string rawTitle)
+        public (string Full, string Base, string Year) CleanMovieTitle(string rawTitle)
         {
             string clean = System.Net.WebUtility.HtmlDecode(rawTitle).Trim();
             clean = clean.Replace('\u00a0', ' ');

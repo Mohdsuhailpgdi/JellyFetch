@@ -5,7 +5,7 @@
   
   **Automated media scraping, cloud downloading, and library injection for Jellyfin.**
   
-  [![Version](https://img.shields.io/badge/version-1.3.8.6-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
+  [![Version](https://img.shields.io/badge/version-1.3.8.7-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
   [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9.x--12.x-orange)](https://jellyfin.org)
   [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey)](https://github.com/Mohdsuhailpgdi/JellyFetch)
 </div>
@@ -17,9 +17,20 @@ This plugin is specifically optimized for Indian media consumers. The default sc
 
 ---
 
-## ✨ What's New in v1.3.8.6 — Frontend Script Syntax Hotfix
+## ✨ What's New in v1.3.8.7 — Strict Language Filter Regression Fix & Phase 4 Maintenance
+- **Strict Language Filter Enforcement**: Completely removed the subforum trust fallback introduced in `v1.3.8.5` that caused regional dubbed releases (e.g. Kannada, Telugu, Hindi) in Tamil/Malayalam dubbed subforums to bypass strict language rejection and flood the library. TMDB `original_language` is strictly preserved and enforced.
+- **Smart Cleanup Original Language Verification**: Smart Cleanup now inspects movie folder names using `DetectLanguageAsync` to detect and delete movies whose original language was unselected, rather than relying solely on magnet audio tags in `downloads.json`.
+- **Atomic Database Purge**: "Purge All Scraped Movies" now directly queries `ILibraryManager` and deletes items atomically from Jellyfin's SQLite database, ensuring immediate WebSocket UI updates even when library root folders are empty.
+- **FUSE / Cloud History Optimization**: Guarded directory lookups in Activity History to eliminate slow recursive file traversals across Google Drive (`/mnt/gdrive`), preventing API quota exhaustion and UI freezes.
+- **Dynamic FFmpeg Resolution & Web Admin Hardening**: Added dynamic FFmpeg fallback to system `PATH` and sanitized all admin table string interpolations with `escapeHtml()`.
+
+<details>
+<summary><b>📜 What's New in v1.3.8.6 — Frontend Script Syntax Hotfix</b></summary>
+
 - **Frontend Script Syntax Hotfix**: Resolved a fatal JavaScript `SyntaxError` in `jellyfetch-inject.js` (stray closing braces inside `contextMenuObserver`) that prevented the entire frontend script from executing in `1.3.8.5`, restoring the Download button and Exclude & Remove context menu.
 - **Safe State & Route Resolution**: Restored rock-solid hash-based details page detection and safe in-memory `.strm` caching.
+
+</details>
 
 <details>
 <summary><b>📜 What's New in v1.3.8.5 — Details Page Teardown, 0ms ActionSheet & Scraper Accuracy</b></summary>

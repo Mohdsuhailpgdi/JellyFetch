@@ -20,7 +20,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
 
     public static class DownloadHistoryManager
     {
-        private static readonly string HistoryPath = System.IO.Path.Combine(Plugin.Instance.DataFolderPath, "history.json");
+        private static string HistoryPath => System.IO.Path.Combine(Plugin.Instance.DataFolderPath, "history.json");
         private static readonly SemaphoreSlim _lock = new(1, 1);
 
         public static async Task AddEntryAsync(DownloadHistoryEntry entry)

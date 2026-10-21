@@ -584,17 +584,34 @@ public class DownloadersController : ControllerBase
         }
         
         var config = Plugin.Instance.Configuration;
-
         bool needsSave = false;
+
+        // Gather local candidate dirs (strictly local buffer paths; NEVER remote cloud FUSE mounts like /mnt/gdrive)
         var candidateDirs = new List<string>();
-        if (!string.IsNullOrEmpty(config.DownloadsDirectory) && Directory.Exists(config.DownloadsDirectory))
+        if (!string.IsNullOrEmpty(config.DownloadsDirectory) && Directory.Exists(config.DownloadsDirectory) && !config.DownloadsDirectory.Contains("gdrive", StringComparison.OrdinalIgnoreCase))
         {
             candidateDirs.Add(config.DownloadsDirectory);
         }
-        string[] fallbackDirs = { "/media", "/media/Downloads", "/mnt/msp/Movies", "/mnt/gdrive/Jellyfin/Movies" };
+        string[] fallbackDirs = { "/media", "/media/Downloads", "/mnt/msp/Movies" };
         foreach (var fb in fallbackDirs)
         {
-            if (Directory.Exists(fb) && !candidateDirs.Contains(fb)) candidateDirs.Add(fb);
+            if (Directory.Exists(fb) && !candidateDirs.Contains(fb, StringComparer.OrdinalIgnoreCase)) candidateDirs.Add(fb);
+        }
+
+        // Pre-gather local files ONCE only if any history entry needs name/size resolution
+        List<FileInfo>? localFiles = null;
+        bool anyEntryNeedsResolution = history.Any(h => h.Status == "Completed" && (h.SizeGb <= 0 || h.MovieName == "Manual Download" || h.MovieName.Contains("1TamilMV", StringComparison.OrdinalIgnoreCase)));
+        if (anyEntryNeedsResolution && candidateDirs.Count > 0)
+        {
+            localFiles = new List<FileInfo>();
+            foreach (var dir in candidateDirs)
+            {
+                try
+                {
+                    localFiles.AddRange(new DirectoryInfo(dir).GetFiles("*.*", SearchOption.AllDirectories));
+                }
+                catch { }
+            }
         }
 
         // Add past history
@@ -603,45 +620,36 @@ public class DownloadersController : ControllerBase
             double entrySize = h.SizeGb;
             string movieName = CleanMediaTitle(h.MovieName);
 
-            if (h.Status == "Completed" && candidateDirs.Count > 0)
+            if (h.Status == "Completed" && localFiles != null && (entrySize <= 0 || h.MovieName == "Manual Download" || h.MovieName.Contains("1TamilMV", StringComparison.OrdinalIgnoreCase)))
             {
-                foreach (var dir in candidateDirs)
+                FileInfo? bestMatch = null;
+                if (!string.IsNullOrEmpty(h.MovieName) && h.MovieName != "Manual Download")
                 {
-                    try
+                    var cleanHName = CleanMediaTitle(h.MovieName);
+                    bestMatch = localFiles.FirstOrDefault(f => CleanMediaTitle(f.Name).Equals(cleanHName, StringComparison.OrdinalIgnoreCase) ||
+                                                              f.Name.Contains(cleanHName, StringComparison.OrdinalIgnoreCase));
+                }
+                if (bestMatch == null)
+                {
+                    bestMatch = localFiles
+                        .Where(f => Math.Abs((f.CreationTimeUtc - h.Timestamp).TotalMinutes) < 15 || Math.Abs((f.LastWriteTimeUtc - h.Timestamp).TotalMinutes) < 15)
+                        .OrderBy(f => Math.Abs((f.LastWriteTimeUtc - h.Timestamp).TotalMinutes))
+                        .FirstOrDefault();
+                }
+                if (bestMatch != null && bestMatch.Length > 0)
+                {
+                    if (entrySize <= 0)
                     {
-                        var files = new DirectoryInfo(dir).GetFiles("*.*", SearchOption.AllDirectories);
-                        FileInfo? bestMatch = null;
-                        if (!string.IsNullOrEmpty(h.MovieName) && h.MovieName != "Manual Download")
-                        {
-                            var cleanHName = CleanMediaTitle(h.MovieName);
-                            bestMatch = files.FirstOrDefault(f => CleanMediaTitle(f.Name).Equals(cleanHName, StringComparison.OrdinalIgnoreCase) ||
-                                                                  f.Name.Contains(cleanHName, StringComparison.OrdinalIgnoreCase));
-                        }
-                        if (bestMatch == null)
-                        {
-                            bestMatch = files
-                                .Where(f => Math.Abs((f.CreationTimeUtc - h.Timestamp).TotalMinutes) < 15 || Math.Abs((f.LastWriteTimeUtc - h.Timestamp).TotalMinutes) < 15)
-                                .OrderBy(f => Math.Abs((f.LastWriteTimeUtc - h.Timestamp).TotalMinutes))
-                                .FirstOrDefault();
-                        }
-                        if (bestMatch != null && bestMatch.Length > 0)
-                        {
-                            if (entrySize <= 0)
-                            {
-                                entrySize = Math.Round((double)bestMatch.Length / (1024.0 * 1024.0 * 1024.0), 2);
-                                h.SizeGb = entrySize;
-                                needsSave = true;
-                            }
-                            if (h.MovieName == "Manual Download" || h.MovieName.Contains("1TamilMV", StringComparison.OrdinalIgnoreCase) || h.MovieName.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase))
-                            {
-                                movieName = CleanMediaTitle(bestMatch.Name);
-                                h.MovieName = movieName;
-                                needsSave = true;
-                            }
-                            break;
-                        }
+                        entrySize = Math.Round((double)bestMatch.Length / (1024.0 * 1024.0 * 1024.0), 2);
+                        h.SizeGb = entrySize;
+                        needsSave = true;
                     }
-                    catch { }
+                    if (h.MovieName == "Manual Download" || h.MovieName.Contains("1TamilMV", StringComparison.OrdinalIgnoreCase) || h.MovieName.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase))
+                    {
+                        movieName = CleanMediaTitle(bestMatch.Name);
+                        h.MovieName = movieName;
+                        needsSave = true;
+                    }
                 }
             }
 
@@ -1318,6 +1326,18 @@ public class DownloadersController : ControllerBase
     }
 
 
+    private static string GetFfprobePath()
+    {
+        if (System.IO.File.Exists("/usr/lib/jellyfin-ffmpeg/ffprobe")) return "/usr/lib/jellyfin-ffmpeg/ffprobe";
+        return "ffprobe";
+    }
+
+    private static string GetFfmpegPath()
+    {
+        if (System.IO.File.Exists("/usr/lib/jellyfin-ffmpeg/ffmpeg")) return "/usr/lib/jellyfin-ffmpeg/ffmpeg";
+        return "ffmpeg";
+    }
+
     public static async Task SanitizeVideoMetadataAsync(string filePath, ILogger logger)
     {
         if (string.IsNullOrEmpty(filePath) || !System.IO.File.Exists(filePath)) return;
@@ -1328,7 +1348,7 @@ public class DownloadersController : ControllerBase
                 logger.LogInformation("Checking metadata for {File}", filePath);
 
                 using var probe = new System.Diagnostics.Process();
-                probe.StartInfo.FileName = "/usr/lib/jellyfin-ffmpeg/ffprobe";
+                probe.StartInfo.FileName = GetFfprobePath();
                 probe.StartInfo.Arguments = $"-v quiet -show_entries format_tags=title:stream_tags=title,handler_name -of default=noprint_wrappers=1:nokey=1 \"{filePath}\"";
                 probe.StartInfo.UseShellExecute = false;
                 probe.StartInfo.RedirectStandardOutput = true;
@@ -1367,7 +1387,7 @@ public class DownloadersController : ControllerBase
                 string format = filePath.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase) ? "matroska" : "mp4";
                 
                 using var proc = new System.Diagnostics.Process();
-                proc.StartInfo.FileName = "/usr/lib/jellyfin-ffmpeg/ffmpeg";
+                proc.StartInfo.FileName = GetFfmpegPath();
                 // Strip all global metadata and stream-specific handlers/titles to completely purge embedded domains
                 proc.StartInfo.Arguments = $"-y -i \"{filePath}\" -map 0 -c copy -map_metadata -1 -f {format} -metadata title=\"\" -metadata:s handler_name=\"\" -metadata:s title=\"\" \"{tmpFile}\"";
                 proc.StartInfo.UseShellExecute = false;
@@ -1706,25 +1726,67 @@ public class DownloadersController : ControllerBase
                         catch { }
                     }
 
+                    // CRITICAL FIX: Also verify the movie's actual original language!
+                    // Dubbed releases in downloads.json might only record ["Tamil"], but their original
+                    // language is Kannada/Telugu/Hindi. If the original language is deselected, flag it for deletion!
+                    if (!isDeselectedLanguage && languagesConfigured)
+                    {
+                        try
+                        {
+                            var (dFull, dBase, dYear) = scraper.CleanMovieTitle(dirName);
+                            var (detectLangs, ok, tmdbId, imdbId, origLangs) = await scraper.DetectLanguageAsync(dirName, "", allowedLangs, dBase, dYear);
+                            if (!ok)
+                            {
+                                isDeselectedLanguage = true;
+                                if (origLangs != null && origLangs.Count > 0)
+                                {
+                                    movieLangs = origLangs;
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+
                     bool hasStrm = Directory.GetFiles(dir, "*.strm").Any();
+
+                    void DeleteLibraryItemIfExists(string dirPath)
+                    {
+                        try
+                        {
+                            var strmFile = Directory.GetFiles(dirPath, "*.strm").FirstOrDefault();
+                            if (!string.IsNullOrEmpty(strmFile) && libraryManager != null)
+                            {
+                                var item = libraryManager.FindByPath(strmFile, false);
+                                if (item != null)
+                                {
+                                    libraryManager.DeleteItem(item, new DeleteOptions { DeleteFileLocation = true }, true);
+                                }
+                            }
+                        }
+                        catch { }
+                    }
 
                     if (isDuplicateOfLibrary)
                     {
-                        Directory.Delete(dir, true);
+                        DeleteLibraryItemIfExists(dir);
+                        if (Directory.Exists(dir)) Directory.Delete(dir, true);
                         deletedCount++;
                         AddCleanupLog($"[Deleted Duplicate] {dirName} (Already downloaded in library)");
                         logger.LogInformation("[JellyFetch Cleanup] Deleted duplicate: {Dir}", dirName);
                     }
                     else if (isDeselectedLanguage)
                     {
-                        Directory.Delete(dir, true);
+                        DeleteLibraryItemIfExists(dir);
+                        if (Directory.Exists(dir)) Directory.Delete(dir, true);
                         deletedCount++;
-                        AddCleanupLog($"[Deleted Language] {dirName} (Deselected: {string.Join(", ", movieLangs.Distinct())})");
-                        logger.LogInformation("[JellyFetch Cleanup] Deleted deselected language movie: {Dir}", dirName);
+                        string langListStr = movieLangs.Count > 0 ? string.Join(", ", movieLangs.Distinct()) : "unselected language";
+                        AddCleanupLog($"[Deleted Language] {dirName} (Deselected: {langListStr})");
+                        logger.LogInformation("[JellyFetch Cleanup] Deleted deselected language movie: {Dir} ({Langs})", dirName, langListStr);
                     }
                     else if (!hasStrm)
                     {
-                        Directory.Delete(dir, true);
+                        DeleteLibraryItemIfExists(dir);
+                        if (Directory.Exists(dir)) Directory.Delete(dir, true);
                         deletedCount++;
                         AddCleanupLog($"[Deleted Orphan] {dirName}");
                     }
@@ -1949,7 +2011,19 @@ public class DownloadersController : ControllerBase
                 {
                     try
                     {
-                        Directory.Delete(dir, true);
+                        var strmFile = Directory.GetFiles(dir, "*.strm", SearchOption.AllDirectories).FirstOrDefault();
+                        if (!string.IsNullOrEmpty(strmFile) && _libraryManager != null)
+                        {
+                            var item = _libraryManager.FindByPath(strmFile, false);
+                            if (item != null)
+                            {
+                                _libraryManager.DeleteItem(item, new DeleteOptions { DeleteFileLocation = true }, true);
+                            }
+                        }
+                        if (Directory.Exists(dir))
+                        {
+                            Directory.Delete(dir, true);
+                        }
                         count++;
                     }
                     catch (Exception ex)
