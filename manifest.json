@@ -12,7 +12,7 @@
         "version": "1.3.8.7",
         "changelog": "v1.3.8.7: Reverted flawed Subforum Language Trust Fallback that bypassed strict language rejection for dubbed releases. Enhanced Smart Cleanup to detect original movie languages and atomically prune deselected media from SQLite. Eliminated recursive FUSE cloud mount traversal in Activity History, fixed static path resolution in DownloadHistoryManager, added dynamic FFmpeg resolution, and hardened admin tables with HTML escaping.",
         "targetAbi": "12.2.0.0",
-        "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/dev/Jellyfin.Plugin.JellyFetch.zip",
+        "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
         "checksum": "03F58F34935D6D2B5AA8FB8E534257D9",
         "timestamp": "2026-10-21T15:15:00Z"
       },
