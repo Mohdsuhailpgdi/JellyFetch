@@ -1,6 +1,16 @@
 export default function(view, params) {
     const pluginId = 'A1B2C3D4-E5F6-7890-1234-567890ABCDEF';
 
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
     function loadPage() {
         Dashboard.showLoadingMsg();
 
@@ -411,7 +421,7 @@ export default function(view, params) {
 
                         row.innerHTML = `
                             <td style="padding: 10px; vertical-align:top;">${dt}</td>
-                            <td style="padding: 10px; vertical-align:top;">${item.MovieName}</td>
+                            <td style="padding: 10px; vertical-align:top;">${escapeHtml(item.MovieName)}</td>
                             <td style="padding: 10px; vertical-align:top;">${(item.SizeGb && item.SizeGb > 0) ? item.SizeGb.toFixed(2) + ' GB' : '—'}</td>
                             <td style="padding: 10px; vertical-align:top;">${statusStr}${actionsStr}</td>
                         `;
@@ -467,10 +477,10 @@ export default function(view, params) {
                         let row = document.createElement('tr');
                         row.style.borderBottom = '1px solid #333';
                         row.innerHTML = `
-                            <td style="padding: 10px; vertical-align:middle; font-weight: 500;">${title}</td>
-                            <td style="padding: 10px; vertical-align:middle; color: ${tmdbId !== '-' ? '#4caf50' : '#888'}; font-family: monospace;">${tmdbId}</td>
+                            <td style="padding: 10px; vertical-align:middle; font-weight: 500;">${escapeHtml(title)}</td>
+                            <td style="padding: 10px; vertical-align:middle; color: ${tmdbId !== '-' ? '#4caf50' : '#888'}; font-family: monospace;">${escapeHtml(tmdbId)}</td>
                             <td style="padding: 10px; vertical-align:middle; text-align: center;">
-                                <button class="btnRemoveBlocklist raised" data-id="${item}" style="font-size: 0.8em; padding: 4px 8px; border-radius: 3px; cursor: pointer; color: #f44336; border: 1px solid rgba(244,67,54,0.5); background: transparent;">Remove</button>
+                                <button class="btnRemoveBlocklist raised" data-id="${escapeHtml(item)}" style="font-size: 0.8em; padding: 4px 8px; border-radius: 3px; cursor: pointer; color: #f44336; border: 1px solid rgba(244,67,54,0.5); background: transparent;">Remove</button>
                             </td>
                         `;
                         tbody.appendChild(row);
