@@ -12,7 +12,7 @@
         "version": "1.3.8.8",
         "changelog": "v1.3.8.8: Added manual Blocklist entry form in Web UI and backend POST /Blocklist endpoint with aligned styling. Implemented filename vs DBID verification guard on Exclude & Remove to preserve legitimate DBIDs while protecting against erroneous metadata auto-identifications. Implemented GetAllMovieItems direct SQLite deletion in PurgeAllStrm, added history tracking and lifecycle cleanup to direct downloads, isolated year-specific language cache lookups, and qualified System.IO.File calls.",
         "targetAbi": "12.2.0.0",
-        "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/dev/Jellyfin.Plugin.JellyFetch.zip",
+        "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
         "checksum": "2E3A5DA23D39F0F9133C2C70D32A7DB9",
         "timestamp": "2026-10-24T00:30:00Z"
       },
