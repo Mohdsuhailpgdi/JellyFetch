@@ -201,7 +201,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             string cacheKey = !string.IsNullOrEmpty(year) ? $"{NormalizeKey(baseName)}_{year}" : NormalizeKey(baseName);
             bool usedCache = false;
 
-            if (_languageCache.TryGetValue(cacheKey, out var cached) || _languageCache.TryGetValue(NormalizeKey(baseName), out cached))
+            if (_languageCache.TryGetValue(cacheKey, out var cached) || (string.IsNullOrEmpty(year) && _languageCache.TryGetValue(NormalizeKey(baseName), out cached)))
             {
                 foreach (var l in cached.OriginalLanguages) foundOrig.Add(l);
                 tmdbId = cached.TmdbId;
@@ -643,7 +643,29 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                     var (langs, ok, _, _, _) = await DetectLanguageAsync(dName, "", allowedLangs, dBase, dYear);
                     if (!ok)
                     {
-                        try { Directory.Delete(dir, true); } catch { }
+                        try
+                        {
+                            if (_libraryManager != null)
+                            {
+                                foreach (var strmFile in Directory.GetFiles(dir, "*.strm", SearchOption.AllDirectories))
+                                {
+                                    try
+                                    {
+                                        var item = _libraryManager.FindByPath(strmFile, false);
+                                        if (item != null)
+                                        {
+                                            _libraryManager.DeleteItem(item, new DeleteOptions { DeleteFileLocation = true }, true);
+                                        }
+                                    }
+                                    catch { }
+                                }
+                            }
+                            if (Directory.Exists(dir))
+                            {
+                                Directory.Delete(dir, true);
+                            }
+                        }
+                        catch { }
                     }
                 }
             }

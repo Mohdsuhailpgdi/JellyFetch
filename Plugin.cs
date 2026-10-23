@@ -19,14 +19,11 @@ using Microsoft.AspNetCore.Http;
 namespace Jellyfin.Plugin.JellyFetch;
 
 /// <summary>
-/// The main plugin class. On startup it auto-patches the Jellyfin web directory
-/// by writing jellyfetch-inject.js and adding a &lt;script&gt; tag to index.html,
-/// so users get the full Download UI without any manual installation steps.
+/// The main plugin class. Registers admin configuration pages and in-memory ASP.NET Core
+/// HTTP middleware for dynamic UI injection into the web client pipeline.
 /// </summary>
 public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 {
-    private const string InjectScriptName = "jellyfetch-inject.js";
-    private const string ScriptMarker    = "jellyfetch-inject.js"; // used to check if already patched
     private readonly IApplicationPaths   _applicationPaths;
     private readonly ILogger<Plugin>     _logger;
 

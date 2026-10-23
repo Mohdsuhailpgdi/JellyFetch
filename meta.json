@@ -1,6 +1,6 @@
 {
     "category": "General",
-    "changelog": "v1.3.8.7: Reverted flawed Subforum Language Trust Fallback that bypassed strict language rejection for dubbed releases. Enhanced Smart Cleanup to detect original movie languages and atomically prune deselected media from SQLite. Eliminated recursive FUSE cloud mount traversal in Activity History, fixed static path resolution in DownloadHistoryManager, added dynamic FFmpeg resolution, and hardened admin tables with HTML escaping.",
+    "changelog": "v1.3.8.8: Added manual Blocklist entry form in Web UI and backend POST /Blocklist endpoint with aligned styling. Implemented filename vs DBID verification guard on Exclude & Remove to preserve legitimate DBIDs while protecting against erroneous metadata auto-identifications. Implemented GetAllMovieItems direct SQLite deletion in PurgeAllStrm, added history tracking and lifecycle cleanup to direct downloads, isolated year-specific language cache lookups, and qualified System.IO.File calls.",
     "description": "Native Downloads ecosystem for Jellyfin. Scrapes external forums for new media and integrates with Seedr and Torbox for downloading.",
     "guid": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
     "imageUrl": "",
@@ -8,8 +8,8 @@
     "overview": "External media scraper and download manager. Integrates Seedr and Torbox.",
     "owner": "LAB Hermes",
     "targetAbi": "12.2.0.0",
-    "timestamp": "2026-10-21T15:15:00Z",
-    "version": "1.3.8.7",
+    "timestamp": "2026-10-24T00:30:00Z",
+    "version": "1.3.8.8",
     "status": "Active",
     "autoUpdate": false
 }

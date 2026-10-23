@@ -241,7 +241,17 @@
                     </div>
                 </div>
                 
-                <p style="color: #aaa; margin-bottom: 1em;">Movies listed here will be skipped by the scraper. You can exclude a movie from the download options menu when viewing the dummy item.</p>
+                <p style="color: #aaa; margin-bottom: 1em;">Movies listed here will be skipped by the scraper. You can exclude a movie from the download options menu when viewing the dummy item, or manually add movie titles, folder aliases, or keywords below.</p>
+
+                <form id="formAddBlocklist" style="display: flex; gap: 10px; margin-bottom: 1.5em; align-items: center;">
+                    <div style="flex: 1; margin: 0; min-width: 0;">
+                        <input type="text" id="txtBlocklistTitle" class="emby-input" placeholder="Enter movie title, folder name, or keyword to ignore..." style="width: 100%; height: 40px; margin: 0; padding: 0 12px; box-sizing: border-box; border-radius: 4px; font-size: 0.95em;" required />
+                    </div>
+                    <button is="emby-button" type="submit" class="raised button-submit" style="margin: 0 !important; height: 40px; padding: 0 16px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.95em; white-space: nowrap; flex-shrink: 0; background-color: #00a4dc; color: #fff;">
+                        <span class="material-icons" style="font-size: 1.1em; margin-right: 6px; line-height: 1;">block</span>
+                        <span>Add to Blocklist</span>
+                    </button>
+                </form>
 
                 <div id="blocklistTableContainer" style="overflow-x: auto; margin-top: 1em; max-height: 600px; overflow-y: auto;">
                     <table class="tblHistory" style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.95em;">

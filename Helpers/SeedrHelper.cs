@@ -1,4 +1,4 @@
-// JellyFetch Plugin for Jellyfin - Version 1.0.5.1
+// JellyFetch Plugin for Jellyfin - Version 1.3.8.8
 using System;
 using System.Collections.Generic;
 using System.Linq;

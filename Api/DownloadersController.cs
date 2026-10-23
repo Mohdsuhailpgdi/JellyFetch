@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyFetch.Configuration;
 using Jellyfin.Plugin.JellyFetch.Helpers;
@@ -32,6 +33,11 @@ public class TestCredentialsRequest
     public string? SeedrUsername { get; set; }
     public string? SeedrPassword { get; set; }
     public string? TorboxApiKey { get; set; }
+}
+
+public class AddBlocklistRequest
+{
+    public string Title { get; set; } = string.Empty;
 }
 
 public class DownloadProgressInfo
@@ -387,50 +393,115 @@ public class DownloadersController : ControllerBase
         var item = _libraryManager.GetItemById(id);
         if (item == null) return NotFound("Media not found.");
 
+        string path = item.Path ?? "";
+        string scrapedFileName = "";
+
+        if (!string.IsNullOrEmpty(path))
+        {
+            // If path points to a file (.strm, .mkv, .mp4, etc.), extract the filename without extension
+            string fileWithoutExt = System.IO.Path.GetFileNameWithoutExtension(path);
+            string parentDirName = "";
+            string? parentDir = System.IO.Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(parentDir))
+            {
+                parentDirName = System.IO.Path.GetFileName(parentDir.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar));
+            }
+
+            // Exclude based strictly on the scraped file/folder name from disk, ignoring any Jellyfin metadata titles
+            if (!string.IsNullOrEmpty(fileWithoutExt) &&
+                !fileWithoutExt.Equals("movie", StringComparison.OrdinalIgnoreCase) &&
+                !fileWithoutExt.Equals("video", StringComparison.OrdinalIgnoreCase) &&
+                !fileWithoutExt.Equals("dummy", StringComparison.OrdinalIgnoreCase))
+            {
+                scrapedFileName = fileWithoutExt;
+            }
+            else if (!string.IsNullOrEmpty(parentDirName))
+            {
+                scrapedFileName = parentDirName;
+            }
+        }
+
+        // Extreme fallback if filesystem path was not present
+        if (string.IsNullOrEmpty(scrapedFileName))
+        {
+            scrapedFileName = item.Name ?? "";
+        }
+
+        // Clean the scraped name to get canonical scraped title and release year (e.g. "Biishman (2022)")
+        var scraper = new JellyfinScraper(new HttpClient());
+        var (cFull, cBase, cYear) = scraper.CleanMovieTitle(scrapedFileName);
+        string scrapedEntry = !string.IsNullOrEmpty(cFull) ? cFull : scrapedFileName;
+
+        string normTarget = JellyfinScraper.NormalizeKey(scrapedEntry);
+        string normBase = !string.IsNullOrEmpty(cBase) ? JellyfinScraper.NormalizeKey(cBase) : normTarget;
+
+        // Check if Jellyfin metadata item name or original title matches the scraped physical file name
+        string normItemName = JellyfinScraper.NormalizeKey(item.Name ?? "");
+        string normOrigTitle = !string.IsNullOrEmpty(item.OriginalTitle) ? JellyfinScraper.NormalizeKey(item.OriginalTitle) : "";
+        bool titlesMatch = (!string.IsNullOrEmpty(normItemName) && (normItemName == normTarget || normItemName == normBase)) ||
+                           (!string.IsNullOrEmpty(normOrigTitle) && (normOrigTitle == normTarget || normOrigTitle == normBase));
+
         string? tmdbId = null;
         if (item.ProviderIds != null && item.ProviderIds.TryGetValue("Tmdb", out var tId))
         {
             tmdbId = tId;
         }
-        
-        var title = item.Name ?? "";
-        var baseN = title;
+
+        // If physical filename matches metadata title AND we have a TMDB ID, exclude with DBID
+        // If they do NOT match (Jellyfin wrongly auto-identified the movie), exclude with file name only!
+        string entry;
+        if (titlesMatch && !string.IsNullOrEmpty(tmdbId))
+        {
+            string displayTitle = !string.IsNullOrEmpty(item.Name) ? item.Name : (!string.IsNullOrEmpty(cFull) ? cFull : scrapedEntry);
+            entry = $"{displayTitle} [TMDB: {tmdbId}]";
+        }
+        else
+        {
+            entry = scrapedEntry;
+        }
 
         var config = Plugin.Instance.Configuration;
         var blocklist = config.Blocklist?.ToList() ?? new List<string>();
 
-        string entry = !string.IsNullOrEmpty(tmdbId) ? $"{title} [TMDB: {tmdbId}]" : title;
-
-        bool alreadyBlocked = blocklist.Any(b => 
-            b.Equals(entry, StringComparison.OrdinalIgnoreCase) ||
-            (!string.IsNullOrEmpty(tmdbId) && b.Equals(tmdbId, StringComparison.OrdinalIgnoreCase)) ||
-            (!string.IsNullOrEmpty(tmdbId) && b.Contains($"[TMDB: {tmdbId}]", StringComparison.OrdinalIgnoreCase)) ||
-            b.Equals(title, StringComparison.OrdinalIgnoreCase));
+        bool alreadyBlocked = blocklist.Any(b => {
+            if (!string.IsNullOrEmpty(tmdbId) && titlesMatch)
+            {
+                if (b.Equals(tmdbId, StringComparison.OrdinalIgnoreCase) ||
+                    b.Contains($"[TMDB: {tmdbId}]", StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            string bClean = Regex.Replace(b, @"\s*\[TMDB:\s*\d+\]", "", RegexOptions.IgnoreCase).Trim();
+            string normB = JellyfinScraper.NormalizeKey(bClean);
+            return normB == normTarget || normB == normBase || b.Equals(entry, StringComparison.OrdinalIgnoreCase);
+        });
 
         if (!alreadyBlocked)
         {
-            // Clean up any legacy separate entries for this movie/tmdbId
-            blocklist.RemoveAll(b => 
-                (!string.IsNullOrEmpty(tmdbId) && b.Equals(tmdbId, StringComparison.OrdinalIgnoreCase)) ||
-                b.Equals(title, StringComparison.OrdinalIgnoreCase));
+            // If upgrading from plain title to title with TMDB ID
+            if (!string.IsNullOrEmpty(tmdbId) && titlesMatch)
+            {
+                blocklist.RemoveAll(b => {
+                    string bClean = Regex.Replace(b, @"\s*\[TMDB:\s*\d+\]", "", RegexOptions.IgnoreCase).Trim();
+                    return JellyfinScraper.NormalizeKey(bClean) == normTarget;
+                });
+            }
 
             blocklist.Add(entry);
             config.Blocklist = blocklist.ToArray();
             Plugin.Instance.SaveConfiguration();
-            _logger.LogInformation("Added {ItemId} ({Entry}) to blocklist.", itemId, entry);
+            _logger.LogInformation("Excluded {ItemId}: Added '{Entry}' to blocklist (titlesMatch: {TitlesMatch}, metadata: '{MetadataTitle}', tmdb: '{TmdbId}').", 
+                itemId, entry, titlesMatch, item.Name, tmdbId);
         }
 
         try
         {
-            string path = item.Path;
-            string dirPath = !string.IsNullOrEmpty(path) ? System.IO.Path.GetDirectoryName(path) : null;
             string configDownDir = Plugin.Instance.Configuration.DownloadsDirectory ?? "/media/Downloads";
 
             // 1. Tell Jellyfin to remove the item from SQLite DB and filesystem atomically
             try
             {
                 _libraryManager.DeleteItem(item, new DeleteOptions { DeleteFileLocation = true }, true);
-                _logger.LogInformation("Deleted item {ItemId} ({Title}) via LibraryManager.", itemId, title);
+                _logger.LogInformation("Deleted item {ItemId} ({Title}) via LibraryManager.", itemId, entry);
             }
             catch (Exception ex)
             {
@@ -438,6 +509,7 @@ public class DownloadersController : ControllerBase
             }
 
             // 2. Clean up any leftover empty/dummy directory on disk (e.g. movie.nfo, poster.jpg, downloads.json)
+            string? dirPath = !string.IsNullOrEmpty(path) ? System.IO.Path.GetDirectoryName(path) : null;
             if (!string.IsNullOrEmpty(dirPath) && System.IO.Directory.Exists(dirPath))
             {
                 if (!dirPath.Equals(configDownDir, StringComparison.OrdinalIgnoreCase) && 
@@ -527,6 +599,31 @@ public class DownloadersController : ControllerBase
         if (dir != null && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
         System.IO.File.WriteAllText(path, JsonSerializer.Serialize(langs));
         return Ok(new { Message = "Allowed languages updated.", Languages = langs });
+    }
+
+    [HttpPost("Blocklist")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public ActionResult AddToBlocklist([FromBody] AddBlocklistRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request?.Title))
+        {
+            return BadRequest(new { Message = "Title cannot be empty." });
+        }
+
+        string rawTitle = request.Title.Trim();
+        var config = Plugin.Instance.Configuration;
+        var blocklist = config.Blocklist?.ToList() ?? new List<string>();
+
+        if (!blocklist.Any(b => b.Equals(rawTitle, StringComparison.OrdinalIgnoreCase)))
+        {
+            blocklist.Add(rawTitle);
+            config.Blocklist = blocklist.ToArray();
+            Plugin.Instance.SaveConfiguration();
+            _logger.LogInformation("Manually added '{Title}' to blocklist.", rawTitle);
+        }
+
+        return Ok(new { Success = true, Message = $"Added '{rawTitle}' to blocklist." });
     }
 
     [HttpDelete("Blocklist/{id}")]
@@ -1491,25 +1588,14 @@ public class DownloadersController : ControllerBase
             // 2. Scan entire Jellyfin library for Movies (in case they were moved by rclone/cron to other mounts)
             try
             {
-                var query = new InternalItemsQuery
+                var movieItems = GetAllMovieItems(libraryManager, logger);
+                foreach (var item in movieItems)
                 {
-                    IncludeItemTypes = new[] { BaseItemKind.Movie },
-                    Recursive = true,
-                    IsVirtualItem = false
-                };
-                var method = libraryManager.GetType().GetMethod("GetItemList", new[] { typeof(InternalItemsQuery) }) 
-                             ?? typeof(ILibraryManager).GetMethod("GetItemList", new[] { typeof(InternalItemsQuery) });
-                if (method != null)
-                {
-                    var items = (System.Collections.IEnumerable)method.Invoke(libraryManager, new object[] { query });
-                    foreach (MediaBrowser.Controller.Entities.BaseItem item in items)
+                    if (!string.IsNullOrEmpty(item.Path) && 
+                        (item.Path.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase) || 
+                         item.Path.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase)))
                     {
-                        if (!string.IsNullOrEmpty(item.Path) && 
-                            (item.Path.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase) || 
-                             item.Path.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase)))
-                        {
-                            allFiles.Add(item.Path);
-                        }
+                        allFiles.Add(item.Path);
                     }
                 }
             }
@@ -1753,13 +1839,19 @@ public class DownloadersController : ControllerBase
                     {
                         try
                         {
-                            var strmFile = Directory.GetFiles(dirPath, "*.strm").FirstOrDefault();
-                            if (!string.IsNullOrEmpty(strmFile) && libraryManager != null)
+                            if (libraryManager != null && Directory.Exists(dirPath))
                             {
-                                var item = libraryManager.FindByPath(strmFile, false);
-                                if (item != null)
+                                foreach (var strmFile in Directory.GetFiles(dirPath, "*.strm", SearchOption.AllDirectories))
                                 {
-                                    libraryManager.DeleteItem(item, new DeleteOptions { DeleteFileLocation = true }, true);
+                                    try
+                                    {
+                                        var item = libraryManager.FindByPath(strmFile, false);
+                                        if (item != null)
+                                        {
+                                            libraryManager.DeleteItem(item, new DeleteOptions { DeleteFileLocation = true }, true);
+                                        }
+                                    }
+                                    catch { }
                                 }
                             }
                         }
@@ -1970,78 +2062,163 @@ public class DownloadersController : ControllerBase
         return Ok(new { Message = "Cleanup stopped." });
     }
 
+    private static List<BaseItem> GetAllMovieItems(ILibraryManager? libraryManager, ILogger? logger)
+    {
+        var result = new List<BaseItem>();
+        if (libraryManager == null) return result;
+
+        try
+        {
+            var query = new InternalItemsQuery
+            {
+                IncludeItemTypes = new[] { BaseItemKind.Movie },
+                Recursive = true,
+                IsVirtualItem = false
+            };
+            var method = libraryManager.GetType().GetMethod("GetItemList", new[] { typeof(InternalItemsQuery) }) 
+                         ?? typeof(ILibraryManager).GetMethod("GetItemList", new[] { typeof(InternalItemsQuery) });
+            if (method != null)
+            {
+                var items = (System.Collections.IEnumerable?)method.Invoke(libraryManager, new object[] { query });
+                if (items != null)
+                {
+                    foreach (BaseItem item in items)
+                    {
+                        if (item != null)
+                        {
+                            result.Add(item);
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed to query Jellyfin library via GetAllMovieItems.");
+        }
+
+        return result;
+    }
+
     [HttpDelete("PurgeAllStrm")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult PurgeAllStrm()
     {
         var config = Plugin.Instance?.Configuration;
-        if (config == null || string.IsNullOrEmpty(config.DownloadsDirectory))
-        {
-            return BadRequest(new { Message = "Downloads directory not configured." });
-        }
-
-        if (!Directory.Exists(config.DownloadsDirectory))
-        {
-            return Ok(new { Message = "Directory does not exist, nothing to purge." });
-        }
+        string? targetDir = config?.DownloadsDirectory;
+        if (string.IsNullOrEmpty(targetDir)) targetDir = "/media/Downloads";
 
         try
         {
-            var dirs = Directory.GetDirectories(config.DownloadsDirectory);
             int count = 0;
-            foreach (var dir in dirs)
+            var deletedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // 1. Direct SQLite Item Purge: Query ILibraryManager for all Movie items whose path ends with .strm
+            if (_libraryManager != null)
             {
-                // Safety guard: NEVER delete a folder if it contains real downloaded video files (.mkv, .mp4, .avi)
-                bool hasRealVideo = Directory.GetFiles(dir, "*.*", SearchOption.AllDirectories).Any(f => 
-                    f.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase) || 
-                    f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) || 
-                    f.EndsWith(".avi", StringComparison.OrdinalIgnoreCase));
-
-                if (hasRealVideo)
+                var movieItems = GetAllMovieItems(_libraryManager, _logger);
+                foreach (var item in movieItems)
                 {
-                    // Clean only leftover .strm files inside the folder, preserving actual video media
-                    foreach (var strm in Directory.GetFiles(dir, "*.strm", SearchOption.AllDirectories))
+                    if (item != null && !string.IsNullOrEmpty(item.Path) && item.Path.EndsWith(".strm", StringComparison.OrdinalIgnoreCase))
                     {
-                        try { System.IO.File.Delete(strm); } catch { }
-                    }
-                    continue;
-                }
-
-                if (Directory.GetFiles(dir, "*.strm", SearchOption.AllDirectories).Any())
-                {
-                    try
-                    {
-                        var strmFile = Directory.GetFiles(dir, "*.strm", SearchOption.AllDirectories).FirstOrDefault();
-                        if (!string.IsNullOrEmpty(strmFile) && _libraryManager != null)
+                        try
                         {
-                            var item = _libraryManager.FindByPath(strmFile, false);
-                            if (item != null)
+                            string itemDir = Path.GetDirectoryName(item.Path) ?? "";
+                            bool hasRealVideo = false;
+                            if (!string.IsNullOrEmpty(itemDir) && Directory.Exists(itemDir))
                             {
-                                _libraryManager.DeleteItem(item, new DeleteOptions { DeleteFileLocation = true }, true);
+                                hasRealVideo = Directory.GetFiles(itemDir, "*.*", SearchOption.AllDirectories).Any(f =>
+                                    f.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase) ||
+                                    f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) ||
+                                    f.EndsWith(".avi", StringComparison.OrdinalIgnoreCase));
+                            }
+
+                            // Atomically remove item from SQLite database
+                            _libraryManager.DeleteItem(item, new DeleteOptions { DeleteFileLocation = System.IO.File.Exists(item.Path) }, true);
+                            count++;
+
+                            if (!string.IsNullOrEmpty(itemDir) && !hasRealVideo && Directory.Exists(itemDir))
+                            {
+                                try { Directory.Delete(itemDir, true); } catch { }
+                                deletedDirs.Add(itemDir);
                             }
                         }
-                        if (Directory.Exists(dir))
+                        catch (Exception ex)
                         {
-                            Directory.Delete(dir, true);
+                            _logger.LogWarning(ex, "Failed to atomically delete movie item {Path} during purge", item.Path);
                         }
-                        count++;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, $"Failed to delete directory: {dir}");
                     }
                 }
             }
-            if (count > 0)
+
+            // 2. Filesystem Sweep: Clean any remaining .strm folders or sidecars on disk
+            if (!string.IsNullOrEmpty(targetDir) && Directory.Exists(targetDir))
+            {
+                var dirs = Directory.GetDirectories(targetDir);
+                foreach (var dir in dirs)
+                {
+                    if (deletedDirs.Contains(dir)) continue;
+
+                    bool hasRealVideo = Directory.GetFiles(dir, "*.*", SearchOption.AllDirectories).Any(f => 
+                        f.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase) || 
+                        f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) || 
+                        f.EndsWith(".avi", StringComparison.OrdinalIgnoreCase));
+
+                    if (hasRealVideo)
+                    {
+                        foreach (var strm in Directory.GetFiles(dir, "*.strm", SearchOption.AllDirectories))
+                        {
+                            try { System.IO.File.Delete(strm); } catch { }
+                        }
+                        continue;
+                    }
+
+                    if (Directory.GetFiles(dir, "*.strm", SearchOption.AllDirectories).Any() ||
+                        System.IO.File.Exists(Path.Combine(dir, "downloads.json")))
+                    {
+                        try
+                        {
+                            if (_libraryManager != null)
+                            {
+                                foreach (var strmFile in Directory.GetFiles(dir, "*.strm", SearchOption.AllDirectories))
+                                {
+                                    try
+                                    {
+                                        var item = _libraryManager.FindByPath(strmFile, false);
+                                        if (item != null)
+                                        {
+                                            _libraryManager.DeleteItem(item, new DeleteOptions { DeleteFileLocation = true }, true);
+                                        }
+                                    }
+                                    catch { }
+                                }
+                            }
+
+                            if (Directory.Exists(dir))
+                            {
+                                Directory.Delete(dir, true);
+                            }
+                            count++;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, $"Failed to delete directory: {dir}");
+                        }
+                    }
+                }
+            }
+
+            if (count > 0 && _libraryManager != null)
             {
                 // Trigger a library scan to remove phantom items from the UI
                 _ = Task.Run(async () =>
                 {
                     await Task.Delay(1000);
-                    await _libraryManager.ValidateMediaLibrary(new Progress<double>(), System.Threading.CancellationToken.None);
+                    try { await _libraryManager.ValidateMediaLibrary(new Progress<double>(), System.Threading.CancellationToken.None); } catch { }
                 });
             }
-            return Ok(new { Message = $"Purged {count} movie folders containing .strm files." });
+
+            return Ok(new { Message = $"Purged {count} movie items/folders containing .strm files." });
         }
         catch (Exception ex)
         {
@@ -2569,12 +2746,34 @@ public class DownloadersController : ControllerBase
             _ = Task.Run(async () => {
                 try { await _libraryManager.ValidateMediaLibrary(new Progress<double>(), System.Threading.CancellationToken.None); } catch { }
             });
+
+            double finalSize = progress.SizeGb;
+            if (finalSize <= 0 && System.IO.File.Exists(targetPath))
+            {
+                try { finalSize = Math.Round((double)new FileInfo(targetPath).Length / (1024.0 * 1024.0 * 1024.0), 2); progress.SizeGb = finalSize; } catch { }
+            }
+            _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = finalSize, Provider = "DirectLink", Status = "Completed" });
+            _ = Task.Delay(15000).ContinueWith(t => _activeDownloads.TryRemove(progress.ItemId, out var ignored));
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Direct download cancelled for {ItemId}", progress.ItemId);
+            progress.Status = "Stopped";
+            progress.Completed = true;
+            _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = progress.SizeGb, Provider = "DirectLink", Status = "Stopped" });
+            if (!string.IsNullOrEmpty(progress.TargetPath) && System.IO.File.Exists(progress.TargetPath))
+            {
+                try { System.IO.File.Delete(progress.TargetPath); } catch { }
+            }
+            _activeDownloads.TryRemove(progress.ItemId, out _);
         }
         catch (Exception ex)
         {
             progress.Status = "Failed";
             progress.Error = ex.Message;
             progress.Completed = true;
+            _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = progress.SizeGb, Provider = "DirectLink", Status = "Failed", ErrorMessage = ex.Message });
+            _activeDownloads.TryRemove(progress.ItemId, out _);
         }
     }
 

@@ -506,6 +506,31 @@ export default function(view, params) {
             btnRefreshBlocklist.addEventListener('click', loadBlocklist);
         }
 
+        const formAddBlocklist = view.querySelector('#formAddBlocklist');
+        if (formAddBlocklist) {
+            formAddBlocklist.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const input = view.querySelector('#txtBlocklistTitle');
+                const title = input ? input.value.trim() : '';
+                if (!title) return;
+
+                fetch('/System/Configuration/Downloaders/Blocklist', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"'
+                    },
+                    body: JSON.stringify({ Title: title })
+                }).then(r => r.json()).then(res => {
+                    if (input) input.value = '';
+                    loadBlocklist();
+                    showCleanupBanner(res.Message || 'Added to blocklist.', false);
+                }).catch(err => {
+                    showCleanupBanner('Failed to add to blocklist.', true);
+                });
+            });
+        }
+
         const btnClearHistory = view.querySelector('#btnClearHistory');
         if (btnClearHistory) {
             btnClearHistory.addEventListener('click', function(e) {
