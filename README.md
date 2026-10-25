@@ -5,7 +5,7 @@
   
   **Automated media scraping, cloud downloading, and library injection for Jellyfin.**
   
-  [![Version](https://img.shields.io/badge/version-1.3.8.7-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
+  [![Version](https://img.shields.io/badge/version-1.3.8.8-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
   [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9.x--12.x-orange)](https://jellyfin.org)
   [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey)](https://github.com/Mohdsuhailpgdi/JellyFetch)
 </div>
@@ -17,12 +17,23 @@ This plugin is specifically optimized for Indian media consumers. The default sc
 
 ---
 
-## ✨ What's New in v1.3.8.7 — Strict Language Filter Regression Fix & Phase 4 Maintenance
+## ✨ What's New in v1.3.8.8 — Manual Blocklist & Metadata Verification Guard
+- **Manual Blocklist Entry Form**: Added a dedicated manual Blocklist input form to the plugin configuration UI with a corresponding `POST /Blocklist` backend endpoint, allowing direct addition of movie titles, folder aliases, or keywords without waiting for them to be scraped.
+- **Filename vs DBID Verification Guard**: When excluding a movie, physical scraped folder/filenames are verified against Jellyfin's metadata title. If they match, the legitimate DBID (`[TMDB: {tmdbId}]`) is persisted; if mismatched (Jellyfin erroneously fuzzy-matched the media), the invalid DBID is discarded and the item is excluded strictly by its scraped physical filename, protecting legitimate classics from false blocks.
+- **Atomic Database Purge via ILibraryManager**: `PurgeAllStrm` queries `ILibraryManager` directly via reflection and removes `.strm` media atomically from SQLite, preventing ghost records in the UI even when disk root folders are empty.
+- **Direct Downloads History & Lifecycle**: Added history tracking and active download cleanup to manual HTTPS downloads.
+- **Year-Specific Language Cache Isolation**: Prevented un-yeared classic movies cached by base title from poisoning newer same-titled releases in other languages.
+
+<details>
+<summary><b>📜 What's New in v1.3.8.7 — Strict Language Filter Regression Fix & Phase 4 Maintenance</b></summary>
+
 - **Strict Language Filter Enforcement**: Completely removed the subforum trust fallback introduced in `v1.3.8.5` that caused regional dubbed releases (e.g. Kannada, Telugu, Hindi) in Tamil/Malayalam dubbed subforums to bypass strict language rejection and flood the library. TMDB `original_language` is strictly preserved and enforced.
 - **Smart Cleanup Original Language Verification**: Smart Cleanup now inspects movie folder names using `DetectLanguageAsync` to detect and delete movies whose original language was unselected, rather than relying solely on magnet audio tags in `downloads.json`.
 - **Atomic Database Purge**: "Purge All Scraped Movies" now directly queries `ILibraryManager` and deletes items atomically from Jellyfin's SQLite database, ensuring immediate WebSocket UI updates even when library root folders are empty.
 - **FUSE / Cloud History Optimization**: Guarded directory lookups in Activity History to eliminate slow recursive file traversals across Google Drive (`/mnt/gdrive`), preventing API quota exhaustion and UI freezes.
 - **Dynamic FFmpeg Resolution & Web Admin Hardening**: Added dynamic FFmpeg fallback to system `PATH` and sanitized all admin table string interpolations with `escapeHtml()`.
+
+</details>
 
 <details>
 <summary><b>📜 What's New in v1.3.8.6 — Frontend Script Syntax Hotfix</b></summary>

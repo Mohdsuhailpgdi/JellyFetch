@@ -428,8 +428,7 @@ public class DownloadersController : ControllerBase
         }
 
         // Clean the scraped name to get canonical scraped title and release year (e.g. "Biishman (2022)")
-        var scraper = new JellyfinScraper(new HttpClient());
-        var (cFull, cBase, cYear) = scraper.CleanMovieTitle(scrapedFileName);
+        var (cFull, cBase, cYear) = JellyfinScraper.CleanMovieTitle(scrapedFileName);
         string scrapedEntry = !string.IsNullOrEmpty(cFull) ? cFull : scrapedFileName;
 
         string normTarget = JellyfinScraper.NormalizeKey(scrapedEntry);
@@ -635,7 +634,7 @@ public class DownloadersController : ControllerBase
         
         string decodedId = System.Net.WebUtility.UrlDecode(id);
         
-        if (blocklist.RemoveAll(b => b.Equals(decodedId, StringComparison.OrdinalIgnoreCase)) > 0)
+        if (blocklist.RemoveAll(b => b.Equals(id, StringComparison.OrdinalIgnoreCase) || b.Equals(decodedId, StringComparison.OrdinalIgnoreCase)) > 0)
         {
             config.Blocklist = blocklist.ToArray();
             Plugin.Instance.SaveConfiguration();
@@ -1700,7 +1699,7 @@ public class DownloadersController : ControllerBase
             
             // Add all other root directories that contain .strm files (for global deduplication)
             var configDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { targetDir };
-            string[] fallbackDirs = { "/media", "/media/Downloads", "/mnt/msp/Movies", "/mnt/gdrive/Jellyfin/Movies" };
+            string[] fallbackDirs = { "/media", "/media/Downloads", "/mnt/msp/Movies" };
             foreach (var fb in fallbackDirs)
             {
                 if (Directory.Exists(fb) && !configDirs.Contains(fb))
@@ -1745,6 +1744,23 @@ public class DownloadersController : ControllerBase
                         continue;
                     }
 
+                    // Check if movie is blocklisted
+                    var (dFull, dBase, dYear) = JellyfinScraper.CleanMovieTitle(dirName);
+                    string? diskTmdbId = null;
+                    var nfo = Path.Combine(dir, "movie.nfo");
+                    if (System.IO.File.Exists(nfo))
+                    {
+                        try
+                        {
+                            var nfoTxt = System.IO.File.ReadAllText(nfo);
+                            var tm = System.Text.RegularExpressions.Regex.Match(nfoTxt, @"<tmdbid>(\d+)</tmdbid>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                            if (tm.Success) diskTmdbId = tm.Groups[1].Value;
+                        }
+                        catch { }
+                    }
+                    var blocklist = Plugin.Instance?.Configuration?.Blocklist ?? Array.Empty<string>();
+                    bool isBlocklisted = JellyfinScraper.IsBlocklisted(dFull, dBase, diskTmdbId, blocklist);
+
                     // Check if this is a duplicate of a movie already in the library
                     var normKey = JellyfinScraper.NormalizeKey(dirName);
                     bool isDuplicateOfLibrary = !string.IsNullOrEmpty(normKey) && realLibrary.Keys.Contains(normKey);
@@ -1752,14 +1768,15 @@ public class DownloadersController : ControllerBase
                     // Cross-check TMDB / IMDb IDs in movie.nfo against library
                     if (!isDuplicateOfLibrary)
                     {
-                        var nfo = Path.Combine(dir, "movie.nfo");
-                        if (System.IO.File.Exists(nfo))
+                        if (!string.IsNullOrEmpty(diskTmdbId) && realLibrary.TmdbIds.Contains(diskTmdbId))
+                        {
+                            isDuplicateOfLibrary = true;
+                        }
+                        else if (System.IO.File.Exists(nfo))
                         {
                             try
                             {
                                 var nfoTxt = System.IO.File.ReadAllText(nfo);
-                                var tm = System.Text.RegularExpressions.Regex.Match(nfoTxt, @"<tmdbid>(\d+)</tmdbid>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                                if (tm.Success && realLibrary.TmdbIds.Contains(tm.Groups[1].Value)) isDuplicateOfLibrary = true;
                                 var im = System.Text.RegularExpressions.Regex.Match(nfoTxt, @"<imdbid>(tt\d+)</imdbid>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
                                 if (im.Success && realLibrary.ImdbIds.Contains(im.Groups[1].Value)) isDuplicateOfLibrary = true;
                             }
@@ -1819,7 +1836,6 @@ public class DownloadersController : ControllerBase
                     {
                         try
                         {
-                            var (dFull, dBase, dYear) = scraper.CleanMovieTitle(dirName);
                             var (detectLangs, ok, tmdbId, imdbId, origLangs) = await scraper.DetectLanguageAsync(dirName, "", allowedLangs, dBase, dYear);
                             if (!ok)
                             {
@@ -1858,7 +1874,15 @@ public class DownloadersController : ControllerBase
                         catch { }
                     }
 
-                    if (isDuplicateOfLibrary)
+                    if (isBlocklisted)
+                    {
+                        DeleteLibraryItemIfExists(dir);
+                        if (Directory.Exists(dir)) Directory.Delete(dir, true);
+                        deletedCount++;
+                        AddCleanupLog($"[Deleted Blocklisted] {dirName}");
+                        logger.LogInformation("[JellyFetch Cleanup] Deleted blocklisted movie: {Dir}", dirName);
+                    }
+                    else if (isDuplicateOfLibrary)
                     {
                         DeleteLibraryItemIfExists(dir);
                         if (Directory.Exists(dir)) Directory.Delete(dir, true);
@@ -2705,37 +2729,7 @@ public class DownloadersController : ControllerBase
             progress.TargetPath = targetPath;
             progress.MovieName = Path.GetFileNameWithoutExtension(fileName);
             
-            using var httpClient = new HttpClient();
-            using var response = await httpClient.GetAsync(fileUrl, HttpCompletionOption.ResponseHeadersRead, progress.Cts.Token);
-            response.EnsureSuccessStatusCode();
-            
-            long? totalBytes = response.Content.Headers.ContentLength;
-            if (totalBytes.HasValue)
-            {
-                progress.SizeGb = Math.Round((double)totalBytes.Value / (1024.0 * 1024.0 * 1024.0), 2);
-            }
-            
-            using var contentStream = await response.Content.ReadAsStreamAsync(progress.Cts.Token);
-            using var fileStream = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true);
-            
-            var buffer = new byte[81920];
-            long totalRead = 0;
-            int bytesRead;
-            var lastUpdate = DateTime.UtcNow;
-            
-            while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length, progress.Cts.Token)) > 0)
-            {
-                await fileStream.WriteAsync(buffer, 0, bytesRead, progress.Cts.Token);
-                totalRead += bytesRead;
-                
-                if (totalBytes.HasValue && (DateTime.UtcNow - lastUpdate).TotalSeconds > 1)
-                {
-                    double pct = (double)totalRead / totalBytes.Value * 100;
-                    progress.Progress = Math.Round(pct, 1);
-                    progress.Status = $"Downloading direct link ({progress.Progress}%)...";
-                    lastUpdate = DateTime.UtcNow;
-                }
-            }
+            await StreamWithProgressAsync(fileUrl, targetPath, progress, progress.Cts.Token);
             
             progress.Progress = 100;
             progress.Status = "Completed";
@@ -2761,9 +2755,17 @@ public class DownloadersController : ControllerBase
             progress.Status = "Stopped";
             progress.Completed = true;
             _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = progress.SizeGb, Provider = "DirectLink", Status = "Stopped" });
-            if (!string.IsNullOrEmpty(progress.TargetPath) && System.IO.File.Exists(progress.TargetPath))
+            if (!string.IsNullOrEmpty(progress.TargetPath))
             {
-                try { System.IO.File.Delete(progress.TargetPath); } catch { }
+                if (System.IO.File.Exists(progress.TargetPath))
+                {
+                    try { System.IO.File.Delete(progress.TargetPath); } catch { }
+                }
+                var partPath = progress.TargetPath + ".part";
+                if (System.IO.File.Exists(partPath))
+                {
+                    try { System.IO.File.Delete(partPath); } catch { }
+                }
             }
             _activeDownloads.TryRemove(progress.ItemId, out _);
         }
@@ -2773,6 +2775,14 @@ public class DownloadersController : ControllerBase
             progress.Error = ex.Message;
             progress.Completed = true;
             _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = progress.SizeGb, Provider = "DirectLink", Status = "Failed", ErrorMessage = ex.Message });
+            if (!string.IsNullOrEmpty(progress.TargetPath))
+            {
+                var partPath = progress.TargetPath + ".part";
+                if (System.IO.File.Exists(partPath))
+                {
+                    try { System.IO.File.Delete(partPath); } catch { }
+                }
+            }
             _activeDownloads.TryRemove(progress.ItemId, out _);
         }
     }

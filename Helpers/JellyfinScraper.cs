@@ -369,7 +369,22 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             return (allowedFound, allowedFound.Count > 0, tmdbId, imdbId, foundOrig.ToList());
         }
 
-        public (string Full, string Base, string Year) CleanMovieTitle(string rawTitle)
+        public static bool IsBlocklisted(string fullTitle, string baseTitle, string? tmdbId, string[]? blocklist)
+        {
+            if (blocklist == null || blocklist.Length == 0) return false;
+            string normFull = NormalizeKey(fullTitle);
+            string normBase = NormalizeKey(baseTitle);
+            return blocklist.Any(b => {
+                if (!string.IsNullOrEmpty(tmdbId) && string.Equals(b, tmdbId, StringComparison.OrdinalIgnoreCase)) return true;
+                var tmdbM = Regex.Match(b, @"\[TMDB:\s*(\d+)\]", RegexOptions.IgnoreCase);
+                if (tmdbM.Success && !string.IsNullOrEmpty(tmdbId) && string.Equals(tmdbM.Groups[1].Value, tmdbId, StringComparison.OrdinalIgnoreCase)) return true;
+                string bTitle = tmdbM.Success ? b.Substring(0, tmdbM.Index).Trim() : b;
+                string normB = NormalizeKey(bTitle);
+                return normB == normFull || normB == normBase;
+            });
+        }
+
+        public static (string Full, string Base, string Year) CleanMovieTitle(string rawTitle)
         {
             string clean = System.Net.WebUtility.HtmlDecode(rawTitle).Trim();
             clean = clean.Replace('\u00a0', ' ');
@@ -638,10 +653,24 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                 var dName = Path.GetFileName(dir);
                 if (Directory.GetFiles(dir, "*.strm", SearchOption.AllDirectories).Any())
                 {
-                    // Check if this movie matches any of the active languages
+                    // Check if this movie matches any of the active languages or is in the blocklist
                     var (dFull, dBase, dYear) = CleanMovieTitle(dName);
+                    var blocklist = Plugin.Instance?.Configuration?.Blocklist ?? Array.Empty<string>();
+                    string? diskTmdbId = null;
+                    var nfoPath = Path.Combine(dir, "movie.nfo");
+                    if (File.Exists(nfoPath))
+                    {
+                        try
+                        {
+                            var nfoTxt = File.ReadAllText(nfoPath);
+                            var tm = Regex.Match(nfoTxt, @"<tmdbid>(\d+)</tmdbid>", RegexOptions.IgnoreCase);
+                            if (tm.Success) diskTmdbId = tm.Groups[1].Value;
+                        }
+                        catch { }
+                    }
+                    bool isBlocked = IsBlocklisted(dFull, dBase, diskTmdbId, blocklist);
                     var (langs, ok, _, _, _) = await DetectLanguageAsync(dName, "", allowedLangs, dBase, dYear);
-                    if (!ok)
+                    if (!ok || isBlocked)
                     {
                         try
                         {
@@ -762,16 +791,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                     if (!ok) return;
 
                     var blocklist = Plugin.Instance?.Configuration?.Blocklist ?? Array.Empty<string>();
-                    string normFull = NormalizeKey(full);
-                    string normBase = NormalizeKey(baseN);
-                    if (blocklist.Any(b => {
-                        if (!string.IsNullOrEmpty(tmdbId) && string.Equals(b, tmdbId, StringComparison.OrdinalIgnoreCase)) return true;
-                        var tmdbM = Regex.Match(b, @"\[TMDB:\s*(\d+)\]", RegexOptions.IgnoreCase);
-                        if (tmdbM.Success && !string.IsNullOrEmpty(tmdbId) && string.Equals(tmdbM.Groups[1].Value, tmdbId, StringComparison.OrdinalIgnoreCase)) return true;
-                        string bTitle = tmdbM.Success ? b.Substring(0, tmdbM.Index).Trim() : b;
-                        string normB = NormalizeKey(bTitle);
-                        return normB == normFull || normB == normBase;
-                    }))
+                    if (IsBlocklisted(full, baseN, tmdbId, blocklist))
                     {
                         return;
                     }
@@ -869,9 +889,12 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                         // If already downloaded (.mkv/.mp4/.avi), keep existing files
                         if (Directory.Exists(mDir) && Directory.GetFiles(mDir).Any(f => f.EndsWith(".mkv") || f.EndsWith(".mp4") || f.EndsWith(".avi")))
                         {
-                            realLibrary.Keys.Add(normKey);
-                            if (!string.IsNullOrEmpty(tmdbId)) realLibrary.TmdbIds.Add(tmdbId);
-                            if (!string.IsNullOrEmpty(imdbId)) realLibrary.ImdbIds.Add(imdbId);
+                            lock (realLibrary)
+                            {
+                                realLibrary.Keys.Add(normKey);
+                                if (!string.IsNullOrEmpty(tmdbId)) realLibrary.TmdbIds.Add(tmdbId);
+                                if (!string.IsNullOrEmpty(imdbId)) realLibrary.ImdbIds.Add(imdbId);
+                            }
                             return;
                         }
 
