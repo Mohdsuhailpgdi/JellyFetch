@@ -1,6 +1,6 @@
 {
     "category": "General",
-    "changelog": "v1.3.8.8: Added manual Blocklist entry form in Web UI and backend POST /Blocklist endpoint with aligned styling. Implemented filename vs DBID verification guard on Exclude & Remove to preserve legitimate DBIDs while protecting against erroneous metadata auto-identifications. Implemented GetAllMovieItems direct SQLite deletion in PurgeAllStrm, added history tracking and lifecycle cleanup to direct downloads, isolated year-specific language cache lookups, and qualified System.IO.File calls.",
+    "changelog": "v1.3.8.9: Excluded remote cloud mounts (/mnt/gdrive) from Smart Cleanup fallback directories to prevent FUSE quota exhaustion and accidental deletion of permanent library media. Integrated blocklist verification into Smart Cleanup and Scraper startup sweeps to ensure blocklisted releases are purged. Added thread synchronization to RealLibraryMedia updates in the parallel scraper to prevent race conditions. Upgraded direct downloads to use resumable, pausable .part streaming pipeline. Fixed double URL-decoding on blocklist deletion and made CleanMovieTitle static.",
     "description": "Native Downloads ecosystem for Jellyfin. Scrapes external forums for new media and integrates with Seedr and Torbox for downloading.",
     "guid": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
     "imageUrl": "",
@@ -8,8 +8,8 @@
     "overview": "External media scraper and download manager. Integrates Seedr and Torbox.",
     "owner": "LAB Hermes",
     "targetAbi": "12.2.0.0",
-    "timestamp": "2026-10-24T00:30:00Z",
-    "version": "1.3.8.8",
+    "timestamp": "2026-10-25T15:30:00Z",
+    "version": "1.3.8.9",
     "status": "Active",
     "autoUpdate": false
 }
