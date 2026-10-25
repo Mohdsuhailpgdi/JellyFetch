@@ -12,7 +12,7 @@
         "version": "1.3.8.9",
         "changelog": "v1.3.8.9: Excluded remote cloud mounts (/mnt/gdrive) from Smart Cleanup fallback directories to prevent FUSE quota exhaustion and accidental deletion of permanent library media. Integrated blocklist verification into Smart Cleanup and Scraper startup sweeps to ensure blocklisted releases are purged. Added thread synchronization to RealLibraryMedia updates in the parallel scraper to prevent race conditions. Upgraded direct downloads to use resumable, pausable .part streaming pipeline. Fixed double URL-decoding on blocklist deletion and made CleanMovieTitle static.",
         "targetAbi": "12.2.0.0",
-        "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/dev/Jellyfin.Plugin.JellyFetch.zip",
+        "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
         "checksum": "CE484C87D6170CED2FCBC94BF140AF7F",
         "timestamp": "2026-10-25T15:30:00Z"
       },

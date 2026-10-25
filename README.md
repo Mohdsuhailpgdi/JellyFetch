@@ -5,7 +5,7 @@
   
   **Automated media scraping, cloud downloading, and library injection for Jellyfin.**
   
-  [![Version](https://img.shields.io/badge/version-1.3.8.8-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
+  [![Version](https://img.shields.io/badge/version-1.3.8.9-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
   [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9.x--12.x-orange)](https://jellyfin.org)
   [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey)](https://github.com/Mohdsuhailpgdi/JellyFetch)
 </div>
@@ -17,12 +17,24 @@ This plugin is specifically optimized for Indian media consumers. The default sc
 
 ---
 
-## ✨ What's New in v1.3.8.8 — Manual Blocklist & Metadata Verification Guard
+## ✨ What's New in v1.3.8.9 — Cloud Mount Safety Guard, Blocklist Cleanup Sync & Scraper Concurrency Hardening
+- **Cloud Mount Protection**: Completely excluded remote rclone FUSE mounts (`/mnt/gdrive`) from Smart Cleanup fallback directories, preventing cloud API quota exhaustion and protecting permanent library media from accidental deletion.
+- **Blocklist Synchronization in Cleanup & Sweeps**: Integrated blocklist verification into both Smart Cleanup and Scraper startup sweeps, ensuring titles or keywords manually added to `config.Blocklist` are automatically purged from SQLite and disk.
+- **Scraper Concurrency Hardening**: Added thread synchronization (`lock (realLibrary)`) around `RealLibraryMedia` updates inside parallel scraper tasks, preventing race conditions and hash table corruption.
+- **Resumable Direct Downloads Pipeline**: Upgraded manual HTTPS downloads to use the unified `StreamWithProgressAsync` pipeline with `.part` file buffering, pause/resume responsiveness, transfer speed calculation, and automatic cleanup of partial files on abort/failure.
+- **Route Model Double-Decoding Fix**: Fixed double URL decoding in `RemoveFromBlocklist` to reliably remove titles containing `+` characters.
+- **Static CleanMovieTitle**: Made `CleanMovieTitle` static, eliminating socket allocations and GC pressure.
+
+<details>
+<summary><b>📜 What's New in v1.3.8.8 — Manual Blocklist & Metadata Verification Guard</b></summary>
+
 - **Manual Blocklist Entry Form**: Added a dedicated manual Blocklist input form to the plugin configuration UI with a corresponding `POST /Blocklist` backend endpoint, allowing direct addition of movie titles, folder aliases, or keywords without waiting for them to be scraped.
 - **Filename vs DBID Verification Guard**: When excluding a movie, physical scraped folder/filenames are verified against Jellyfin's metadata title. If they match, the legitimate DBID (`[TMDB: {tmdbId}]`) is persisted; if mismatched (Jellyfin erroneously fuzzy-matched the media), the invalid DBID is discarded and the item is excluded strictly by its scraped physical filename, protecting legitimate classics from false blocks.
 - **Atomic Database Purge via ILibraryManager**: `PurgeAllStrm` queries `ILibraryManager` directly via reflection and removes `.strm` media atomically from SQLite, preventing ghost records in the UI even when disk root folders are empty.
 - **Direct Downloads History & Lifecycle**: Added history tracking and active download cleanup to manual HTTPS downloads.
 - **Year-Specific Language Cache Isolation**: Prevented un-yeared classic movies cached by base title from poisoning newer same-titled releases in other languages.
+
+</details>
 
 <details>
 <summary><b>📜 What's New in v1.3.8.7 — Strict Language Filter Regression Fix & Phase 4 Maintenance</b></summary>
