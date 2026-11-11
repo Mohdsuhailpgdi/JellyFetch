@@ -1250,6 +1250,7 @@ public class DownloadersController : ControllerBase
                         progress.Error = res.Error ?? "Unknown Seedr error.";
                         double finalSize = progress.SizeGb > 0 ? progress.SizeGb : magnetSize;
                         _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = finalSize, Provider = "Seedr", Status = "Failed", ErrorMessage = progress.Error });
+                        _activeDownloads.TryRemove(normalizedId, out _);
                     }
                 }
                 catch (OperationCanceledException)
@@ -1263,6 +1264,7 @@ public class DownloadersController : ControllerBase
                     {
                         try { System.IO.File.Delete(partFile); } catch { }
                     }
+                    _activeDownloads.TryRemove(normalizedId, out _);
                 }
                 catch (Exception ex)
                 {
@@ -1271,6 +1273,7 @@ public class DownloadersController : ControllerBase
                     progress.Error = ex.Message;
                     double finalSize = progress.SizeGb > 0 ? progress.SizeGb : magnetSize;
                     _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = finalSize, Provider = "Seedr", Status = "Failed", ErrorMessage = ex.Message });
+                    _activeDownloads.TryRemove(normalizedId, out _);
                 }
     }
 
@@ -1397,6 +1400,7 @@ public class DownloadersController : ControllerBase
                         progress.Error = res.Error ?? "Torbox download failed.";
                         double finalSize = progress.SizeGb > 0 ? progress.SizeGb : magnetSize;
                         _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = finalSize, Provider = "Torbox", Status = "Failed", ErrorMessage = progress.Error });
+                        _activeDownloads.TryRemove(normalizedId, out _);
                     }
                 }
                 catch (OperationCanceledException)
@@ -1410,6 +1414,7 @@ public class DownloadersController : ControllerBase
                     {
                         try { System.IO.File.Delete(partFile); } catch { }
                     }
+                    _activeDownloads.TryRemove(normalizedId, out _);
                 }
                 catch (Exception ex)
                 {
@@ -1418,6 +1423,7 @@ public class DownloadersController : ControllerBase
                     progress.Error = ex.Message;
                     double finalSize = progress.SizeGb > 0 ? progress.SizeGb : magnetSize;
                     _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = finalSize, Provider = "Torbox", Status = "Failed", ErrorMessage = ex.Message });
+                    _activeDownloads.TryRemove(normalizedId, out _);
                 }
     }
 
@@ -2516,6 +2522,14 @@ public class DownloadersController : ControllerBase
                 
                 using var response = await streamClient.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, connCts.Token);
                 response.EnsureSuccessStatusCode();
+
+                // If remote server returns 200 OK instead of 206 Partial Content, Range is unsupported
+                // Reset totalRead to 0 to avoid appending duplicate data and corrupting the media container
+                if (totalRead > 0 && response.StatusCode == System.Net.HttpStatusCode.OK)
+                {
+                    totalRead = 0;
+                    lastBytes = 0;
+                }
 
                 if (totalBytes == -1L)
                 {

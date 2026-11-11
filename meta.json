@@ -1,6 +1,6 @@
 {
     "category": "General",
-    "changelog": "v1.3.8.9: Excluded remote cloud mounts (/mnt/gdrive) from Smart Cleanup fallback directories to prevent FUSE quota exhaustion and accidental deletion of permanent library media. Integrated blocklist verification into Smart Cleanup and Scraper startup sweeps to ensure blocklisted releases are purged. Added thread synchronization to RealLibraryMedia updates in the parallel scraper to prevent race conditions. Upgraded direct downloads to use resumable, pausable .part streaming pipeline. Fixed double URL-decoding on blocklist deletion and made CleanMovieTitle static.",
+    "changelog": "v1.3.8.10: Range resume corruption guard in StreamWithProgressAsync to reset stream if server returns 200 OK, active download memory leak cleanup on torrent failure/cancellation, and null-dereference protection in DownloadHistoryManager.",
     "description": "Native Downloads ecosystem for Jellyfin. Scrapes external forums for new media and integrates with Seedr and Torbox for downloading.",
     "guid": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
     "imageUrl": "",
@@ -8,8 +8,8 @@
     "overview": "External media scraper and download manager. Integrates Seedr and Torbox.",
     "owner": "LAB Hermes",
     "targetAbi": "12.2.0.0",
-    "timestamp": "2026-10-25T15:30:00Z",
-    "version": "1.3.8.9",
+    "timestamp": "2026-11-11T22:20:00Z",
+    "version": "1.3.8.10",
     "status": "Active",
     "autoUpdate": false
 }

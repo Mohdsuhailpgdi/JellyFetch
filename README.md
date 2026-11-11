@@ -5,7 +5,7 @@
   
   **Automated media scraping, cloud downloading, and library injection for Jellyfin.**
   
-  [![Version](https://img.shields.io/badge/version-1.3.8.9-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
+  [![Version](https://img.shields.io/badge/version-1.3.8.10-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
   [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9.x--12.x-orange)](https://jellyfin.org)
   [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey)](https://github.com/Mohdsuhailpgdi/JellyFetch)
 </div>
@@ -17,13 +17,22 @@ This plugin is specifically optimized for Indian media consumers. The default sc
 
 ---
 
-## ✨ What's New in v1.3.8.9 — Cloud Mount Safety Guard, Blocklist Cleanup Sync & Scraper Concurrency Hardening
+## ✨ What's New in v1.3.8.10 — Range Resume Guard, Torrent Download Cleanup & History Null-Safety
+- **Range Resume Corruption Guard**: In `StreamWithProgressAsync`, if a remote streaming or download server returns `200 OK` (indicating range requests are unsupported) when `totalRead > 0`, `totalRead` and `lastBytes` are reset to 0 to prevent duplicating already-written bytes at the start of the media file and corrupting the video container.
+- **Active Download Cleanup on Torrent Failure & Cancellation**: In `ProcessSeedrDownload` and `ProcessTorboxDownload`, added `_activeDownloads.TryRemove(normalizedId, out _)` in error and cancellation blocks, preventing items from remaining permanently stuck in the active downloads map and leaking memory.
+- **DownloadHistoryManager Null Safety**: Protected `DownloadHistoryManager.HistoryPath` against null dereferences when `Plugin.Instance` is not yet initialized, and ensured the directory structure exists before writing history.
+
+<details>
+<summary><b>📜 What's New in v1.3.8.9 — Cloud Mount Safety Guard, Blocklist Cleanup Sync & Scraper Concurrency Hardening</b></summary>
+
 - **Cloud Mount Protection**: Completely excluded remote rclone FUSE mounts (`/mnt/gdrive`) from Smart Cleanup fallback directories, preventing cloud API quota exhaustion and protecting permanent library media from accidental deletion.
 - **Blocklist Synchronization in Cleanup & Sweeps**: Integrated blocklist verification into both Smart Cleanup and Scraper startup sweeps, ensuring titles or keywords manually added to `config.Blocklist` are automatically purged from SQLite and disk.
 - **Scraper Concurrency Hardening**: Added thread synchronization (`lock (realLibrary)`) around `RealLibraryMedia` updates inside parallel scraper tasks, preventing race conditions and hash table corruption.
 - **Resumable Direct Downloads Pipeline**: Upgraded manual HTTPS downloads to use the unified `StreamWithProgressAsync` pipeline with `.part` file buffering, pause/resume responsiveness, transfer speed calculation, and automatic cleanup of partial files on abort/failure.
 - **Route Model Double-Decoding Fix**: Fixed double URL decoding in `RemoveFromBlocklist` to reliably remove titles containing `+` characters.
 - **Static CleanMovieTitle**: Made `CleanMovieTitle` static, eliminating socket allocations and GC pressure.
+
+</details>
 
 <details>
 <summary><b>📜 What's New in v1.3.8.8 — Manual Blocklist & Metadata Verification Guard</b></summary>
