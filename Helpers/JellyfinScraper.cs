@@ -433,6 +433,58 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             return clean;
         }
 
+        public static bool IsCamTopic(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return false;
+            string t = text.ToLowerInvariant();
+            return t.Contains("hdts") || 
+                   t.Contains("hdcam") || 
+                   t.Contains("hdtc") ||
+                   t.Contains("predvd") || 
+                   t.Contains("telesync") || 
+                   t.Contains("tele-sync") || 
+                   t.Contains("camrip") || 
+                   t.Contains("cam-rip") || 
+                   t.Contains("dvdscr") || 
+                   t.Contains("dvd-scr") || 
+                   t.Contains("screener") ||
+                   Regex.IsMatch(t, @"\b(theat(er|re)[- ]?rip)\b") ||
+                   Regex.IsMatch(t, @"\b(cinema|theat(er|re))[- ]?print\b") ||
+                   Regex.IsMatch(t, @"\b(hq[- ]?)?hd[- ]?ts\b") ||
+                   Regex.IsMatch(t, @"\b(hq[- ]?)?hd[- ]?cam\b") ||
+                   Regex.IsMatch(t, @"\b(hq[- ]?)?hd[- ]?tc\b") ||
+                   Regex.IsMatch(t, @"\b(hq[- ]?)?pre[- ]?dvd\b");
+        }
+
+        public static bool IsCamPrint(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return false;
+            string d = text.ToLowerInvariant();
+
+            return d.Contains("hdcam") ||
+                   d.Contains("hdts") ||
+                   d.Contains("hdtc") ||
+                   d.Contains("predvd") ||
+                   d.Contains("hq predvd") ||
+                   d.Contains("telesync") ||
+                   d.Contains("tele-sync") ||
+                   d.Contains("camrip") ||
+                   d.Contains("cam-rip") ||
+                   d.Contains("dvdscr") ||
+                   d.Contains("dvd-scr") ||
+                   d.Contains("screener") ||
+                   Regex.IsMatch(d, @"\b(hq[- ]?)?hd[- ]?ts\b") ||
+                   Regex.IsMatch(d, @"\b(hq[- ]?)?hd[- ]?cam\b") ||
+                   Regex.IsMatch(d, @"\b(hq[- ]?)?hd[- ]?tc\b") ||
+                   Regex.IsMatch(d, @"\b(hq[- ]?)?pre[- ]?dvd\b") ||
+                   Regex.IsMatch(d, @"\b(hq[- ]?)?cam\b") ||
+                   Regex.IsMatch(d, @"\btc\b") ||
+                   Regex.IsMatch(d, @"(?<!\.)\bts\b") ||
+                   Regex.IsMatch(d, @"\bscr\b") ||
+                   Regex.IsMatch(d, @"\btheat(er|re)[- ]?rip\b") ||
+                   Regex.IsMatch(d, @"\b(cinema|theat(er|re))[- ]?print\b");
+        }
+
         public RealLibraryMedia LoadRealLibraryMedia(string downDir, Action<string, double> logger = null)
         {
             var result = new RealLibraryMedia();
@@ -551,6 +603,12 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
             var titleMatch = Regex.Match(html, @"<title>(.*?)</title>", RegexOptions.IgnoreCase);
             string title = titleMatch.Success ? titleMatch.Groups[1].Value : "";
 
+            // Early topic-level abortion: if the forum topic title or URL indicates a theater/cam/telesync print, skip immediately
+            if (IsCamTopic(title) || IsCamTopic(url))
+            {
+                return (null, null, new List<ScrapedMagnetOption>());
+            }
+
             string poster = null;
             var posterMatch = Regex.Match(html, @"<meta\s+property=[""']og:image[""']\s+content=[""']([^""']+)[""']", RegexOptions.IgnoreCase);
             if (posterMatch.Success)
@@ -601,15 +659,8 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
 
             if (!filtered.Any()) filtered = parsedMagnets;
 
-            // Filter out CAM/HDCAM/PreDVD prints at magnet level.
+            // Filter out CAM/HDCAM/HDTS/PreDVD prints at magnet level using IsCamPrint.
             // If ALL remaining magnets are low quality, return empty so the whole topic is skipped.
-            bool IsCamPrint(string dn)
-            {
-                string d = dn.ToLowerInvariant();
-                return d.Contains("hdcam") || d.Contains("predvd") || d.Contains("hq predvd") ||
-                       Regex.IsMatch(d, @"\bcam\b") || Regex.IsMatch(d, @"\btc\b");
-            }
-
             var goodMagnets = filtered.Where(m => !IsCamPrint(m.dn)).ToList();
             if (goodMagnets.Count == 0)
             {
@@ -670,7 +721,25 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                     }
                     bool isBlocked = IsBlocklisted(dFull, dBase, diskTmdbId, blocklist);
                     var (langs, ok, _, _, _) = await DetectLanguageAsync(dName, "", allowedLangs, dBase, dYear);
-                    if (!ok || isBlocked)
+
+                    // Auto-purge existing CAM/HDTS/theater prints
+                    bool isCam = false;
+                    var jsonPath = Path.Combine(dir, "downloads.json");
+                    if (File.Exists(jsonPath))
+                    {
+                        try
+                        {
+                            var jContent = File.ReadAllText(jsonPath);
+                            var scrapedOpts = JsonSerializer.Deserialize<List<ScrapedMagnetOption>>(jContent);
+                            if (scrapedOpts != null && scrapedOpts.Count > 0 && scrapedOpts.All(opt => IsCamPrint(opt.dn)))
+                            {
+                                isCam = true;
+                            }
+                        }
+                        catch { }
+                    }
+
+                    if (!ok || isBlocked || isCam)
                     {
                         try
                         {

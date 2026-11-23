@@ -333,13 +333,15 @@ public class DownloadersController : ControllerBase
                 {
                     if (opt.TryGetProperty("dn", out var nameProp) && opt.TryGetProperty("xl_gb", out var sizeProp))
                     {
-                        var dn = nameProp.GetString()?.ToLowerInvariant() ?? "";
+                        var dn = nameProp.GetString() ?? "";
+                        if (JellyfinScraper.IsCamPrint(dn)) continue;
+
                         if (sizeProp.TryGetDouble(out var sizeGb))
                         {
                             if (sizeGb <= 4.0 && !config.EnableSeedr && !config.EnableTorbox) continue;
                             if (sizeGb > 4.0 && !config.EnableTorbox) continue;
                             
-                            if (dn.Contains("480p") || dn.Contains("360p")) { } // Allow lower resolutions so button appears
+                            if (dn.Contains("480p", StringComparison.OrdinalIgnoreCase) || dn.Contains("360p", StringComparison.OrdinalIgnoreCase)) { } // Allow lower resolutions so button appears
                         }
                     }
                     filteredOptions.Add(opt);
@@ -367,7 +369,9 @@ public class DownloadersController : ControllerBase
                 }
                 else if (filteredOptions.Count == 0 && options.Count > 0)
                 {
-                    description = "No download options match the current provider filters.";
+                    description = options.All(o => o.TryGetProperty("dn", out var dnProp) && JellyfinScraper.IsCamPrint(dnProp.GetString()))
+                        ? "All available releases for this movie are theater/CAM/HDTS prints and have been filtered out."
+                        : "No download options match the current provider filters.";
                 }
             }
             catch (Exception ex)
@@ -1250,6 +1254,7 @@ public class DownloadersController : ControllerBase
                         progress.Error = res.Error ?? "Unknown Seedr error.";
                         double finalSize = progress.SizeGb > 0 ? progress.SizeGb : magnetSize;
                         _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = finalSize, Provider = "Seedr", Status = "Failed", ErrorMessage = progress.Error });
+                        _activeDownloads.TryRemove(normalizedId, out _);
                     }
                 }
                 catch (OperationCanceledException)
@@ -1263,6 +1268,7 @@ public class DownloadersController : ControllerBase
                     {
                         try { System.IO.File.Delete(partFile); } catch { }
                     }
+                    _activeDownloads.TryRemove(normalizedId, out _);
                 }
                 catch (Exception ex)
                 {
@@ -1271,6 +1277,7 @@ public class DownloadersController : ControllerBase
                     progress.Error = ex.Message;
                     double finalSize = progress.SizeGb > 0 ? progress.SizeGb : magnetSize;
                     _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = finalSize, Provider = "Seedr", Status = "Failed", ErrorMessage = ex.Message });
+                    _activeDownloads.TryRemove(normalizedId, out _);
                 }
     }
 
@@ -1397,6 +1404,7 @@ public class DownloadersController : ControllerBase
                         progress.Error = res.Error ?? "Torbox download failed.";
                         double finalSize = progress.SizeGb > 0 ? progress.SizeGb : magnetSize;
                         _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = finalSize, Provider = "Torbox", Status = "Failed", ErrorMessage = progress.Error });
+                        _activeDownloads.TryRemove(normalizedId, out _);
                     }
                 }
                 catch (OperationCanceledException)
@@ -1410,6 +1418,7 @@ public class DownloadersController : ControllerBase
                     {
                         try { System.IO.File.Delete(partFile); } catch { }
                     }
+                    _activeDownloads.TryRemove(normalizedId, out _);
                 }
                 catch (Exception ex)
                 {
@@ -1418,6 +1427,7 @@ public class DownloadersController : ControllerBase
                     progress.Error = ex.Message;
                     double finalSize = progress.SizeGb > 0 ? progress.SizeGb : magnetSize;
                     _ = DownloadHistoryManager.AddEntryAsync(new DownloadHistoryEntry { MovieName = progress.MovieName, SizeGb = finalSize, Provider = "Torbox", Status = "Failed", ErrorMessage = ex.Message });
+                    _activeDownloads.TryRemove(normalizedId, out _);
                 }
     }
 
@@ -1799,30 +1809,39 @@ public class DownloadersController : ControllerBase
 
                     // Check language filter against downloads.json
                     bool isDeselectedLanguage = false;
+                    bool isCamPrint = false;
                     string jsonPath = Path.Combine(dir, "downloads.json");
                     List<string> movieLangs = new();
-                    if (System.IO.File.Exists(jsonPath) && languagesConfigured)
+                    if (System.IO.File.Exists(jsonPath))
                     {
                         try
                         {
                             var jContent = System.IO.File.ReadAllText(jsonPath);
                             var options = JsonSerializer.Deserialize<List<ScrapedMagnetOption>>(jContent);
-                            if (options != null)
+                            if (options != null && options.Count > 0)
                             {
-                                foreach (var opt in options)
+                                if (options.All(opt => JellyfinScraper.IsCamPrint(opt.dn)))
                                 {
-                                    if (opt.languages != null) movieLangs.AddRange(opt.languages);
+                                    isCamPrint = true;
                                 }
-                                if (movieLangs.Count > 0)
+
+                                if (languagesConfigured)
                                 {
-                                    if (!movieLangs.Any(l => allowedLangs.Contains(l)))
+                                    foreach (var opt in options)
+                                    {
+                                        if (opt.languages != null) movieLangs.AddRange(opt.languages);
+                                    }
+                                    if (movieLangs.Count > 0)
+                                    {
+                                        if (!movieLangs.Any(l => allowedLangs.Contains(l)))
+                                        {
+                                            isDeselectedLanguage = true;
+                                        }
+                                    }
+                                    else if (allowedLangs.Count == 0)
                                     {
                                         isDeselectedLanguage = true;
                                     }
-                                }
-                                else if (allowedLangs.Count == 0)
-                                {
-                                    isDeselectedLanguage = true;
                                 }
                             }
                         }
@@ -1881,6 +1900,14 @@ public class DownloadersController : ControllerBase
                         deletedCount++;
                         AddCleanupLog($"[Deleted Blocklisted] {dirName}");
                         logger.LogInformation("[JellyFetch Cleanup] Deleted blocklisted movie: {Dir}", dirName);
+                    }
+                    else if (isCamPrint)
+                    {
+                        DeleteLibraryItemIfExists(dir);
+                        if (Directory.Exists(dir)) Directory.Delete(dir, true);
+                        deletedCount++;
+                        AddCleanupLog($"[Deleted Theater Print] {dirName} (HDTS/CAM quality)");
+                        logger.LogInformation("[JellyFetch Cleanup] Deleted CAM/HDTS movie: {Dir}", dirName);
                     }
                     else if (isDuplicateOfLibrary)
                     {
@@ -2516,6 +2543,14 @@ public class DownloadersController : ControllerBase
                 
                 using var response = await streamClient.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, connCts.Token);
                 response.EnsureSuccessStatusCode();
+
+                // If remote server returns 200 OK instead of 206 Partial Content, Range is unsupported
+                // Reset totalRead to 0 to avoid appending duplicate data and corrupting the media container
+                if (totalRead > 0 && response.StatusCode == System.Net.HttpStatusCode.OK)
+                {
+                    totalRead = 0;
+                    lastBytes = 0;
+                }
 
                 if (totalBytes == -1L)
                 {

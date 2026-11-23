@@ -20,11 +20,14 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
 
     public static class DownloadHistoryManager
     {
-        private static string HistoryPath => System.IO.Path.Combine(Plugin.Instance.DataFolderPath, "history.json");
+        private static string HistoryPath => Plugin.Instance != null 
+            ? System.IO.Path.Combine(Plugin.Instance.DataFolderPath, "history.json") 
+            : string.Empty;
         private static readonly SemaphoreSlim _lock = new(1, 1);
 
         public static async Task AddEntryAsync(DownloadHistoryEntry entry)
         {
+            if (string.IsNullOrEmpty(HistoryPath)) return;
             await _lock.WaitAsync();
             try
             {
@@ -65,6 +68,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
 
         public static async Task<List<DownloadHistoryEntry>> GetHistoryAsync()
         {
+            if (string.IsNullOrEmpty(HistoryPath)) return new List<DownloadHistoryEntry>();
             await _lock.WaitAsync();
             try
             {
@@ -88,6 +92,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
         
         public static async Task SaveAllEntriesAsync(List<DownloadHistoryEntry> entries)
         {
+            if (string.IsNullOrEmpty(HistoryPath)) return;
             await _lock.WaitAsync();
             try
             {
@@ -107,6 +112,7 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
 
         public static async Task ClearHistoryAsync()
         {
+            if (string.IsNullOrEmpty(HistoryPath)) return;
             await _lock.WaitAsync();
             try
             {
