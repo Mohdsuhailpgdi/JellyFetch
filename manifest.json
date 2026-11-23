@@ -12,7 +12,7 @@
         "version": "1.3.8.11",
         "changelog": "v1.3.8.11: Expanded IsCamPrint to filter out HDTS, Telesync, HDCAM, and theater prints. Added IsCamTopic early topic abortion and CAM/HDTS purging in scraper startup sweep and Smart Cleanup.",
         "targetAbi": "12.2.0.0",
-        "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/main/Jellyfin.Plugin.JellyFetch.zip",
+        "sourceUrl": "https://raw.githubusercontent.com/Mohdsuhailpgdi/JellyFetch/dev/Jellyfin.Plugin.JellyFetch.zip",
         "checksum": "B4E56396318AE886FD0316635956B087",
         "timestamp": "2026-11-23T22:40:00Z"
       },
