@@ -5,7 +5,7 @@
   
   **Automated media scraping, cloud downloading, and library injection for Jellyfin.**
   
-  [![Version](https://img.shields.io/badge/version-1.3.8.10-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
+  [![Version](https://img.shields.io/badge/version-1.3.8.11-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
   [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9.x--12.x-orange)](https://jellyfin.org)
   [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey)](https://github.com/Mohdsuhailpgdi/JellyFetch)
 </div>
@@ -17,10 +17,20 @@ This plugin is specifically optimized for Indian media consumers. The default sc
 
 ---
 
-## ✨ What's New in v1.3.8.10 — Range Resume Guard, Torrent Download Cleanup & History Null-Safety
+## ✨ What's New in v1.3.8.11 — Comprehensive Theater / HDTS & CAM Filter Hardening
+- **Comprehensive Theater / HDTS Filter (`IsCamPrint`)**: Expanded magnet-level quality filtering to cover `hdts`, `hq hdts`, `telesync`, `camrip`, `hdtc`, `dvdscr`, `screener`, and `theater-rip`. Eliminates releases tagged as HDTS/Telesync from bypassing magnet filtering.
+- **Topic-Level Early Abortion (`IsCamTopic`)**: Before parsing individual magnets, forum topics whose `<title>` or URL indicates a theater or telesync print are immediately skipped, reducing unnecessary network requests and preventing front-page theater releases from being ingested.
+- **Auto-Purge Existing CAM/HDTS Copies in Sweeps & Cleanup**: Integrated `IsCamPrint` verification into both the scraper startup sweep (`RunScrapeAsync`) and Smart Cleanup (`ExecuteCleanupAsync`), automatically pruning legacy theater `.strm` dummy folders.
+- **UI Quality Filtering**: Filtered theater prints in `GetOptions` so low-quality prints are never presented as download options in the modal.
+
+<details>
+<summary><b>📜 What's New in v1.3.8.10 — Range Resume Guard, Torrent Download Cleanup & History Null-Safety</b></summary>
+
 - **Range Resume Corruption Guard**: In `StreamWithProgressAsync`, if a remote streaming or download server returns `200 OK` (indicating range requests are unsupported) when `totalRead > 0`, `totalRead` and `lastBytes` are reset to 0 to prevent duplicating already-written bytes at the start of the media file and corrupting the video container.
 - **Active Download Cleanup on Torrent Failure & Cancellation**: In `ProcessSeedrDownload` and `ProcessTorboxDownload`, added `_activeDownloads.TryRemove(normalizedId, out _)` in error and cancellation blocks, preventing items from remaining permanently stuck in the active downloads map and leaking memory.
 - **DownloadHistoryManager Null Safety**: Protected `DownloadHistoryManager.HistoryPath` against null dereferences when `Plugin.Instance` is not yet initialized, and ensured the directory structure exists before writing history.
+
+</details>
 
 <details>
 <summary><b>📜 What's New in v1.3.8.9 — Cloud Mount Safety Guard, Blocklist Cleanup Sync & Scraper Concurrency Hardening</b></summary>
