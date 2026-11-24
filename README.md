@@ -5,7 +5,7 @@
   
   **Automated media scraping, cloud downloading, and library injection for Jellyfin.**
   
-  [![Version](https://img.shields.io/badge/version-1.3.8.11-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
+  [![Version](https://img.shields.io/badge/version-1.3.8.12-blue)](https://github.com/Mohdsuhailpgdi/JellyFetch/releases/latest)
   [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9.x--12.x-orange)](https://jellyfin.org)
   [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey)](https://github.com/Mohdsuhailpgdi/JellyFetch)
 </div>
@@ -17,11 +17,20 @@ This plugin is specifically optimized for Indian media consumers. The default sc
 
 ---
 
-## ✨ What's New in v1.3.8.11 — Comprehensive Theater / HDTS & CAM Filter Hardening
+## ✨ What's New in v1.3.8.12 — Unindexed Regional Release Protection & DateAdded Preservation
+- **Startup Sweep Saved Language Check**: Evaluates `downloads.json` (`options[0].languages`) before language evaluation during startup sweeps. Prevents unindexed or upcoming regional releases (e.g. *The Grandmaster*) without TMDB/OMDB matches from being prematurely deleted and re-scraped as brand-new movies on every run.
+- **Smart Cleanup Alignment**: Updated `ExecuteCleanupAsync` to only flag movies for deselected language removal when TMDB confirms an excluded original language or `downloads.json` contains no allowed languages.
+- **Historical DateAdded Preservation**: When re-verifying or scraping `.strm` files, preserves existing `<dateadded>` timestamps in `movie.nfo`, preventing releases from being repeatedly pushed to the front of "Recently Added in Movies".
+
+<details>
+<summary><b>📜 What's New in v1.3.8.11 — Comprehensive Theater / HDTS & CAM Filter Hardening</b></summary>
+
 - **Comprehensive Theater / HDTS Filter (`IsCamPrint`)**: Expanded magnet-level quality filtering to cover `hdts`, `hq hdts`, `telesync`, `camrip`, `hdtc`, `dvdscr`, `screener`, and `theater-rip`. Eliminates releases tagged as HDTS/Telesync from bypassing magnet filtering.
 - **Topic-Level Early Abortion (`IsCamTopic`)**: Before parsing individual magnets, forum topics whose `<title>` or URL indicates a theater or telesync print are immediately skipped, reducing unnecessary network requests and preventing front-page theater releases from being ingested.
 - **Auto-Purge Existing CAM/HDTS Copies in Sweeps & Cleanup**: Integrated `IsCamPrint` verification into both the scraper startup sweep (`RunScrapeAsync`) and Smart Cleanup (`ExecuteCleanupAsync`), automatically pruning legacy theater `.strm` dummy folders.
 - **UI Quality Filtering**: Filtered theater prints in `GetOptions` so low-quality prints are never presented as download options in the modal.
+
+</details>
 
 <details>
 <summary><b>📜 What's New in v1.3.8.10 — Range Resume Guard, Torrent Download Cleanup & History Null-Safety</b></summary>

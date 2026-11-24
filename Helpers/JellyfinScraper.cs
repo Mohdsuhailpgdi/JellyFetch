@@ -720,10 +720,11 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                         catch { }
                     }
                     bool isBlocked = IsBlocklisted(dFull, dBase, diskTmdbId, blocklist);
-                    var (langs, ok, _, _, _) = await DetectLanguageAsync(dName, "", allowedLangs, dBase, dYear);
+                    var (langs, ok, _, _, origLangs) = await DetectLanguageAsync(dName, "", allowedLangs, dBase, dYear);
 
-                    // Auto-purge existing CAM/HDTS/theater prints
+                    // Check downloads.json for release languages and CAM/HDTS prints
                     bool isCam = false;
+                    var movieLangs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     var jsonPath = Path.Combine(dir, "downloads.json");
                     if (File.Exists(jsonPath))
                     {
@@ -731,15 +732,53 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                         {
                             var jContent = File.ReadAllText(jsonPath);
                             var scrapedOpts = JsonSerializer.Deserialize<List<ScrapedMagnetOption>>(jContent);
-                            if (scrapedOpts != null && scrapedOpts.Count > 0 && scrapedOpts.All(opt => IsCamPrint(opt.dn)))
+                            if (scrapedOpts != null && scrapedOpts.Count > 0)
                             {
-                                isCam = true;
+                                if (scrapedOpts.All(opt => IsCamPrint(opt.dn)))
+                                {
+                                    isCam = true;
+                                }
+                                foreach (var opt in scrapedOpts)
+                                {
+                                    if (opt.languages != null)
+                                    {
+                                        foreach (var l in opt.languages) movieLangs.Add(l);
+                                    }
+                                }
                             }
                         }
                         catch { }
                     }
 
-                    if (!ok || isBlocked || isCam)
+                    bool isDeselectedLanguage = false;
+                    if (allowedLangs.Count > 0)
+                    {
+                        // 1. Strict TMDB Original Language Check: If TMDB identified original language(s) (e.g. Kannada),
+                        // and NONE are in allowedLangs, prune this dubbed release immediately.
+                        if (origLangs != null && origLangs.Count > 0)
+                        {
+                            if (!origLangs.Any(allowedLangs.Contains))
+                            {
+                                isDeselectedLanguage = true;
+                            }
+                        }
+                        // 2. Saved Release Language Check: If TMDB had no match (unindexed regional film),
+                        // verify the scraped forum release languages saved in downloads.json.
+                        else if (movieLangs.Count > 0)
+                        {
+                            if (!movieLangs.Any(allowedLangs.Contains))
+                            {
+                                isDeselectedLanguage = true;
+                            }
+                        }
+                        // 3. Fallback: If neither TMDB nor downloads.json provided languages, rely on DetectLanguageAsync ok flag.
+                        else if (!ok)
+                        {
+                            isDeselectedLanguage = true;
+                        }
+                    }
+
+                    if (isDeselectedLanguage || isBlocked || isCam)
                     {
                         try
                         {
@@ -974,6 +1013,22 @@ namespace Jellyfin.Plugin.JellyFetch.Helpers
                         {
                             await File.WriteAllTextAsync(strm, "http://localhost:8096/dummy.mp4", tct);
                             string dateAddedStr = DateTime.UtcNow.AddMinutes(-Math.Min(task.PriorityIndex, 20000)).ToString("yyyy-MM-dd HH:mm:ss");
+
+                            // Preserve historical dateadded if movie.nfo already exists
+                            var existingNfoPath = Path.Combine(mDir, "movie.nfo");
+                            if (File.Exists(existingNfoPath))
+                            {
+                                try
+                                {
+                                    var existingTxt = File.ReadAllText(existingNfoPath);
+                                    var dm = Regex.Match(existingTxt, @"<dateadded>([^<]+)</dateadded>", RegexOptions.IgnoreCase);
+                                    if (dm.Success && !string.IsNullOrWhiteSpace(dm.Groups[1].Value))
+                                    {
+                                        dateAddedStr = dm.Groups[1].Value.Trim();
+                                    }
+                                }
+                                catch { }
+                            }
                             
                             if (!string.IsNullOrEmpty(tmdbId))
                             {

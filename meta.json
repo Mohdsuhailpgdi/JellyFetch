@@ -1,6 +1,6 @@
 {
     "category": "General",
-    "changelog": "v1.3.8.11: Expanded IsCamPrint and added IsCamTopic early abortion to filter out HDTS, Telesync, HDCAM, and theater prints. Added CAM/HDTS purging to scraper startup sweep and Smart Cleanup.",
+    "changelog": "v1.3.8.12: Fixed unindexed regional releases from being deleted in startup sweep by verifying saved release languages in downloads.json before language checks. Preserved historical dateadded in movie.nfo.",
     "description": "Native Downloads ecosystem for Jellyfin. Scrapes external forums for new media and integrates with Seedr and Torbox for downloading.",
     "guid": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
     "imageUrl": "",
@@ -8,8 +8,8 @@
     "overview": "External media scraper and download manager. Integrates Seedr and Torbox.",
     "owner": "LAB Hermes",
     "targetAbi": "12.2.0.0",
-    "timestamp": "2026-11-23T22:40:00Z",
-    "version": "1.3.8.11",
+    "timestamp": "2026-11-24T19:25:00Z",
+    "version": "1.3.8.12",
     "status": "Active",
     "autoUpdate": false
 }

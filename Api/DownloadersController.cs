@@ -1858,10 +1858,16 @@ public class DownloadersController : ControllerBase
                             var (detectLangs, ok, tmdbId, imdbId, origLangs) = await scraper.DetectLanguageAsync(dirName, "", allowedLangs, dBase, dYear);
                             if (!ok)
                             {
-                                isDeselectedLanguage = true;
+                                // If TMDB identified an original language that is excluded:
                                 if (origLangs != null && origLangs.Count > 0)
                                 {
+                                    isDeselectedLanguage = true;
                                     movieLangs = origLangs;
+                                }
+                                // If TMDB had no match (unindexed regional film), only prune if downloads.json also had no allowed language:
+                                else if (!movieLangs.Any(l => allowedLangs.Contains(l)))
+                                {
+                                    isDeselectedLanguage = true;
                                 }
                             }
                         }
